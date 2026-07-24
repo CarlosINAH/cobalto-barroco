@@ -1,10 +1,18 @@
-import { SignJWT, jwtVerify } from "jose";
+import { EncryptJWT, jwtDecrypt } from "jose";
 
 export type Role = "admin" | "empleado";
 
 export interface Session {
+  /** Nombre de usuario en el NAS. */
   username: string;
   role: Role;
+  /**
+   * Contraseña del NAS del usuario. Se guarda CIFRADA dentro de la cookie
+   * (JWE / AES-256-GCM) para poder acceder a sus archivos "como él mismo",
+   * de modo que el propio NAS imponga qué puede ver. Nunca sale del servidor
+   * en claro ni se persiste fuera de la cookie httpOnly.
+   */
+  pw: string;
 }
 
 /** Nombre de la cookie de sesión. */
@@ -13,16 +21,22 @@ export const SESSION_COOKIE = "cb_session";
 /** Duración de la sesión, en segundos (12 horas). */
 export const SESSION_MAX_AGE = 60 * 60 * 12;
 
-function secret(): Uint8Array {
+let cachedKey: Uint8Array | null = null;
+
+/** Deriva una clave simétrica de 32 bytes a partir de SESSION_SECRET. */
+async function getKey(): Promise<Uint8Array> {
+  if (cachedKey) return cachedKey;
   const s = process.env.SESSION_SECRET;
   if (!s) throw new Error("SESSION_SECRET no está configurado");
-  return new TextEncoder().encode(s);
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(s),
+  );
+  cachedKey = new Uint8Array(digest);
+  return cachedKey;
 }
 
-/**
- * Determina si un usuario es administrador según la lista ADMIN_USERS
- * (nombres de usuario del NAS separados por comas).
- */
+/** Lista de administradores (usuarios del NAS separados por comas). */
 export function isAdmin(username: string): boolean {
   const admins = (process.env.ADMIN_USERS || "")
     .split(",")
@@ -31,24 +45,32 @@ export function isAdmin(username: string): boolean {
   return admins.includes(username.trim().toLowerCase());
 }
 
-/** Firma un token de sesión (JWT HS256) con el usuario y su rol. */
+/** Crea el token de sesión cifrado (JWE, AES-256-GCM). */
 export async function createSessionToken(session: Session): Promise<string> {
-  return await new SignJWT({ role: session.role })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(session.username)
+  const key = await getKey();
+  return await new EncryptJWT({
+    username: session.username,
+    role: session.role,
+    pw: session.pw,
+  })
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
-    .sign(secret());
+    .encrypt(key);
 }
 
-/** Verifica un token de sesión; devuelve la sesión o null si es inválido. */
-export async function verifySessionToken(token: string): Promise<Session | null> {
+/** Descifra y valida el token; devuelve la sesión o null. */
+export async function readSessionToken(
+  token: string,
+): Promise<Session | null> {
   try {
-    const { payload } = await jwtVerify(token, secret());
-    if (!payload.sub) return null;
+    const key = await getKey();
+    const { payload } = await jwtDecrypt(token, key);
+    if (!payload.username || typeof payload.pw !== "string") return null;
     return {
-      username: String(payload.sub),
+      username: String(payload.username),
       role: payload.role === "admin" ? "admin" : "empleado",
+      pw: payload.pw,
     };
   } catch {
     return null;
