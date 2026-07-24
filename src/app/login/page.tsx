@@ -1,47 +1,49 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Lock, Mail, AlertCircle, Info } from "lucide-react";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Eye, EyeOff, Lock, User, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 
-// Demo accounts — only for exploration of the prototype.
-// Eventually this will be replaced by Supabase Auth.
-const DEMO_ACCOUNTS = [
-  { user: "admin", pass: "admin", role: "admin" as const },
-  { user: "empleado", pass: "empleado", role: "empleado" as const },
-];
-
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [show, setShow] = useState(false);
-  const [role, setRole] = useState<"empleado" | "admin">("admin");
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
-    const match = DEMO_ACCOUNTS.find(
-      (a) => a.user === user.trim().toLowerCase() && a.pass === pass
-    );
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, password: pass }),
+      });
+      const data = await res.json();
 
-    if (!match) {
-      setError("Usuario o contraseña incorrectos.");
-      return;
+      if (!res.ok) {
+        setError(data.error || "No se pudo iniciar sesión.");
+        return;
+      }
+
+      // Redirige a donde intentaba ir, o a su dashboard según rol.
+      const next = searchParams.get("next");
+      const fallback = `/dashboard/${data.role}`;
+      const dest =
+        next && next.startsWith("/dashboard") ? next : fallback;
+      router.push(dest);
+      router.refresh();
+    } catch {
+      setError("Error de conexión. Intenta de nuevo.");
+    } finally {
+      setLoading(false);
     }
-
-    // Redirect according to the account's actual role (ignoring the selector if it doesn't match)
-    router.push(`/dashboard/${match.role}`);
-  };
-
-  const fillDemo = (account: typeof DEMO_ACCOUNTS[number]) => {
-    setUser(account.user);
-    setPass(account.pass);
-    setRole(account.role);
-    setError("");
   };
 
   return (
@@ -72,58 +74,11 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Demo credentials helper */}
-        <div className="bg-[#C9A84C]/10 border border-[#C9A84C]/30 p-4 mb-5">
-          <div className="flex items-start gap-2 mb-3">
-            <Info size={14} className="text-[#C9A84C] mt-0.5 shrink-0" />
-            <p className="text-[#C9A84C] text-xs leading-relaxed">
-              <span className="font-bold uppercase tracking-wider">
-                Cuentas de prueba
-              </span>
-              <br />
-              <span className="text-[#F5F2EC]/60">
-                Click para autocompletar
-              </span>
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <button
-                key={acc.user}
-                type="button"
-                onClick={() => fillDemo(acc)}
-                className="border border-[#C9A84C]/40 hover:border-[#C9A84C] bg-[#1B2A5E]/40 hover:bg-[#1B2A5E] py-2 px-3 text-left transition-all"
-              >
-                <p className="text-[#C9A84C] text-xs tracking-widest uppercase font-bold mb-0.5">
-                  {acc.role}
-                </p>
-                <p className="text-[#F5F2EC]/70 text-xs font-mono">
-                  {acc.user} / {acc.pass}
-                </p>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Card */}
         <div className="bg-[#F5F2EC] p-8">
-          {/* Role selector */}
-          <div className="grid grid-cols-2 gap-2 mb-6">
-            {(["empleado", "admin"] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={`py-2.5 text-xs tracking-widest uppercase font-semibold transition-all duration-200 ${
-                  role === r
-                    ? "bg-[#1B2A5E] text-[#C9A84C]"
-                    : "bg-[#EDE9E0] text-[#7A7A7A] hover:bg-[#E0DDD5]"
-                }`}
-              >
-                {r === "admin" ? "Administrador" : "Empleado"}
-              </button>
-            ))}
-          </div>
+          <p className="text-[#7A7A7A] text-xs leading-relaxed mb-6 text-center">
+            Ingresa con tu cuenta del servidor Cobalto Barroco.
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* User */}
@@ -132,16 +87,17 @@ export default function LoginPage() {
                 Usuario
               </label>
               <div className="relative">
-                <Mail
+                <User
                   size={14}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]"
                 />
                 <input
                   type="text"
                   required
+                  autoComplete="username"
                   value={user}
                   onChange={(e) => setUser(e.target.value)}
-                  placeholder="admin"
+                  placeholder="tu.usuario"
                   className="w-full border border-[#EDE9E0] bg-white text-[#2C2C2C] pl-9 pr-4 py-3 text-sm focus:outline-none focus:border-[#C9A84C] transition-colors placeholder:text-[#C0BDB8]"
                 />
               </div>
@@ -160,6 +116,7 @@ export default function LoginPage() {
                 <input
                   type={show ? "text" : "password"}
                   required
+                  autoComplete="current-password"
                   value={pass}
                   onChange={(e) => setPass(e.target.value)}
                   placeholder="••••••••"
@@ -183,20 +140,13 @@ export default function LoginPage() {
               </div>
             )}
 
-            <div className="flex justify-end">
-              <a
-                href="#"
-                className="text-xs text-[#C9A84C] hover:underline tracking-wide"
-              >
-                ¿Olvidaste tu contraseña?
-              </a>
-            </div>
-
             <button
               type="submit"
-              className="w-full bg-[#1B2A5E] text-[#F5F2EC] py-3.5 text-xs tracking-widest uppercase font-bold hover:bg-[#243470] transition-colors duration-200 mt-2"
+              disabled={loading}
+              className="w-full bg-[#1B2A5E] text-[#F5F2EC] py-3.5 text-xs tracking-widest uppercase font-bold hover:bg-[#243470] transition-colors duration-200 mt-2 disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              Ingresar
+              {loading && <Loader2 size={14} className="animate-spin" />}
+              {loading ? "Verificando…" : "Ingresar"}
             </button>
           </form>
         </div>
@@ -206,5 +156,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

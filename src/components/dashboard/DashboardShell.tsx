@@ -149,13 +149,16 @@ export default function DashboardShell({
             {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
             {!collapsed && <span>Colapsar</span>}
           </button>
-          <Link
-            href="/login"
+          <button
+            onClick={async () => {
+              await fetch("/api/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
             className="w-full flex items-center gap-3 text-[#F5F2EC]/40 hover:text-red-400 px-1 py-2 text-sm transition-colors"
           >
             <LogOut size={16} className="shrink-0" />
             {!collapsed && <span>Salir</span>}
-          </Link>
+          </button>
         </div>
       </aside>
 
