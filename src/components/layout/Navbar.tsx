@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Menu, X } from "lucide-react";
+import Logo from "@/components/brand/Logo";
 
 const navLinks = [
   { label: "Inicio", href: "#inicio" },
@@ -34,13 +34,7 @@ export default function Navbar() {
       <nav className="max-w-7xl mx-auto px-6 flex items-center justify-between h-20">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3">
-          <Image
-            src="/logo.png"
-            alt="Cobalto Barroco"
-            width={48}
-            height={48}
-            className="rounded-sm object-contain bg-[#F5F2EC] p-1"
-          />
+          <Logo size={48} />
           <span
             className="text-[#F5F2EC] font-bold tracking-widest text-sm uppercase hidden sm:block"
             style={{ fontFamily: "var(--font-inter)" }}

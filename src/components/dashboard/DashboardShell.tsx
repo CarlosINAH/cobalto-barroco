@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Logo from "@/components/brand/Logo";
 import {
   LayoutDashboard,
   Mail,
@@ -78,14 +79,7 @@ export default function DashboardShell({
             collapsed ? "justify-center" : "gap-3"
           }`}
         >
-          <div className="w-8 h-8 bg-[#F5F2EC] flex items-center justify-center shrink-0">
-            <span
-              className="text-[#1B2A5E] font-bold text-xs"
-              style={{ fontFamily: "var(--font-playfair)" }}
-            >
-              CB
-            </span>
-          </div>
+          <Logo size={34} />
           {!collapsed && (
             <span
               className="text-[#F5F2EC] text-sm font-semibold truncate"
