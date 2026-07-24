@@ -67,12 +67,25 @@ export interface Attendance {
   createdAt: number;
 }
 
+export interface InventoryItem {
+  id: string;
+  nombre: string;
+  categoria: string;
+  cantidad: number;
+  unidad: string;
+  ubicacion: string;
+  nota: string;
+  createdAt: number;
+}
+
 export interface DBShape {
   projects: Project[];
   employees: Employee[];
   materials: MaterialRequest[];
   attendance: Attendance[];
   messages: Message[];
+  inventory: InventoryItem[];
+  seededEmployees?: boolean;
 }
 
 const EMPTY: DBShape = {
@@ -81,6 +94,7 @@ const EMPTY: DBShape = {
   materials: [],
   attendance: [],
   messages: [],
+  inventory: [],
 };
 
 function dbPath(): string {
