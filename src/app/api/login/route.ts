@@ -28,8 +28,13 @@ export async function POST(req: Request) {
     );
   }
 
+  // Modo desarrollo local: permite entrar sin NAS (nunca activo en producción).
+  const devLogin =
+    process.env.DEV_LOGIN === "true" &&
+    process.env.NODE_ENV !== "production";
+
   // Valida las credenciales contra el NAS (WebDAV).
-  const valid = await checkCredentials({ username, password });
+  const valid = devLogin || (await checkCredentials({ username, password }));
   if (!valid) {
     return NextResponse.json(
       { error: "Usuario o contraseña incorrectos." },
