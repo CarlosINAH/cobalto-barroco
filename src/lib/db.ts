@@ -26,10 +26,24 @@ export interface Employee {
   /** Usuario del NAS (coincide con su login). */
   username: string;
   nombre: string;
+  email: string;
   rol: string;
   ranking: number;
   habilidades: string[];
   proyectoId: string | null;
+  createdAt: number;
+}
+
+export interface Message {
+  id: string;
+  fromUsername: string;
+  fromNombre: string;
+  toUsername: string;
+  toEmail: string;
+  asunto: string;
+  cuerpo: string;
+  emailEnviado: boolean;
+  leido: boolean;
   createdAt: number;
 }
 
@@ -58,6 +72,7 @@ export interface DBShape {
   employees: Employee[];
   materials: MaterialRequest[];
   attendance: Attendance[];
+  messages: Message[];
 }
 
 const EMPTY: DBShape = {
@@ -65,6 +80,7 @@ const EMPTY: DBShape = {
   employees: [],
   materials: [],
   attendance: [],
+  messages: [],
 };
 
 function dbPath(): string {

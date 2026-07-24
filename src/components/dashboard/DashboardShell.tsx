@@ -32,7 +32,7 @@ interface NavItem {
 
 const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Inicio", href: "/dashboard/empleado" },
-  { icon: Mail, label: "Bandeja de entrada", href: "/dashboard/empleado/correo", badge: 3 },
+  { icon: Mail, label: "Mensajes", href: "/dashboard/empleado/correo" },
   { icon: FolderOpen, label: "Proyecto asignado", href: "/dashboard/empleado/proyecto" },
   { icon: BookOpen, label: "Repositorio", href: "/dashboard/empleado/repositorio" },
   { icon: Star, label: "Mis habilidades", href: "/dashboard/empleado/habilidades" },
@@ -42,7 +42,7 @@ const empleadoNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/admin" },
-  { icon: Mail, label: "Correo", href: "/dashboard/admin/correo", badge: 5 },
+  { icon: Mail, label: "Mensajes", href: "/dashboard/admin/correo" },
   { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
   { icon: Users, label: "Personal", href: "/dashboard/admin/personal" },
   { icon: Package, label: "Inventario", href: "/dashboard/admin/inventario" },
