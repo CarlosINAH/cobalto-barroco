@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "@/components/brand/Logo";
@@ -61,9 +61,26 @@ export default function DashboardShell({
   title: string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [me, setMe] = useState<{ nombre: string; rol: string; unread: number } | null>(null);
   const pathname = usePathname();
   const nav = role === "empleado" ? empleadoNav : adminNav;
   const roleLabel = role === "empleado" ? "Empleado" : "Administrador";
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setMe({ nombre: d.nombre, rol: d.rol, unread: d.unread }))
+      .catch(() => {});
+  }, []);
+
+  const initials = (me?.nombre || (role === "admin" ? "Admin" : "Emp"))
+    .split(" ")
+    .map((s) => s[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  const mensajesHref =
+    role === "admin" ? "/dashboard/admin/correo" : "/dashboard/empleado/correo";
 
   return (
     <div className="flex h-screen bg-[#F5F2EC] overflow-hidden">
@@ -167,25 +184,27 @@ export default function DashboardShell({
             {title}
           </h1>
           <div className="flex items-center gap-4">
-            <button className="relative text-[#7A7A7A] hover:text-[#1B2A5E] transition-colors">
+            <Link
+              href={mensajesHref}
+              className="relative text-[#7A7A7A] hover:text-[#1B2A5E] transition-colors"
+              title="Mensajes"
+            >
               <Bell size={18} />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#C9A84C] rounded-full text-[8px] text-[#1B2A5E] font-bold flex items-center justify-center">
-                2
-              </span>
-            </button>
+              {me && me.unread > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#C9A84C] rounded-full text-[8px] text-[#1B2A5E] font-bold flex items-center justify-center">
+                  {me.unread}
+                </span>
+              )}
+            </Link>
             <div className="flex items-center gap-2 border-l border-[#EDE9E0] pl-4">
               <div className="w-8 h-8 bg-[#1B2A5E] flex items-center justify-center">
-                <span className="text-[#C9A84C] text-xs font-bold">
-                  {role === "admin" ? "AD" : "EM"}
-                </span>
+                <span className="text-[#C9A84C] text-xs font-bold">{initials}</span>
               </div>
               <div className="hidden sm:block">
                 <p className="text-[#2C2C2C] text-xs font-semibold">
-                  {role === "admin" ? "Administrador" : "Juan Pérez"}
+                  {me?.nombre || roleLabel}
                 </p>
-                <p className="text-[#7A7A7A] text-xs">
-                  {role === "admin" ? "Admin general" : "Restaurador"}
-                </p>
+                <p className="text-[#7A7A7A] text-xs">{me?.rol || roleLabel}</p>
               </div>
             </div>
           </div>

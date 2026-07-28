@@ -1,142 +1,104 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import Link from "next/link";
-import {
-  Mail,
-  FolderOpen,
-  BookOpen,
-  Star,
-  MapPin,
-  Package,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-} from "lucide-react";
+import { requireSession } from "@/lib/auth-server";
+import { getDB } from "@/lib/db";
+import { FolderOpen, BookOpen, Package, Star, MapPin, ArrowRight } from "lucide-react";
 
-const cards = [
-  {
-    icon: Mail,
-    label: "Bandeja de entrada",
-    value: "3 sin leer",
-    status: "alert",
-    href: "/dashboard/empleado/correo",
-    desc: "Tienes mensajes nuevos",
-  },
-  {
-    icon: FolderOpen,
-    label: "Proyecto asignado",
-    value: "Retablo Mayor",
-    status: "ok",
-    href: "/dashboard/empleado/proyecto",
-    desc: "En progreso · 65% completado",
-  },
-  {
-    icon: BookOpen,
-    label: "Repositorio",
-    value: "12 archivos",
-    status: "ok",
-    href: "/dashboard/empleado/repositorio",
-    desc: "Último upload: hace 2 días",
-  },
-  {
-    icon: Star,
-    label: "Mis habilidades",
-    value: "8 registradas",
-    status: "ok",
-    href: "/dashboard/empleado/habilidades",
-    desc: "Basadas en tu CV",
-  },
-  {
-    icon: MapPin,
-    label: "Asistencia",
-    value: "Hoy: Pendiente",
-    status: "warn",
-    href: "/dashboard/empleado/asistencia",
-    desc: "Registra tu entrada",
-  },
-  {
-    icon: Package,
-    label: "Solicitud de material",
-    value: "1 en revisión",
-    status: "warn",
-    href: "/dashboard/empleado/materiales",
-    desc: "Awaiting admin approval",
-  },
-];
+export const dynamic = "force-dynamic";
 
-const statusIcon = {
-  ok: <CheckCircle2 size={14} className="text-emerald-500" />,
-  warn: <Clock size={14} className="text-amber-500" />,
-  alert: <AlertCircle size={14} className="text-red-400" />,
-};
+export default async function InicioEmpleado() {
+  const session = await requireSession();
+  const db = await getDB();
+  const emp = db.employees.find(
+    (e) => e.username.toLowerCase() === session.username.toLowerCase(),
+  );
+  const proyecto = emp?.proyectoId
+    ? db.projects.find((p) => p.id === emp.proyectoId)
+    : null;
+  const misSolicitudes = db.materials.filter(
+    (m) => m.empleadoUsername.toLowerCase() === session.username.toLowerCase(),
+  );
+  const pendientes = misSolicitudes.filter((m) => m.estado === "pendiente").length;
 
-export default function EmpleadoHome() {
+  const accesos = [
+    { label: "Mi repositorio", href: "/dashboard/empleado/repositorio", icon: BookOpen },
+    { label: "Mis habilidades", href: "/dashboard/empleado/habilidades", icon: Star },
+    { label: "Asistencia", href: "/dashboard/empleado/asistencia", icon: MapPin },
+    { label: "Solicitar material", href: "/dashboard/empleado/materiales", icon: Package },
+  ];
+
   return (
-    <DashboardShell role="empleado" title="Mi panel">
-      {/* Welcome */}
-      <div className="mb-8">
-        <p className="text-[#7A7A7A] text-sm">
-          Bienvenido de vuelta,{" "}
-          <span className="text-[#1B2A5E] font-semibold">Juan Pérez</span>
+    <DashboardShell role="empleado" title="Inicio">
+      <div className="mb-6">
+        <h2 className="text-[#1B2A5E] text-2xl" style={{ fontFamily: "var(--font-playfair)" }}>
+          Hola, {emp?.nombre || session.username}
+        </h2>
+        <p className="text-[#7A7A7A] text-sm mt-1">
+          {emp?.rol || "Bienvenido a tu espacio de trabajo."}
         </p>
-        <div className="w-12 h-0.5 bg-[#C9A84C] mt-2" />
       </div>
 
-      {/* Quick cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-10">
-        {cards.map((c) => {
-          const Icon = c.icon;
+      {/* Proyecto asignado */}
+      <div className="bg-white border border-[#EDE9E0] p-6 mb-6">
+        <div className="flex items-center gap-2 text-[#7A7A7A] text-xs tracking-widest uppercase mb-3">
+          <FolderOpen size={14} className="text-[#C9A84C]" /> Proyecto asignado
+        </div>
+        {proyecto ? (
+          <Link href="/dashboard/empleado/proyecto" className="group block">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-[#1B2A5E] text-xl group-hover:text-[#C9A84C] transition-colors" style={{ fontFamily: "var(--font-playfair)" }}>
+                  {proyecto.nombre}
+                </h3>
+                {proyecto.ubicacion && <p className="text-[#7A7A7A] text-sm mt-0.5">{proyecto.ubicacion}</p>}
+              </div>
+              <span className="text-[#C9A84C] text-2xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>
+                {proyecto.avance}%
+              </span>
+            </div>
+            <div className="mt-3 h-1 bg-[#EDE9E0]">
+              <div className="h-1 bg-gradient-to-r from-[#1B2A5E] to-[#C9A84C]" style={{ width: `${proyecto.avance}%` }} />
+            </div>
+          </Link>
+        ) : (
+          <p className="text-[#7A7A7A] text-sm">Todavía no tienes un proyecto asignado.</p>
+        )}
+      </div>
+
+      {/* Resumen */}
+      <div className="grid gap-4 sm:grid-cols-2 mb-6">
+        <div className="bg-white border border-[#EDE9E0] p-5">
+          <p className="text-[#1B2A5E] text-3xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>
+            {pendientes}
+          </p>
+          <p className="text-[#7A7A7A] text-xs uppercase tracking-wider mt-1">
+            Solicitudes de material pendientes
+          </p>
+        </div>
+        <div className="bg-white border border-[#EDE9E0] p-5">
+          <p className="text-[#1B2A5E] text-3xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>
+            {emp?.habilidades.length || 0}
+          </p>
+          <p className="text-[#7A7A7A] text-xs uppercase tracking-wider mt-1">Habilidades registradas</p>
+        </div>
+      </div>
+
+      {/* Accesos rápidos */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {accesos.map((a) => {
+          const Icon = a.icon;
           return (
             <Link
-              key={c.href}
-              href={c.href}
-              className="bg-white border border-[#EDE9E0] p-5 hover:border-[#C9A84C]/50 hover:shadow-sm transition-all duration-200 group"
+              key={a.href}
+              href={a.href}
+              className="bg-white border border-[#EDE9E0] p-4 flex items-center gap-3 hover:border-[#C9A84C]/50 transition-colors group"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-[#1B2A5E]/5 flex items-center justify-center group-hover:bg-[#1B2A5E] transition-colors duration-200">
-                  <Icon
-                    size={18}
-                    className="text-[#1B2A5E] group-hover:text-[#C9A84C] transition-colors duration-200"
-                  />
-                </div>
-                {statusIcon[c.status as keyof typeof statusIcon]}
-              </div>
-              <p className="text-[#7A7A7A] text-xs tracking-wider uppercase mb-1">
-                {c.label}
-              </p>
-              <p
-                className="text-[#1B2A5E] text-lg font-semibold mb-1"
-                style={{ fontFamily: "var(--font-playfair)" }}
-              >
-                {c.value}
-              </p>
-              <p className="text-[#7A7A7A] text-xs">{c.desc}</p>
+              <Icon size={18} className="text-[#C9A84C]" />
+              <span className="text-[#2C2C2C] text-sm flex-1">{a.label}</span>
+              <ArrowRight size={14} className="text-[#EDE9E0] group-hover:text-[#C9A84C]" />
             </Link>
           );
         })}
-      </div>
-
-      {/* Today's quick action - Attendance */}
-      <div className="bg-[#1B2A5E] p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <p className="text-[#C9A84C] text-xs tracking-widest uppercase mb-1 font-semibold">
-            Acción rápida
-          </p>
-          <h2
-            className="text-[#F5F2EC] text-xl"
-            style={{ fontFamily: "var(--font-playfair)" }}
-          >
-            Registra tu asistencia de hoy
-          </h2>
-          <p className="text-[#F5F2EC]/50 text-sm mt-1">
-            Lunes 1 de junio · Se usará tu ubicación GPS
-          </p>
-        </div>
-        <Link
-          href="/dashboard/empleado/asistencia"
-          className="bg-[#C9A84C] text-[#1B2A5E] px-6 py-3 text-xs tracking-widest uppercase font-bold hover:bg-[#D4B86A] transition-colors shrink-0"
-        >
-          Marcar entrada
-        </Link>
       </div>
     </DashboardShell>
   );
