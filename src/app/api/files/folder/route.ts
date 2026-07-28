@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-server";
-import { makeDir } from "@/lib/files";
+import { getSession, credsOf } from "@/lib/auth-server";
+import { makeDirectory } from "@/lib/webdav";
 
 export const runtime = "nodejs";
 
@@ -22,12 +22,14 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  const target = body.path ? `${body.path}/${name}` : name;
   try {
-    await makeDir(session, `${body.path || ""}/${name}`);
+    const ok = await makeDirectory(credsOf(session), target);
+    if (!ok) throw new Error("mkcol");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(
-      { error: "No se pudo crear la carpeta." },
+      { error: "No se pudo crear la carpeta (¿permiso del NAS?)." },
       { status: 403 },
     );
   }

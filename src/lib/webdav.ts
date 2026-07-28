@@ -148,9 +148,10 @@ export async function deleteEntry(
 /** Parsea la respuesta XML multi-status de PROPFIND (sin dependencias). */
 function parsePropfind(xml: string, currentDir: string): WebDavEntry[] {
   const entries: WebDavEntry[] = [];
-  // Divide por <response> (con o sin prefijo de namespace: D:, d:, lp1:, etc.).
-  // Con Depth:1, la primera entrada es la propia carpeta consultada -> se omite.
-  const responses = xml.split(/<[^>]*?:?response[\s>]/i).slice(2);
+  // Divide por <response> de APERTURA (con o sin prefijo: D:, d:, lp1:, etc.),
+  // sin capturar los cierres </response>. Con Depth:1, la primera entrada es la
+  // propia carpeta consultada -> se omite (slice(2): [cabecera, self, ...hijos]).
+  const responses = xml.split(/<(?:[a-zA-Z0-9_-]+:)?response[\s>]/i).slice(2);
   for (const chunk of responses) {
     const href = firstTag(chunk, "href");
     if (!href) continue;
@@ -160,7 +161,7 @@ function parsePropfind(xml: string, currentDir: string): WebDavEntry[] {
     } catch {
       decoded = href;
     }
-    const isDir = /<[^>]*?:?collection\b/i.test(chunk);
+    const isDir = /<(?:[a-zA-Z0-9_-]+:)?collection[\s/>]/i.test(chunk);
     const size = parseInt(firstTag(chunk, "getcontentlength") || "0", 10) || 0;
     const modified = firstTag(chunk, "getlastmodified");
 
@@ -180,8 +181,10 @@ function parsePropfind(xml: string, currentDir: string): WebDavEntry[] {
 }
 
 function firstTag(chunk: string, tag: string): string | null {
+  // [^] = cualquier carácter (incl. saltos de línea) sin usar \s\S, que dentro
+  // de un template string pierde la barra invertida y rompe el patrón.
   const re = new RegExp(
-    `<[^>]*?:?${tag}[^>]*>([\\s\\S]*?)</[^>]*?:?${tag}>`,
+    `<(?:[a-zA-Z0-9_-]+:)?${tag}[^>]*>([^]*?)</(?:[a-zA-Z0-9_-]+:)?${tag}>`,
     "i",
   );
   const m = chunk.match(re);

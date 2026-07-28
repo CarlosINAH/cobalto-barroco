@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-server";
-import { saveFile } from "@/lib/files";
+import { getSession, credsOf } from "@/lib/auth-server";
+import { uploadFile } from "@/lib/webdav";
 
 export const runtime = "nodejs";
 
@@ -26,16 +26,23 @@ export async function POST(req: Request) {
     );
   }
 
-  try {
-    for (const file of files) {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      await saveFile(session, dir, file.name, buf);
+  const creds = credsOf(session);
+  let ok = 0;
+  for (const file of files) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const target = dir ? `${dir}/${file.name}` : file.name;
+    try {
+      if (await uploadFile(creds, target, buf)) ok++;
+    } catch {
+      /* continúa con los demás */
     }
-    return NextResponse.json({ ok: true, count: files.length });
-  } catch {
+  }
+
+  if (ok === 0) {
     return NextResponse.json(
-      { error: "No se pudo guardar en esa ubicación." },
+      { error: "No se pudo guardar en esa ubicación (¿permiso del NAS?)." },
       { status: 403 },
     );
   }
+  return NextResponse.json({ ok: true, count: ok });
 }

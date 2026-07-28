@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-server";
-import { removeEntry } from "@/lib/files";
+import { getSession, credsOf } from "@/lib/auth-server";
+import { deleteEntry } from "@/lib/webdav";
 
 export const runtime = "nodejs";
 
@@ -15,12 +15,16 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
+  if (!body.path) {
+    return NextResponse.json({ error: "Ruta inválida." }, { status: 400 });
+  }
   try {
-    await removeEntry(session, body.path || "");
+    const ok = await deleteEntry(credsOf(session), body.path);
+    if (!ok) throw new Error("delete");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(
-      { error: "No se pudo eliminar." },
+      { error: "No se pudo eliminar (¿permiso del NAS?)." },
       { status: 403 },
     );
   }

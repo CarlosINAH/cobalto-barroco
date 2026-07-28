@@ -1,24 +1,21 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import FileBrowser from "@/components/files/FileBrowser";
 import { requireSession } from "@/lib/auth-server";
-import { ensureBase } from "@/lib/files";
 
 export const dynamic = "force-dynamic";
 
 export default async function RepositorioEmpleado() {
   const session = await requireSession();
-  // Garantiza que exista la carpeta personal del empleado.
-  await ensureBase(session);
 
   return (
     <DashboardShell role="empleado" title="Mi repositorio">
       <div className="mb-5">
         <p className="text-[#7A7A7A] text-sm">
-          Tus archivos personales, {session.username}. Solo tú y la
-          administración pueden verlos.
+          Tus carpetas y archivos en el NAS, {session.username}. Solo ves lo que
+          el NAS te permite.
         </p>
       </div>
-      <FileBrowser rootLabel="Mi repositorio" />
+      <FileBrowser rootLabel="Mis archivos" />
     </DashboardShell>
   );
 }
