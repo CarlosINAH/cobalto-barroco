@@ -1,5 +1,9 @@
+import Reveal from "@/components/ui/Reveal";
+import SectionHeading from "@/components/ui/SectionHeading";
+
 const projects = [
   {
+    ref: "PM-2023",
     category: "Pintura Mural",
     title: "Capilla del Ex-Convento de San Francisco",
     location: "Ciudad de México",
@@ -7,6 +11,7 @@ const projects = [
     desc: "Restauración integral de pinturas murales del siglo XVII. Consolidación de estratos pictóricos y reintegración cromática.",
   },
   {
+    ref: "FH-2023",
     category: "Fachada Histórica",
     title: "Palacio de la Reforma",
     location: "Puebla, México",
@@ -14,6 +19,7 @@ const projects = [
     desc: "Intervención en fachada neoclásica. Limpieza, reparación de cantería y tratamiento de elementos ornamentales.",
   },
   {
+    ref: "RT-2022",
     category: "Retablo",
     title: "Retablo Mayor Parroquia de San Miguel",
     location: "Oaxaca, México",
@@ -24,50 +30,44 @@ const projects = [
 
 export default function Projects() {
   return (
-    <section id="proyectos" className="bg-[#F5F2EC] py-28 px-6">
+    <section id="proyectos" className="bg-cream py-28 px-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <p className="text-[#C9A84C] text-xs tracking-[0.4em] uppercase mb-3 font-medium">
-            Nuestro trabajo
-          </p>
-          <h2
-            className="text-[#1B2A5E] text-4xl md:text-5xl mb-4"
-            style={{ fontFamily: "var(--font-playfair)" }}
-          >
-            Proyectos Destacados
-          </h2>
-          <div className="flex items-center justify-center gap-4">
-            <div className="h-px w-12 bg-[#C9A84C]" />
-            <div className="w-1.5 h-1.5 bg-[#C9A84C] rotate-45" />
-            <div className="h-px w-12 bg-[#C9A84C]" />
-          </div>
-        </div>
+        <SectionHeading index="03" eyebrow="Nuestro trabajo" title="Proyectos Destacados" />
 
         <div className="space-y-8">
           {projects.map((p, i) => (
-            <div
-              key={p.title}
-              className="group grid md:grid-cols-4 gap-6 bg-white border border-[#EDE9E0] p-8 hover:border-[#C9A84C]/40 transition-colors duration-300"
-            >
-              <div className="md:col-span-1">
-                <span className="text-[#C9A84C] text-xs tracking-widest uppercase font-semibold block mb-2">
-                  {p.category}
-                </span>
-                <span className="text-[#7A7A7A] text-xs">{p.location}</span>
-                <br />
-                <span className="text-[#7A7A7A] text-xs">{p.year}</span>
-              </div>
-              <div className="md:col-span-3">
-                <h3
-                  className="text-[#1B2A5E] text-2xl mb-3 group-hover:text-[#243470] transition-colors"
-                  style={{ fontFamily: "var(--font-playfair)" }}
-                >
-                  {p.title}
-                </h3>
-                <p className="text-[#7A7A7A] text-sm leading-relaxed">{p.desc}</p>
-              </div>
-            </div>
+            <Reveal key={p.title} delay={i * 90}>
+              <article className="group grid md:grid-cols-4 gap-6 bg-white border border-cream-dark p-8 hover:border-gold/40 transition-colors duration-300">
+                <div className="md:col-span-1">
+                  <span className="text-gold text-xs tracking-widest uppercase font-semibold block mb-2">
+                    {p.category}
+                  </span>
+                  <dl className="data-label text-muted text-xs space-y-1">
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-muted/60">REF</dt>
+                      <dd>{p.ref}</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-muted/60">LUGAR</dt>
+                      <dd className="text-right">{p.location}</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-muted/60">AÑO</dt>
+                      <dd>{p.year}</dd>
+                    </div>
+                  </dl>
+                </div>
+                <div className="md:col-span-3 md:border-l md:border-cream-dark md:pl-6">
+                  <h3
+                    className="text-navy text-2xl mb-3 group-hover:text-navy-light transition-colors"
+                    style={{ fontFamily: "var(--font-playfair)" }}
+                  >
+                    {p.title}
+                  </h3>
+                  <p className="text-muted text-sm leading-relaxed">{p.desc}</p>
+                </div>
+              </article>
+            </Reveal>
           ))}
         </div>
       </div>

@@ -1,12 +1,15 @@
-import Link from "next/link";
+import Reveal from "@/components/ui/Reveal";
 
 export default function Hero() {
   return (
     <section
       id="inicio"
-      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#1B2A5E]"
+      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-navy"
     >
-      {/* Subtle texture overlay */}
+      {/* Blueprint grid — the "technical" register under the barroque surface */}
+      <div className="absolute inset-0 blueprint-grid" />
+
+      {/* Subtle diagonal texture overlay */}
       <div
         className="absolute inset-0 opacity-10"
         style={{
@@ -20,59 +23,78 @@ export default function Hero() {
         }}
       />
 
+      {/* Radial vignette to focus the center */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 40%, rgba(20,32,74,0.55) 100%)",
+        }}
+      />
+
       {/* Gold corner ornaments */}
-      <div className="absolute top-28 left-8 w-16 h-16 border-l-2 border-t-2 border-[#C9A84C]/40" />
-      <div className="absolute top-28 right-8 w-16 h-16 border-r-2 border-t-2 border-[#C9A84C]/40" />
-      <div className="absolute bottom-16 left-8 w-16 h-16 border-l-2 border-b-2 border-[#C9A84C]/40" />
-      <div className="absolute bottom-16 right-8 w-16 h-16 border-r-2 border-b-2 border-[#C9A84C]/40" />
+      <div className="absolute top-28 left-8 w-16 h-16 border-l-2 border-t-2 border-gold/40" />
+      <div className="absolute top-28 right-8 w-16 h-16 border-r-2 border-t-2 border-gold/40" />
+      <div className="absolute bottom-16 left-8 w-16 h-16 border-l-2 border-b-2 border-gold/40" />
+      <div className="absolute bottom-16 right-8 w-16 h-16 border-r-2 border-b-2 border-gold/40" />
 
       <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
         {/* Eyebrow */}
-        <p className="text-[#C9A84C] text-xs tracking-[0.4em] uppercase mb-6 font-medium">
-          Restauración Artística &amp; Arquitectónica
-        </p>
+        <Reveal>
+          <p className="text-gold text-xs tracking-[0.4em] uppercase mb-6 font-medium">
+            Restauración Artística &amp; Arquitectónica
+          </p>
+        </Reveal>
 
         {/* Ornament */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <div className="h-px w-16 bg-gradient-to-r from-transparent to-[#C9A84C]" />
-          <div className="w-1.5 h-1.5 bg-[#C9A84C] rotate-45" />
-          <div className="h-px w-16 bg-gradient-to-l from-transparent to-[#C9A84C]" />
-        </div>
+        <Reveal delay={80}>
+          <div className="flex items-center justify-center gap-4 mb-8">
+            <div className="h-px w-16 bg-gradient-to-r from-transparent to-gold" />
+            <div className="w-1.5 h-1.5 bg-gold rotate-45" />
+            <div className="h-px w-16 bg-gradient-to-l from-transparent to-gold" />
+          </div>
+        </Reveal>
 
-        <h1
-          className="text-[#F5F2EC] text-5xl md:text-7xl leading-tight mb-6"
-          style={{ fontFamily: "var(--font-playfair)" }}
-        >
-          Cobalto
-          <br />
-          <span className="text-[#C9A84C] italic">Barroco</span>
-        </h1>
-
-        <p className="text-[#F5F2EC]/70 text-lg md:text-xl leading-relaxed mb-10 max-w-2xl mx-auto">
-          Conservamos el patrimonio artístico con la precisión del oficio
-          y la pasión de quienes aman lo que hacen.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a
-            href="#servicios"
-            className="bg-[#C9A84C] text-[#1B2A5E] px-8 py-3.5 text-sm tracking-widest uppercase font-bold hover:bg-[#D4B86A] transition-colors duration-200"
+        <Reveal delay={140}>
+          <h1
+            className="text-cream text-5xl md:text-7xl leading-tight mb-6"
+            style={{ fontFamily: "var(--font-playfair)" }}
           >
-            Nuestros Servicios
-          </a>
-          <a
-            href="#contacto"
-            className="border border-[#F5F2EC]/40 text-[#F5F2EC] px-8 py-3.5 text-sm tracking-widest uppercase hover:border-[#C9A84C] hover:text-[#C9A84C] transition-colors duration-200"
-          >
-            Contáctanos
-          </a>
-        </div>
+            Cobalto
+            <br />
+            <span className="text-gold italic">Barroco</span>
+          </h1>
+        </Reveal>
+
+        <Reveal delay={220}>
+          <p className="text-cream/70 text-lg md:text-xl leading-relaxed mb-10 max-w-2xl mx-auto">
+            Conservamos el patrimonio artístico con la precisión del oficio
+            y la pasión de quienes aman lo que hacen.
+          </p>
+        </Reveal>
+
+        <Reveal delay={300}>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href="#servicios"
+              className="bg-gold text-navy px-8 py-3.5 text-sm tracking-widest uppercase font-bold hover:bg-gold-light transition-colors duration-200"
+            >
+              Nuestros Servicios
+            </a>
+            <a
+              href="#contacto"
+              className="border border-cream/40 text-cream px-8 py-3.5 text-sm tracking-widest uppercase hover:border-gold hover:text-gold transition-colors duration-200"
+            >
+              Contáctanos
+            </a>
+          </div>
+        </Reveal>
       </div>
 
       {/* Scroll indicator */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-        <span className="text-[#F5F2EC]/40 text-xs tracking-widest uppercase">Scroll</span>
-        <div className="w-px h-12 bg-gradient-to-b from-[#C9A84C]/60 to-transparent animate-pulse" />
+        <span className="text-cream/40 text-xs tracking-widest uppercase">Scroll</span>
+        <div className="w-px h-12 bg-gradient-to-b from-gold/60 to-transparent animate-pulse" />
       </div>
     </section>
   );

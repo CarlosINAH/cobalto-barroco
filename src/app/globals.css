@@ -3,17 +3,23 @@
 :root {
   --navy: #1B2A5E;
   --navy-light: #243470;
+  --navy-deep: #14204A;
   --gold: #C9A84C;
   --gold-light: #D4B86A;
   --cream: #F5F2EC;
   --cream-dark: #EDE9E0;
   --charcoal: #2C2C2C;
   --muted: #7A7A7A;
+
+  /* Editorial rhythm */
+  --section-py: clamp(5rem, 10vw, 8rem);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme {
   --color-navy: #1B2A5E;
   --color-navy-light: #243470;
+  --color-navy-deep: #14204A;
   --color-gold: #C9A84C;
   --color-gold-light: #D4B86A;
   --color-cream: #F5F2EC;
@@ -24,9 +30,75 @@
 
 html {
   scroll-behavior: smooth;
+  /* Fixed navbar is h-20 (5rem); keep anchored headings clear of it. */
+  scroll-padding-top: 6rem;
 }
 
 body {
   background-color: var(--cream);
   color: var(--charcoal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: var(--gold);
+  color: var(--navy);
+}
+
+/* Visible, on-brand keyboard focus for every interactive element. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 1px;
+}
+
+/* Technical/data label — monospace accent for the "scientific" register. */
+.data-label {
+  font-family: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+/* Blueprint grid motif for dark sections. */
+.blueprint-grid {
+  background-image:
+    linear-gradient(to right, rgba(201, 168, 76, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(201, 168, 76, 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* ---- Scroll-reveal motion layer ----
+   Hidden by default, revealed by IntersectionObserver (see Reveal.tsx). A
+   <noscript> style in the layout restores visibility when JS is disabled, so
+   content is never stranded. */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

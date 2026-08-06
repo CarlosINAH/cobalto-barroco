@@ -78,6 +78,18 @@ export interface InventoryItem {
   createdAt: number;
 }
 
+/** Consulta enviada desde el formulario público de contacto (sin sesión). */
+export interface Inquiry {
+  id: string;
+  nombre: string;
+  email: string;
+  telefono: string;
+  mensaje: string;
+  emailEnviado: boolean;
+  leido: boolean;
+  createdAt: number;
+}
+
 export interface DBShape {
   projects: Project[];
   employees: Employee[];
@@ -85,6 +97,7 @@ export interface DBShape {
   attendance: Attendance[];
   messages: Message[];
   inventory: InventoryItem[];
+  inquiries: Inquiry[];
   seededEmployees?: boolean;
 }
 
@@ -95,6 +108,7 @@ const EMPTY: DBShape = {
   attendance: [],
   messages: [],
   inventory: [],
+  inquiries: [],
 };
 
 function dbPath(): string {

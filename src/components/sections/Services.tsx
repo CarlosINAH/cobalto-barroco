@@ -1,4 +1,6 @@
 import { Paintbrush, Building2, Layers, FileSearch, Shield, Users } from "lucide-react";
+import Reveal from "@/components/ui/Reveal";
+import SectionHeading from "@/components/ui/SectionHeading";
 
 const services = [
   {
@@ -35,48 +37,34 @@ const services = [
 
 export default function Services() {
   return (
-    <section id="servicios" className="bg-[#EDE9E0] py-28 px-6">
+    <section id="servicios" className="bg-cream-dark py-28 px-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <p className="text-[#C9A84C] text-xs tracking-[0.4em] uppercase mb-3 font-medium">
-            Lo que hacemos
-          </p>
-          <h2
-            className="text-[#1B2A5E] text-4xl md:text-5xl mb-4"
-            style={{ fontFamily: "var(--font-playfair)" }}
-          >
-            Nuestros Servicios
-          </h2>
-          <div className="flex items-center justify-center gap-4">
-            <div className="h-px w-12 bg-[#C9A84C]" />
-            <div className="w-1.5 h-1.5 bg-[#C9A84C] rotate-45" />
-            <div className="h-px w-12 bg-[#C9A84C]" />
-          </div>
-        </div>
+        <SectionHeading index="02" eyebrow="Lo que hacemos" title="Nuestros Servicios" />
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {services.map((s) => {
+          {services.map((s, i) => {
             const Icon = s.icon;
             return (
-              <div
-                key={s.title}
-                className="bg-white p-8 group hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-[#C9A84C]/30"
-              >
-                <div className="w-12 h-12 bg-[#1B2A5E]/5 flex items-center justify-center mb-5 group-hover:bg-[#1B2A5E] transition-colors duration-300">
-                  <Icon
-                    size={22}
-                    className="text-[#1B2A5E] group-hover:text-[#C9A84C] transition-colors duration-300"
-                  />
+              <Reveal key={s.title} delay={(i % 3) * 90}>
+                <div className="relative bg-white p-8 h-full group hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-gold/30">
+                  <span className="data-label absolute top-6 right-6 text-xs text-muted/40">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="w-12 h-12 bg-navy/5 flex items-center justify-center mb-5 group-hover:bg-navy transition-colors duration-300">
+                    <Icon
+                      size={22}
+                      className="text-navy group-hover:text-gold transition-colors duration-300"
+                    />
+                  </div>
+                  <h3
+                    className="text-navy text-xl mb-3"
+                    style={{ fontFamily: "var(--font-playfair)" }}
+                  >
+                    {s.title}
+                  </h3>
+                  <p className="text-muted text-sm leading-relaxed">{s.desc}</p>
                 </div>
-                <h3
-                  className="text-[#1B2A5E] text-xl mb-3"
-                  style={{ fontFamily: "var(--font-playfair)" }}
-                >
-                  {s.title}
-                </h3>
-                <p className="text-[#7A7A7A] text-sm leading-relaxed">{s.desc}</p>
-              </div>
+              </Reveal>
             );
           })}
         </div>

@@ -30,7 +30,14 @@ export default function RootLayout({
       lang="es"
       className={`${playfair.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* Sin JS, las animaciones de entrada no se disparan: restauramos la
+            visibilidad para que el contenido nunca quede oculto. */}
+        <noscript>
+          <style>{`.reveal{opacity:1 !important;transform:none !important}`}</style>
+        </noscript>
+        {children}
+      </body>
     </html>
   );
 }
