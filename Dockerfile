@@ -22,11 +22,13 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 # public assets and the standalone server + static files
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-USER nextjs
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+# Runs as root on purpose: the app persists its JSON DB to the bind-mounted
+# /data volume, whose host folder on the UGREEN NAS is root-owned. Running as a
+# non-root uid caused "EACCES: permission denied, open '/data/cobalto.json.tmp'"
+# and broke every write (Personal seed, inventory, projects, profile, messages).
 EXPOSE 3000
 CMD ["node", "server.js"]
