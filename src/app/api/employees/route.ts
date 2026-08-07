@@ -54,6 +54,7 @@ export async function POST(req: Request) {
     username,
     nombre: b.nombre?.trim() || username,
     email: b.email?.trim() || "",
+    telefono: b.telefono?.trim() || "",
     rol: b.rol?.trim() || "",
     ranking: Math.max(0, Math.min(100, Number(b.ranking) || 0)),
     habilidades,

@@ -248,20 +248,23 @@ export default function FileBrowser({ rootLabel = "Inicio" }: { rootLabel?: stri
               <div className="col-span-2 hidden md:block text-[#7A7A7A] text-sm">
                 {fmtDate(e.modified)}
               </div>
-              <div className="col-span-2 flex justify-end gap-1">
+              <div className="col-span-2 flex justify-end gap-2">
                 {!e.isDir && (
                   <a
                     href={`/api/files/download?path=${encodeURIComponent(e.path)}`}
-                    className="text-[#7A7A7A] hover:text-[#1B2A5E] transition-colors p-1.5"
+                    className="flex items-center justify-center border border-[#EDE9E0] text-[#1B2A5E] hover:bg-[#1B2A5E] hover:text-[#F5F2EC] transition-colors p-1.5"
                     title="Descargar"
+                    aria-label={`Descargar ${e.name}`}
                   >
                     <Download size={14} />
                   </a>
                 )}
                 <button
                   onClick={() => onDelete(e)}
-                  className="text-[#7A7A7A] hover:text-red-500 transition-colors p-1.5"
+                  disabled={busy}
+                  className="flex items-center justify-center border border-red-200 text-red-500 hover:bg-red-500 hover:text-white transition-colors p-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   title="Eliminar"
+                  aria-label={`Eliminar ${e.name}`}
                 >
                   <Trash2 size={14} />
                 </button>

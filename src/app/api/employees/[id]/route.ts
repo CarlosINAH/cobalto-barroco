@@ -27,6 +27,7 @@ export async function PATCH(
     if (!e) return null;
     if (b.nombre !== undefined) e.nombre = b.nombre.trim();
     if (b.email !== undefined) e.email = b.email.trim();
+    if (b.telefono !== undefined) e.telefono = b.telefono.trim();
     if (b.rol !== undefined) e.rol = b.rol.trim();
     if (b.ranking !== undefined)
       e.ranking = Math.max(0, Math.min(100, Number(b.ranking) || 0));

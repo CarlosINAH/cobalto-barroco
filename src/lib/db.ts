@@ -27,6 +27,7 @@ export interface Employee {
   username: string;
   nombre: string;
   email: string;
+  telefono?: string;
   rol: string;
   ranking: number;
   habilidades: string[];

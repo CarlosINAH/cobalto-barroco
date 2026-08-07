@@ -8,9 +8,6 @@ import {
   LayoutDashboard,
   Mail,
   FolderOpen,
-  BookOpen,
-  Star,
-  MapPin,
   Package,
   Users,
   FolderKanban,
@@ -32,13 +29,11 @@ interface NavItem {
 }
 
 const empleadoNav: NavItem[] = [
-  { icon: LayoutDashboard, label: "Inicio", href: "/dashboard/empleado" },
+  { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
   { icon: Mail, label: "Mensajes", href: "/dashboard/empleado/correo" },
-  { icon: FolderOpen, label: "Proyecto asignado", href: "/dashboard/empleado/proyecto" },
-  { icon: BookOpen, label: "Repositorio", href: "/dashboard/empleado/repositorio" },
-  { icon: Star, label: "Mis habilidades", href: "/dashboard/empleado/habilidades" },
-  { icon: MapPin, label: "Asistencia", href: "/dashboard/empleado/asistencia" },
-  { icon: Package, label: "Solicitud de material", href: "/dashboard/empleado/materiales" },
+  { icon: FolderOpen, label: "Proyecto", href: "/dashboard/empleado/proyecto" },
+  { icon: HardDrive, label: "Nube NAS", href: "/dashboard/empleado/repositorio" },
+  { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
 ];
 
 const adminNav: NavItem[] = [

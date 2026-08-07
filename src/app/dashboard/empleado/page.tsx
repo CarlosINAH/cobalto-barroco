@@ -2,11 +2,11 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
-import { FolderOpen, BookOpen, Package, Star, MapPin, ArrowRight } from "lucide-react";
+import { FolderOpen, Mail, HardDrive, Settings, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function InicioEmpleado() {
+export default async function PanelGeneralEmpleado() {
   const session = await requireSession();
   const db = await getDB();
   const emp = db.employees.find(
@@ -15,20 +15,19 @@ export default async function InicioEmpleado() {
   const proyecto = emp?.proyectoId
     ? db.projects.find((p) => p.id === emp.proyectoId)
     : null;
-  const misSolicitudes = db.materials.filter(
-    (m) => m.empleadoUsername.toLowerCase() === session.username.toLowerCase(),
-  );
-  const pendientes = misSolicitudes.filter((m) => m.estado === "pendiente").length;
+  const unread = db.messages.filter(
+    (m) =>
+      m.toUsername.toLowerCase() === session.username.toLowerCase() && !m.leido,
+  ).length;
 
   const accesos = [
-    { label: "Mi repositorio", href: "/dashboard/empleado/repositorio", icon: BookOpen },
-    { label: "Mis habilidades", href: "/dashboard/empleado/habilidades", icon: Star },
-    { label: "Asistencia", href: "/dashboard/empleado/asistencia", icon: MapPin },
-    { label: "Solicitar material", href: "/dashboard/empleado/materiales", icon: Package },
+    { label: "Mensajes", href: "/dashboard/empleado/correo", icon: Mail },
+    { label: "Nube NAS", href: "/dashboard/empleado/repositorio", icon: HardDrive },
+    { label: "Configuración", href: "/dashboard/empleado/configuracion", icon: Settings },
   ];
 
   return (
-    <DashboardShell role="empleado" title="Inicio">
+    <DashboardShell role="empleado" title="Panel general">
       <div className="mb-6">
         <h2 className="text-[#1B2A5E] text-2xl" style={{ fontFamily: "var(--font-playfair)" }}>
           Hola, {emp?.nombre || session.username}
@@ -69,22 +68,24 @@ export default async function InicioEmpleado() {
       <div className="grid gap-4 sm:grid-cols-2 mb-6">
         <div className="bg-white border border-[#EDE9E0] p-5">
           <p className="text-[#1B2A5E] text-3xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>
-            {pendientes}
+            {unread}
           </p>
           <p className="text-[#7A7A7A] text-xs uppercase tracking-wider mt-1">
-            Solicitudes de material pendientes
+            Mensajes sin leer
           </p>
         </div>
         <div className="bg-white border border-[#EDE9E0] p-5">
           <p className="text-[#1B2A5E] text-3xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>
-            {emp?.habilidades.length || 0}
+            {proyecto ? `${proyecto.avance}%` : "—"}
           </p>
-          <p className="text-[#7A7A7A] text-xs uppercase tracking-wider mt-1">Habilidades registradas</p>
+          <p className="text-[#7A7A7A] text-xs uppercase tracking-wider mt-1">
+            Avance de tu proyecto
+          </p>
         </div>
       </div>
 
       {/* Accesos rápidos */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-3">
         {accesos.map((a) => {
           const Icon = a.icon;
           return (

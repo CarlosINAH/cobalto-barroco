@@ -11,6 +11,7 @@ import {
   Loader2,
   Users,
   Mail,
+  Phone,
   Star,
   FolderOpen,
 } from "lucide-react";
@@ -24,6 +25,7 @@ interface Employee {
   username: string;
   nombre: string;
   email: string;
+  telefono?: string;
   rol: string;
   ranking: number;
   habilidades: string[];
@@ -34,6 +36,7 @@ const empty = {
   username: "",
   nombre: "",
   email: "",
+  telefono: "",
   rol: "",
   ranking: 0,
   habilidades: [] as string[],
@@ -175,6 +178,11 @@ export default function PersonalManager({
                     <Mail size={11} /> {e.email}
                   </p>
                 )}
+                {e.telefono && (
+                  <p className="flex items-center gap-1.5">
+                    <Phone size={11} /> {e.telefono}
+                  </p>
+                )}
                 <p className="flex items-center gap-1.5">
                   <FolderOpen size={11} />
                   {projName(e.proyectoId) || "Sin proyecto asignado"}
@@ -277,15 +285,27 @@ function EmployeeModal({
               />
             </div>
           </div>
-          <div>
-            <label className={label}>Correo electrónico</label>
-            <input
-              type="email"
-              className={field}
-              value={(form.email as string) || ""}
-              onChange={(e) => set("email", e.target.value)}
-              placeholder="empleado@correo.com"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={label}>Correo electrónico</label>
+              <input
+                type="email"
+                className={field}
+                value={(form.email as string) || ""}
+                onChange={(e) => set("email", e.target.value)}
+                placeholder="empleado@correo.com"
+              />
+            </div>
+            <div>
+              <label className={label}>Teléfono</label>
+              <input
+                type="tel"
+                className={field}
+                value={(form.telefono as string) || ""}
+                onChange={(e) => set("telefono", e.target.value)}
+                placeholder="+52 55 0000 0000"
+              />
+            </div>
           </div>
           <div>
             <label className={label}>Rol / especialidad</label>
