@@ -1,21 +1,27 @@
 # Multi-stage build for the Cobalto Barroco Next.js app.
 # Produces a small linux/arm64 image (UGREEN DH2300 / RK3576) using Next standalone output.
+#
+# IMPORTANT: deps + build run on the NATIVE build platform (--platform=$BUILDPLATFORM,
+# i.e. the x86 GitHub runner) instead of under QEMU arm64 emulation. This app is
+# pure JS (no native deps), so the Next standalone output is architecture-independent;
+# only the final runtime image is arm64. This turns a slow/hang-prone emulated build
+# (30+ min, got stuck) into a fast native build (~1-2 min).
 
-# 1) Install dependencies (with dev deps — needed to build)
-FROM node:22-alpine AS deps
+# 1) Install dependencies (with dev deps — needed to build) — native
+FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# 2) Build the app
-FROM node:22-alpine AS builder
+# 2) Build the app — native (JS output is arch-independent)
+FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# 3) Minimal runtime image
+# 3) Minimal runtime image — target arch (linux/arm64)
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
