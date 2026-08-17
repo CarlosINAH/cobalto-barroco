@@ -2,14 +2,45 @@ import "server-only";
 import { getDB, mutate, type SharedFileMeta } from "@/lib/db";
 import { makeDirectory } from "@/lib/webdav";
 
-/** Carpeta raíz compartida entre empleados y administradores. */
-export const SHARED_ROOT = "Archivos Compartidos";
+/**
+ * Carpeta raíz compartida entre empleados y administradores.
+ * Debe coincidir EXACTO con la carpeta creada en el NAS (/volume1/Archivos compartidos),
+ * porque la ruta WebDAV distingue mayúsculas/minúsculas.
+ */
+export const SHARED_ROOT = "Archivos compartidos";
 export const SHARED_SUBDIRS = ["Archivos", "Fotos"] as const;
 
 /** ¿La ruta está dentro del área compartida? */
 export function isShared(path: string): boolean {
   const p = (path || "").replace(/^\/+/, "");
   return p === SHARED_ROOT || p.startsWith(SHARED_ROOT + "/");
+}
+
+/** ¿La ruta es exactamente la raíz compartida? */
+export function isSharedRoot(path: string): boolean {
+  return (path || "").replace(/^\/+/, "").replace(/\/+$/, "") === SHARED_ROOT;
+}
+
+/** Primera subcarpeta después de SHARED_ROOT en una ruta (o null si es la raíz). */
+export function sharedTopSubfolder(path: string): string | null {
+  const p = (path || "").replace(/^\/+/, "");
+  if (!p.startsWith(SHARED_ROOT + "/")) return null;
+  return p.slice(SHARED_ROOT.length + 1).split("/")[0] || null;
+}
+
+/**
+ * Subcarpetas de SHARED_ROOT visibles para el usuario. `null` = ve todas
+ * (admins o empleados sin restricción configurada).
+ */
+export async function visibleSharedFolders(
+  username: string,
+): Promise<string[] | null> {
+  const db = await getDB();
+  const emp = db.employees.find(
+    (e) => e.username.toLowerCase() === username.toLowerCase(),
+  );
+  if (!emp || emp.carpetasVisibles === undefined) return null;
+  return emp.carpetasVisibles;
 }
 
 /**

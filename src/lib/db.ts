@@ -21,6 +21,12 @@ export interface Project {
   createdAt: number;
 }
 
+/** Cualidad evaluada de un empleado, con nivel 1–5 (solo visible para admins). */
+export interface EmployeeQuality {
+  nombre: string;
+  nivel: number;
+}
+
 export interface Employee {
   id: string;
   /** Usuario del NAS (coincide con su login). */
@@ -31,7 +37,27 @@ export interface Employee {
   rol: string;
   ranking: number;
   habilidades: string[];
+  /** Evaluación por cualidades (admin-only). */
+  cualidades?: EmployeeQuality[];
+  /**
+   * Subcarpetas de "Archivos Compartidos" visibles para este empleado.
+   * undefined = ve todas; array = ve solo esas (capa de visualización del app).
+   */
+  carpetasVisibles?: string[];
   proyectoId: string | null;
+  createdAt: number;
+}
+
+/** Proveedor de la empresa. */
+export interface Supplier {
+  id: string;
+  nombre: string;
+  contacto: string;
+  telefono: string;
+  email: string;
+  categoria: string;
+  direccion: string;
+  nota: string;
   createdAt: number;
 }
 
@@ -125,6 +151,7 @@ export interface DBShape {
   inventory: InventoryItem[];
   inquiries: Inquiry[];
   sharedFiles: SharedFileMeta[];
+  suppliers: Supplier[];
   seededEmployees?: boolean;
 }
 
@@ -137,6 +164,7 @@ const EMPTY: DBShape = {
   inventory: [],
   inquiries: [],
   sharedFiles: [],
+  suppliers: [],
 };
 
 function dbPath(): string {

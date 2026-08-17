@@ -58,6 +58,17 @@ export async function POST(req: Request) {
     rol: b.rol?.trim() || "",
     ranking: Math.max(0, Math.min(100, Number(b.ranking) || 0)),
     habilidades,
+    cualidades: Array.isArray(b.cualidades)
+      ? b.cualidades
+          .filter((c) => c && typeof c.nombre === "string" && c.nombre.trim())
+          .map((c) => ({
+            nombre: c.nombre.trim(),
+            nivel: Math.max(1, Math.min(5, Number(c.nivel) || 1)),
+          }))
+      : [],
+    carpetasVisibles: Array.isArray(b.carpetasVisibles)
+      ? b.carpetasVisibles.map((s) => String(s)).filter(Boolean)
+      : undefined,
     proyectoId: b.proyectoId || null,
     createdAt: Date.now(),
   };

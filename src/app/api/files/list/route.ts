@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
-import { listDirectory } from "@/lib/webdav";
-import { isShared, metaForPaths } from "@/lib/shared-files";
+import { listDirectory, type WebDavEntry } from "@/lib/webdav";
+import {
+  isShared,
+  isSharedRoot,
+  sharedTopSubfolder,
+  visibleSharedFolders,
+  metaForPaths,
+} from "@/lib/shared-files";
 
 export const runtime = "nodejs";
 
@@ -12,11 +18,33 @@ export async function GET(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const relPath = searchParams.get("path") || "";
+
+  // Visibilidad de carpetas por empleado (capa del app sobre el NAS).
+  if (isShared(relPath) && session.role !== "admin") {
+    const allowed = await visibleSharedFolders(session.username);
+    if (allowed !== null) {
+      const top = sharedTopSubfolder(relPath);
+      if (top && !allowed.includes(top)) {
+        return NextResponse.json(
+          { error: "No tienes acceso a esa carpeta." },
+          { status: 403 },
+        );
+      }
+    }
+  }
+
   try {
-    const entries = await listDirectory(credsOf(session), relPath);
+    let entries = await listDirectory(credsOf(session), relPath);
+    // En la raíz compartida, un empleado solo ve las subcarpetas permitidas.
+    if (isSharedRoot(relPath) && session.role !== "admin") {
+      const allowed = await visibleSharedFolders(session.username);
+      if (allowed !== null) {
+        entries = entries.filter((e) => !e.isDir || allowed.includes(e.name));
+      }
+    }
     // En el área compartida, adjuntamos autor/fecha de subida desde nuestra DB.
     const meta = isShared(relPath)
-      ? await metaForPaths(entries.filter((e) => !e.isDir).map((e) => e.path))
+      ? await metaForPaths(entries.filter((e: WebDavEntry) => !e.isDir).map((e: WebDavEntry) => e.path))
       : {};
     const mapped = entries.map((e) => {
       const m = meta[e.path];

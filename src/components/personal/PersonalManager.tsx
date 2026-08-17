@@ -14,11 +14,18 @@ import {
   Phone,
   Star,
   FolderOpen,
+  Plus,
+  Award,
+  FolderTree,
 } from "lucide-react";
 
 interface Project {
   id: string;
   nombre: string;
+}
+interface Quality {
+  nombre: string;
+  nivel: number;
 }
 interface Employee {
   id: string;
@@ -29,6 +36,8 @@ interface Employee {
   rol: string;
   ranking: number;
   habilidades: string[];
+  cualidades?: Quality[];
+  carpetasVisibles?: string[];
   proyectoId: string | null;
 }
 
@@ -40,15 +49,33 @@ const empty = {
   rol: "",
   ranking: 0,
   habilidades: [] as string[],
+  cualidades: [] as Quality[],
   proyectoId: "",
 };
+
+/** Estrellas 1–5, de solo lectura. */
+function Stars({ nivel }: { nivel: number }) {
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star
+          key={n}
+          size={11}
+          className={n <= nivel ? "text-[#C9A84C] fill-[#C9A84C]" : "text-[#EDE9E0]"}
+        />
+      ))}
+    </span>
+  );
+}
 
 export default function PersonalManager({
   initial,
   projects,
+  sharedFolders = [],
 }: {
   initial: Employee[];
   projects: Project[];
+  sharedFolders?: string[];
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -58,8 +85,7 @@ export default function PersonalManager({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const projName = (id: string | null) =>
-    projects.find((p) => p.id === id)?.nombre;
+  const projName = (id: string | null) => projects.find((p) => p.id === id)?.nombre;
 
   const filtered = initial.filter(
     (e) =>
@@ -68,19 +94,16 @@ export default function PersonalManager({
       e.rol.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const save = async (form: Partial<Employee>) => {
+  const save = async (form: Record<string, unknown>) => {
     setSaving(true);
     setError("");
     try {
       const isEdit = modal?.mode === "edit";
-      const res = await fetch(
-        isEdit ? `/api/employees/${form.id}` : "/api/employees",
-        {
-          method: isEdit ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        },
-      );
+      const res = await fetch(isEdit ? `/api/employees/${form.id}` : "/api/employees", {
+        method: isEdit ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "No se pudo guardar.");
@@ -112,10 +135,7 @@ export default function PersonalManager({
     <>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="relative flex-1 max-w-sm">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]"
-          />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -146,9 +166,7 @@ export default function PersonalManager({
             <div key={e.id} className="bg-white border border-[#EDE9E0] p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="text-[#1B2A5E] text-base font-semibold truncate">
-                    {e.nombre}
-                  </h3>
+                  <h3 className="text-[#1B2A5E] text-base font-semibold truncate">{e.nombre}</h3>
                   <p className="text-[#7A7A7A] text-xs">@{e.username}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -163,10 +181,7 @@ export default function PersonalManager({
                   >
                     <Pencil size={13} />
                   </button>
-                  <button
-                    onClick={() => remove(e)}
-                    className="text-[#7A7A7A] hover:text-red-500 p-1.5"
-                  >
+                  <button onClick={() => remove(e)} className="text-[#7A7A7A] hover:text-red-500 p-1.5">
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -174,14 +189,10 @@ export default function PersonalManager({
               {e.rol && <p className="text-[#2C2C2C] text-sm mt-2">{e.rol}</p>}
               <div className="mt-3 space-y-1 text-[#7A7A7A] text-xs">
                 {e.email && (
-                  <p className="flex items-center gap-1.5">
-                    <Mail size={11} /> {e.email}
-                  </p>
+                  <p className="flex items-center gap-1.5"><Mail size={11} /> {e.email}</p>
                 )}
                 {e.telefono && (
-                  <p className="flex items-center gap-1.5">
-                    <Phone size={11} /> {e.telefono}
-                  </p>
+                  <p className="flex items-center gap-1.5"><Phone size={11} /> {e.telefono}</p>
                 )}
                 <p className="flex items-center gap-1.5">
                   <FolderOpen size={11} />
@@ -200,6 +211,21 @@ export default function PersonalManager({
                   ))}
                 </div>
               )}
+              {e.cualidades && e.cualidades.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[#EDE9E0]">
+                  <p className="flex items-center gap-1.5 text-[#7A7A7A] text-xs uppercase tracking-wider mb-2">
+                    <Award size={11} className="text-[#C9A84C]" /> Evaluación
+                  </p>
+                  <div className="space-y-1">
+                    {e.cualidades.map((c) => (
+                      <div key={c.nombre} className="flex items-center justify-between gap-2">
+                        <span className="text-[#2C2C2C] text-xs truncate">{c.nombre}</span>
+                        <Stars nivel={c.nivel} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -210,6 +236,7 @@ export default function PersonalManager({
           mode={modal.mode}
           data={modal.data}
           projects={projects}
+          sharedFolders={sharedFolders}
           saving={saving}
           error={error}
           onClose={() => {
@@ -227,6 +254,7 @@ function EmployeeModal({
   mode,
   data,
   projects,
+  sharedFolders,
   saving,
   error,
   onClose,
@@ -235,6 +263,7 @@ function EmployeeModal({
   mode: "new" | "edit";
   data: Partial<Employee>;
   projects: Project[];
+  sharedFolders: string[];
   saving: boolean;
   error: string;
   onClose: () => void;
@@ -244,20 +273,38 @@ function EmployeeModal({
     ...data,
     habilidades: (data.habilidades || []).join(", "),
   });
+  const [cuals, setCuals] = useState<Quality[]>(data.cualidades || []);
+  // Visibilidad: si no está configurado (undefined) => ve todas => todas marcadas.
+  const [vis, setVis] = useState<string[]>(
+    data.carpetasVisibles === undefined ? sharedFolders : data.carpetasVisibles,
+  );
+
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
   const field =
     "w-full border border-[#EDE9E0] bg-white px-3 py-2.5 text-sm text-[#2C2C2C] focus:outline-none focus:border-[#C9A84C]";
   const label = "block text-[#7A7A7A] text-xs tracking-widest uppercase mb-1.5";
 
+  const setCual = (i: number, patch: Partial<Quality>) =>
+    setCuals((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  const toggleVis = (name: string) =>
+    setVis((v) => (v.includes(name) ? v.filter((x) => x !== name) : [...v, name]));
+
+  const submit = () => {
+    const allChecked = sharedFolders.length > 0 && vis.length === sharedFolders.length;
+    onSave({
+      ...form,
+      cualidades: cuals.filter((c) => c.nombre.trim()),
+      // null = ve todas (sin restricción); array = solo esas.
+      carpetasVisibles: allChecked || sharedFolders.length === 0 ? null : vis,
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-[#F5F2EC] w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#EDE9E0]">
-          <h3
-            className="text-[#1B2A5E] text-lg"
-            style={{ fontFamily: "var(--font-playfair)" }}
-          >
+          <h3 className="text-[#1B2A5E] text-lg" style={{ fontFamily: "var(--font-playfair)" }}>
             {mode === "new" ? "Agregar empleado" : "Editar empleado"}
           </h3>
           <button onClick={onClose} className="text-[#7A7A7A] hover:text-[#1B2A5E]">
@@ -333,7 +380,7 @@ function EmployeeModal({
               </select>
             </div>
             <div>
-              <label className={label}>Ranking ({(form.ranking as number) || 0})</label>
+              <label className={label}>Ranking general ({(form.ranking as number) || 0})</label>
               <input
                 type="range"
                 min={0}
@@ -353,6 +400,86 @@ function EmployeeModal({
               placeholder="Dorado al agua, Consolidación, Policromía"
             />
           </div>
+
+          {/* Evaluación por cualidades (solo admin) */}
+          <div className="border-t border-[#EDE9E0] pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="flex items-center gap-1.5 text-[#7A7A7A] text-xs tracking-widest uppercase">
+                <Award size={12} className="text-[#C9A84C]" /> Evaluación por cualidades
+              </label>
+              <button
+                type="button"
+                onClick={() => setCuals((cs) => [...cs, { nombre: "", nivel: 3 }])}
+                className="flex items-center gap-1 text-[#1B2A5E] text-xs font-semibold hover:text-[#C9A84C]"
+              >
+                <Plus size={12} /> Agregar
+              </button>
+            </div>
+            {cuals.length === 0 ? (
+              <p className="text-[#7A7A7A] text-xs">Sin cualidades evaluadas.</p>
+            ) : (
+              <div className="space-y-2">
+                {cuals.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      className={`${field} flex-1`}
+                      value={c.nombre}
+                      onChange={(e) => setCual(i, { nombre: e.target.value })}
+                      placeholder="Puntualidad, Precisión, Trabajo en equipo…"
+                    />
+                    <span className="inline-flex items-center gap-0.5 shrink-0">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          type="button"
+                          key={n}
+                          onClick={() => setCual(i, { nivel: n })}
+                          aria-label={`Nivel ${n}`}
+                        >
+                          <Star
+                            size={16}
+                            className={n <= c.nivel ? "text-[#C9A84C] fill-[#C9A84C]" : "text-[#EDE9E0]"}
+                          />
+                        </button>
+                      ))}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCuals((cs) => cs.filter((_, j) => j !== i))}
+                      className="text-[#7A7A7A] hover:text-red-500 shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Visibilidad de carpetas compartidas */}
+          {sharedFolders.length > 0 && (
+            <div className="border-t border-[#EDE9E0] pt-4">
+              <label className="flex items-center gap-1.5 text-[#7A7A7A] text-xs tracking-widest uppercase mb-2">
+                <FolderTree size={12} className="text-[#C9A84C]" /> Carpetas compartidas visibles
+              </label>
+              <p className="text-[#7A7A7A] text-xs mb-2">
+                Marca las subcarpetas de «Archivos compartidos» que este empleado puede ver.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {sharedFolders.map((f) => (
+                  <label key={f} className="flex items-center gap-2 text-sm text-[#2C2C2C]">
+                    <input
+                      type="checkbox"
+                      checked={vis.includes(f)}
+                      onChange={() => toggleVis(f)}
+                      className="accent-[#C9A84C]"
+                    />
+                    {f}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-50 border border-red-200 px-3 py-2 text-red-600 text-xs">
               {error}
@@ -367,7 +494,7 @@ function EmployeeModal({
             Cancelar
           </button>
           <button
-            onClick={() => onSave(form)}
+            onClick={submit}
             disabled={saving}
             className="flex items-center gap-2 bg-[#1B2A5E] text-[#F5F2EC] px-5 py-2.5 text-xs tracking-widest uppercase font-bold hover:bg-[#243470] disabled:opacity-60"
           >

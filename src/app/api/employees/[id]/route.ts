@@ -40,6 +40,19 @@ export async function PATCH(
             .map((s) => s.trim())
             .filter(Boolean);
     }
+    if (b.cualidades !== undefined) {
+      e.cualidades = (Array.isArray(b.cualidades) ? b.cualidades : [])
+        .filter((c) => c && typeof c.nombre === "string" && c.nombre.trim())
+        .map((c) => ({
+          nombre: c.nombre.trim(),
+          nivel: Math.max(1, Math.min(5, Number(c.nivel) || 1)),
+        }));
+    }
+    if (b.carpetasVisibles !== undefined) {
+      e.carpetasVisibles = Array.isArray(b.carpetasVisibles)
+        ? b.carpetasVisibles.map((s) => String(s)).filter(Boolean)
+        : undefined;
+    }
     return e;
   });
   if (!updated)
