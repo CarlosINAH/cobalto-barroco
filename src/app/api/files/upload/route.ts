@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
 import { uploadFile } from "@/lib/webdav";
+import { isShared, recordFileEvent } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,12 @@ export async function POST(req: Request) {
     const buf = new Uint8Array(await file.arrayBuffer());
     const target = dir ? `${dir}/${file.name}` : file.name;
     try {
-      if (await uploadFile(creds, target, buf)) ok++;
+      if (await uploadFile(creds, target, buf)) {
+        ok++;
+        if (isShared(target)) {
+          await recordFileEvent(target, file.name, session.username);
+        }
+      }
     } catch {
       /* continúa con los demás */
     }

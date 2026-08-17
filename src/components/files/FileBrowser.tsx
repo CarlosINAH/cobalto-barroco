@@ -13,6 +13,11 @@ import {
   ChevronRight,
   Home,
   Loader2,
+  History,
+  X,
+  UploadCloud,
+  Pencil,
+  Trash,
 } from "lucide-react";
 
 interface Entry {
@@ -21,6 +26,22 @@ interface Entry {
   isDir: boolean;
   size: number;
   modified: number;
+  subidoPor?: string | null;
+  subidoEn?: number | null;
+}
+
+interface FileEvent {
+  usuario: string;
+  accion: "subido" | "modificado" | "eliminado";
+  fecha: number;
+}
+interface FileMeta {
+  path: string;
+  nombre: string;
+  subidoPor: string;
+  subidoEn: number;
+  ultimaAccion: number;
+  historial: FileEvent[];
 }
 
 function humanSize(n: number): string {
@@ -35,12 +56,21 @@ function humanSize(n: number): string {
   return `${v.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
 }
 
-function fmtDate(ms: number): string {
+function fmtDate(ms: number | null | undefined): string {
   if (!ms) return "—";
   return new Date(ms).toLocaleDateString("es-MX", {
     day: "2-digit",
     month: "short",
     year: "numeric",
+  });
+}
+function fmtDateTime(ms: number): string {
+  return new Date(ms).toLocaleString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -54,12 +84,21 @@ function fileIcon(name: string, isDir: boolean) {
   return <FileIcon size={18} className="text-blue-400" />;
 }
 
-export default function FileBrowser({ rootLabel = "Inicio" }: { rootLabel?: string }) {
-  const [path, setPath] = useState("");
+export default function FileBrowser({
+  rootLabel = "Inicio",
+  basePath = "",
+  withMeta = false,
+}: {
+  rootLabel?: string;
+  basePath?: string;
+  withMeta?: boolean;
+}) {
+  const [path, setPath] = useState(basePath);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [historyFor, setHistoryFor] = useState<Entry | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (p: string) => {
@@ -141,37 +180,40 @@ export default function FileBrowser({ rootLabel = "Inicio" }: { rootLabel?: stri
     }
   };
 
-  const crumbs = path ? path.split("/").filter(Boolean) : [];
+  // Breadcrumb relativo a la carpeta raíz (basePath).
+  const rel =
+    basePath && path.startsWith(basePath)
+      ? path.slice(basePath.length).replace(/^\/+/, "")
+      : path;
+  const crumbs = rel ? rel.split("/").filter(Boolean) : [];
+  const goCrumb = (i: number) =>
+    setPath([basePath, ...crumbs.slice(0, i + 1)].filter(Boolean).join("/"));
 
   return (
     <div>
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
-        {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-sm text-[#7A7A7A] flex-wrap">
           <button
-            onClick={() => setPath("")}
+            onClick={() => setPath(basePath)}
             className="flex items-center gap-1.5 hover:text-[#1B2A5E] transition-colors"
           >
             <Home size={14} className="text-[#C9A84C]" />
             {rootLabel}
           </button>
-          {crumbs.map((c, i) => {
-            const target = crumbs.slice(0, i + 1).join("/");
-            return (
-              <span key={target} className="flex items-center gap-1.5">
-                <ChevronRight size={13} className="text-[#EDE9E0]" />
-                <button
-                  onClick={() => setPath(target)}
-                  className={`hover:text-[#1B2A5E] transition-colors ${
-                    i === crumbs.length - 1 ? "text-[#1B2A5E] font-medium" : ""
-                  }`}
-                >
-                  {c}
-                </button>
-              </span>
-            );
-          })}
+          {crumbs.map((c, i) => (
+            <span key={i} className="flex items-center gap-1.5">
+              <ChevronRight size={13} className="text-[#EDE9E0]" />
+              <button
+                onClick={() => goCrumb(i)}
+                className={`hover:text-[#1B2A5E] transition-colors ${
+                  i === crumbs.length - 1 ? "text-[#1B2A5E] font-medium" : ""
+                }`}
+              >
+                {c}
+              </button>
+            </span>
+          ))}
         </div>
 
         <div className="flex items-center gap-2">
@@ -207,10 +249,17 @@ export default function FileBrowser({ rootLabel = "Inicio" }: { rootLabel?: stri
       )}
 
       {/* List */}
-      <div className="bg-white border border-[#EDE9E0]">
-        <div className="grid grid-cols-12 px-5 py-3 border-b border-[#EDE9E0] text-[#7A7A7A] text-xs tracking-widest uppercase">
-          <div className="col-span-6">Nombre</div>
-          <div className="col-span-2 hidden md:block">Tamaño</div>
+      <div className="bg-white border border-[#EDE9E0] overflow-x-auto">
+        <div className="grid grid-cols-12 px-5 py-3 border-b border-[#EDE9E0] text-[#7A7A7A] text-xs tracking-widest uppercase min-w-[640px]">
+          <div className={withMeta ? "col-span-4" : "col-span-6"}>Nombre</div>
+          {withMeta ? (
+            <>
+              <div className="col-span-2 hidden md:block">Subido por</div>
+              <div className="col-span-2 hidden md:block">Subido el</div>
+            </>
+          ) : (
+            <div className="col-span-2 hidden md:block">Tamaño</div>
+          )}
           <div className="col-span-2 hidden md:block">Modificado</div>
           <div className="col-span-2 text-right">Acción</div>
         </div>
@@ -227,9 +276,9 @@ export default function FileBrowser({ rootLabel = "Inicio" }: { rootLabel?: stri
           entries.map((e) => (
             <div
               key={e.path}
-              className="grid grid-cols-12 px-5 py-3.5 border-b border-[#EDE9E0] last:border-0 hover:bg-[#F5F2EC] transition-colors items-center"
+              className="grid grid-cols-12 px-5 py-3.5 border-b border-[#EDE9E0] last:border-0 hover:bg-[#F5F2EC] transition-colors items-center min-w-[640px]"
             >
-              <div className="col-span-6 flex items-center gap-3 min-w-0">
+              <div className={`${withMeta ? "col-span-4" : "col-span-6"} flex items-center gap-3 min-w-0`}>
                 {fileIcon(e.name, e.isDir)}
                 {e.isDir ? (
                   <button
@@ -242,13 +291,34 @@ export default function FileBrowser({ rootLabel = "Inicio" }: { rootLabel?: stri
                   <span className="text-[#2C2C2C] text-sm truncate">{e.name}</span>
                 )}
               </div>
-              <div className="col-span-2 hidden md:block text-[#7A7A7A] text-sm">
-                {e.isDir ? "—" : humanSize(e.size)}
-              </div>
+              {withMeta ? (
+                <>
+                  <div className="col-span-2 hidden md:block text-[#7A7A7A] text-sm truncate">
+                    {e.isDir ? "—" : e.subidoPor || <span className="text-[#C0BDB8]">—</span>}
+                  </div>
+                  <div className="col-span-2 hidden md:block text-[#7A7A7A] text-sm">
+                    {e.isDir ? "—" : fmtDate(e.subidoEn)}
+                  </div>
+                </>
+              ) : (
+                <div className="col-span-2 hidden md:block text-[#7A7A7A] text-sm">
+                  {e.isDir ? "—" : humanSize(e.size)}
+                </div>
+              )}
               <div className="col-span-2 hidden md:block text-[#7A7A7A] text-sm">
                 {fmtDate(e.modified)}
               </div>
               <div className="col-span-2 flex justify-end gap-2">
+                {withMeta && !e.isDir && (
+                  <button
+                    onClick={() => setHistoryFor(e)}
+                    className="flex items-center justify-center border border-[#EDE9E0] text-[#1B2A5E] hover:bg-[#1B2A5E] hover:text-[#F5F2EC] transition-colors p-1.5"
+                    title="Historial"
+                    aria-label={`Historial de ${e.name}`}
+                  >
+                    <History size={14} />
+                  </button>
+                )}
                 {!e.isDir && (
                   <a
                     href={`/api/files/download?path=${encodeURIComponent(e.path)}`}
@@ -272,6 +342,99 @@ export default function FileBrowser({ rootLabel = "Inicio" }: { rootLabel?: stri
             </div>
           ))
         )}
+      </div>
+
+      {historyFor && (
+        <HistoryModal entry={historyFor} onClose={() => setHistoryFor(null)} />
+      )}
+    </div>
+  );
+}
+
+function accionMeta(a: FileEvent["accion"]) {
+  if (a === "subido") return { label: "Subió el archivo", Icon: UploadCloud, color: "text-emerald-600" };
+  if (a === "modificado") return { label: "Actualizó el archivo", Icon: Pencil, color: "text-[#C9A84C]" };
+  return { label: "Eliminó el archivo", Icon: Trash, color: "text-red-500" };
+}
+
+function HistoryModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
+  const [meta, setMeta] = useState<FileMeta | null | undefined>(undefined);
+
+  useEffect(() => {
+    fetch(`/api/files/history?path=${encodeURIComponent(entry.path)}`)
+      .then((r) => (r.ok ? r.json() : { meta: null }))
+      .then((d) => setMeta(d.meta))
+      .catch(() => setMeta(null));
+  }, [entry.path]);
+
+  const eventos = meta ? [...meta.historial].sort((a, b) => b.fecha - a.fecha) : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-[#F5F2EC] w-full max-w-md max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EDE9E0]">
+          <div className="min-w-0">
+            <h3 className="text-[#1B2A5E] text-lg truncate" style={{ fontFamily: "var(--font-playfair)" }}>
+              Historial
+            </h3>
+            <p className="text-[#7A7A7A] text-xs truncate">{entry.name}</p>
+          </div>
+          <button onClick={onClose} className="text-[#7A7A7A] hover:text-[#1B2A5E]">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {meta === undefined ? (
+            <div className="flex items-center gap-2 text-[#7A7A7A] text-sm py-6 justify-center">
+              <Loader2 size={16} className="animate-spin" /> Cargando…
+            </div>
+          ) : meta === null ? (
+            <p className="text-[#7A7A7A] text-sm">
+              Este archivo no tiene historial registrado en la plataforma (pudo
+              haberse subido directamente en el NAS).
+            </p>
+          ) : (
+            <>
+              <div className="bg-white border border-[#EDE9E0] p-4 mb-5 text-sm space-y-1.5">
+                <div className="flex justify-between gap-2">
+                  <span className="text-[#7A7A7A]">Compartido por</span>
+                  <span className="text-[#1B2A5E] font-medium">{meta.subidoPor}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-[#7A7A7A]">Fecha de subida</span>
+                  <span className="text-[#2C2C2C]">{fmtDateTime(meta.subidoEn)}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-[#7A7A7A]">Última modificación</span>
+                  <span className="text-[#2C2C2C]">
+                    {entry.modified ? fmtDateTime(entry.modified) : fmtDateTime(meta.ultimaAccion)}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[#7A7A7A] text-xs tracking-widest uppercase mb-3">Línea de tiempo</p>
+              <ul className="space-y-4">
+                {eventos.map((ev, i) => {
+                  const { label, Icon, color } = accionMeta(ev.accion);
+                  return (
+                    <li key={i} className="flex gap-3">
+                      <div className={`mt-0.5 ${color}`}>
+                        <Icon size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[#2C2C2C] text-sm">
+                          <span className="font-medium">{ev.usuario}</span> — {label}
+                        </p>
+                        <p className="text-[#7A7A7A] text-xs">{fmtDateTime(ev.fecha)}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

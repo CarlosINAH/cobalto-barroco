@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
 import { listDirectory } from "@/lib/webdav";
+import { isShared, metaForPaths } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
 
@@ -13,13 +14,22 @@ export async function GET(req: Request) {
   const relPath = searchParams.get("path") || "";
   try {
     const entries = await listDirectory(credsOf(session), relPath);
-    const mapped = entries.map((e) => ({
-      name: e.name,
-      path: e.path,
-      isDir: e.isDir,
-      size: e.size,
-      modified: e.modified ? Date.parse(e.modified) || 0 : 0,
-    }));
+    // En el área compartida, adjuntamos autor/fecha de subida desde nuestra DB.
+    const meta = isShared(relPath)
+      ? await metaForPaths(entries.filter((e) => !e.isDir).map((e) => e.path))
+      : {};
+    const mapped = entries.map((e) => {
+      const m = meta[e.path];
+      return {
+        name: e.name,
+        path: e.path,
+        isDir: e.isDir,
+        size: e.size,
+        modified: e.modified ? Date.parse(e.modified) || 0 : 0,
+        subidoPor: m?.subidoPor ?? null,
+        subidoEn: m?.subidoEn ?? null,
+      };
+    });
     return NextResponse.json({ path: relPath, entries: mapped, role: session.role });
   } catch {
     return NextResponse.json(

@@ -12,6 +12,7 @@ import {
   Users,
   FolderKanban,
   HardDrive,
+  Share2,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -33,6 +34,7 @@ const empleadoNav: NavItem[] = [
   { icon: Mail, label: "Mensajes", href: "/dashboard/empleado/correo" },
   { icon: FolderOpen, label: "Proyecto", href: "/dashboard/empleado/proyecto" },
   { icon: HardDrive, label: "Nube NAS", href: "/dashboard/empleado/repositorio" },
+  { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/empleado/compartidos" },
   { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
 ];
 
@@ -43,6 +45,7 @@ const adminNav: NavItem[] = [
   { icon: Users, label: "Personal", href: "/dashboard/admin/personal" },
   { icon: Package, label: "Inventario", href: "/dashboard/admin/inventario" },
   { icon: HardDrive, label: "Nube NAS", href: "/dashboard/admin/nas" },
+  { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/admin/compartidos" },
   { icon: Settings, label: "Configuración", href: "/dashboard/admin/configuracion" },
 ];
 

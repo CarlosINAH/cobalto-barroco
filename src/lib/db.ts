@@ -79,6 +79,31 @@ export interface InventoryItem {
   createdAt: number;
 }
 
+/** Evento del historial de un archivo compartido. */
+export interface SharedFileEvent {
+  usuario: string;
+  accion: "subido" | "modificado" | "eliminado";
+  fecha: number;
+}
+
+/**
+ * Metadatos y auditoría de un archivo en "Archivos Compartidos". El NAS no
+ * guarda quién subió ni el historial, así que lo registramos aquí cada vez que
+ * algo pasa a través de la plataforma.
+ */
+export interface SharedFileMeta {
+  /** Ruta WebDAV completa (p. ej. "Archivos Compartidos/Archivos/plano.pdf"). */
+  path: string;
+  nombre: string;
+  /** Autor original: quién lo subió por primera vez. */
+  subidoPor: string;
+  /** Fecha de subida (primer registro). */
+  subidoEn: number;
+  /** Fecha del último evento registrado en la plataforma. */
+  ultimaAccion: number;
+  historial: SharedFileEvent[];
+}
+
 /** Consulta enviada desde el formulario público de contacto (sin sesión). */
 export interface Inquiry {
   id: string;
@@ -99,6 +124,7 @@ export interface DBShape {
   messages: Message[];
   inventory: InventoryItem[];
   inquiries: Inquiry[];
+  sharedFiles: SharedFileMeta[];
   seededEmployees?: boolean;
 }
 
@@ -110,6 +136,7 @@ const EMPTY: DBShape = {
   messages: [],
   inventory: [],
   inquiries: [],
+  sharedFiles: [],
 };
 
 function dbPath(): string {
