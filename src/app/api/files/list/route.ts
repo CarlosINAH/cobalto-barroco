@@ -7,6 +7,10 @@ import {
   sharedTopSubfolder,
   visibleSharedFolders,
   metaForPaths,
+  allFolderShares,
+  canSeeWith,
+  canManageWith,
+  isRestrictedWith,
 } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
@@ -18,34 +22,48 @@ export async function GET(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const relPath = searchParams.get("path") || "";
+  const isEmployee = session.role !== "admin";
+  const inShared = isShared(relPath);
 
-  // Visibilidad de carpetas por empleado (capa del app sobre el NAS).
-  if (isShared(relPath) && session.role !== "admin") {
+  // Cargar comparticiones una sola vez (para filtrar/anotar sin N lecturas).
+  const shares = inShared ? await allFolderShares() : [];
+
+  // Acceso a la carpeta solicitada (visibilidad admin + compartición por carpeta).
+  if (inShared && isEmployee) {
     const allowed = await visibleSharedFolders(session.username);
-    if (allowed !== null) {
-      const top = sharedTopSubfolder(relPath);
-      if (top && !allowed.includes(top)) {
-        return NextResponse.json(
-          { error: "No tienes acceso a esa carpeta." },
-          { status: 403 },
-        );
-      }
+    const top = sharedTopSubfolder(relPath);
+    const blockedByAdmin = allowed !== null && top !== null && !allowed.includes(top);
+    const blockedByShare = !canSeeWith(shares, session.username, session.role, relPath);
+    if (blockedByAdmin || blockedByShare) {
+      return NextResponse.json(
+        { error: "No tienes acceso a esa carpeta." },
+        { status: 403 },
+      );
     }
   }
 
   try {
     let entries = await listDirectory(credsOf(session), relPath);
-    // En la raíz compartida, un empleado solo ve las subcarpetas permitidas.
-    if (isSharedRoot(relPath) && session.role !== "admin") {
-      const allowed = await visibleSharedFolders(session.username);
-      if (allowed !== null) {
-        entries = entries.filter((e) => !e.isDir || allowed.includes(e.name));
-      }
+
+    // Filtrado para empleados: visibilidad admin + compartición por carpeta.
+    if (inShared && isEmployee) {
+      const allowed = isSharedRoot(relPath)
+        ? await visibleSharedFolders(session.username)
+        : null;
+      entries = entries.filter((e) => {
+        if (!e.isDir) return true;
+        if (allowed !== null && !allowed.includes(e.name)) return false; // regla admin
+        return canSeeWith(shares, session.username, session.role, e.path); // compartición
+      });
     }
-    // En el área compartida, adjuntamos autor/fecha de subida desde nuestra DB.
-    const meta = isShared(relPath)
-      ? await metaForPaths(entries.filter((e: WebDavEntry) => !e.isDir).map((e: WebDavEntry) => e.path))
+
+    // Metadatos de archivos (autor/fecha) desde nuestra DB.
+    const meta = inShared
+      ? await metaForPaths(
+          entries.filter((e: WebDavEntry) => !e.isDir).map((e: WebDavEntry) => e.path),
+        )
       : {};
+
     const mapped = entries.map((e) => {
       const m = meta[e.path];
       return {
@@ -56,6 +74,12 @@ export async function GET(req: Request) {
         modified: e.modified ? Date.parse(e.modified) || 0 : 0,
         subidoPor: m?.subidoPor ?? null,
         subidoEn: m?.subidoEn ?? null,
+        // Sharing (solo carpetas en el área compartida).
+        restricted: inShared && e.isDir ? isRestrictedWith(shares, e.path) : false,
+        canManage:
+          inShared && e.isDir
+            ? canManageWith(shares, session.username, session.role, e.path)
+            : false,
       };
     });
     return NextResponse.json({ path: relPath, entries: mapped, role: session.role });

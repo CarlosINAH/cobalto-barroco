@@ -18,6 +18,10 @@ import {
   UploadCloud,
   Pencil,
   Trash,
+  Share2,
+  Users,
+  Lock,
+  Check,
 } from "lucide-react";
 
 interface Entry {
@@ -28,6 +32,8 @@ interface Entry {
   modified: number;
   subidoPor?: string | null;
   subidoEn?: number | null;
+  restricted?: boolean;
+  canManage?: boolean;
 }
 
 interface FileEvent {
@@ -99,6 +105,7 @@ export default function FileBrowser({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [historyFor, setHistoryFor] = useState<Entry | null>(null);
+  const [shareFor, setShareFor] = useState<Entry | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (p: string) => {
@@ -290,6 +297,14 @@ export default function FileBrowser({
                 ) : (
                   <span className="text-[#2C2C2C] text-sm truncate">{e.name}</span>
                 )}
+                {e.restricted && (
+                  <span
+                    className="shrink-0 text-[#C9A84C]"
+                    title="Compartida solo con algunos empleados"
+                  >
+                    <Lock size={11} />
+                  </span>
+                )}
               </div>
               {withMeta ? (
                 <>
@@ -309,6 +324,16 @@ export default function FileBrowser({
                 {fmtDate(e.modified)}
               </div>
               <div className="col-span-2 flex justify-end gap-2">
+                {withMeta && e.isDir && e.canManage && (
+                  <button
+                    onClick={() => setShareFor(e)}
+                    className="flex items-center justify-center border border-[#EDE9E0] text-[#1B2A5E] hover:bg-[#1B2A5E] hover:text-[#F5F2EC] transition-colors p-1.5"
+                    title="Compartir carpeta"
+                    aria-label={`Compartir ${e.name}`}
+                  >
+                    <Share2 size={14} />
+                  </button>
+                )}
                 {withMeta && !e.isDir && (
                   <button
                     onClick={() => setHistoryFor(e)}
@@ -347,6 +372,165 @@ export default function FileBrowser({
       {historyFor && (
         <HistoryModal entry={historyFor} onClose={() => setHistoryFor(null)} />
       )}
+      {shareFor && (
+        <ShareModal
+          entry={shareFor}
+          onClose={() => setShareFor(null)}
+          onSaved={() => {
+            setShareFor(null);
+            load(path);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface EmployeeOpt {
+  username: string;
+  nombre: string;
+}
+
+function ShareModal({
+  entry,
+  onClose,
+  onSaved,
+}: {
+  entry: Entry;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [employees, setEmployees] = useState<EmployeeOpt[]>([]);
+  const [everyone, setEveryone] = useState(true);
+  const [allowed, setAllowed] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch(`/api/files/share?path=${encodeURIComponent(entry.path)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        setEmployees(d.employees || []);
+        if (d.allowed === null) {
+          setEveryone(true);
+          setAllowed([]);
+        } else {
+          setEveryone(false);
+          setAllowed(d.allowed);
+        }
+      })
+      .catch(() => setError("No se pudo cargar."))
+      .finally(() => setLoading(false));
+  }, [entry.path]);
+
+  const toggle = (u: string) =>
+    setAllowed((a) => (a.includes(u) ? a.filter((x) => x !== u) : [...a, u]));
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/files/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: entry.path, allowed: everyone ? null : allowed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "No se pudo guardar.");
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Error de conexión.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-[#F5F2EC] w-full max-w-md max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EDE9E0]">
+          <div className="min-w-0">
+            <h3 className="flex items-center gap-2 text-[#1B2A5E] text-lg" style={{ fontFamily: "var(--font-playfair)" }}>
+              <Share2 size={16} className="text-[#C9A84C]" /> Compartir carpeta
+            </h3>
+            <p className="text-[#7A7A7A] text-xs truncate">{entry.name}</p>
+          </div>
+          <button onClick={onClose} className="text-[#7A7A7A] hover:text-[#1B2A5E]">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {loading ? (
+            <div className="flex items-center gap-2 text-[#7A7A7A] text-sm py-6 justify-center">
+              <Loader2 size={16} className="animate-spin" /> Cargando…
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2 mb-4">
+                <label className="flex items-center gap-2.5 text-sm text-[#2C2C2C] cursor-pointer">
+                  <input type="radio" checked={everyone} onChange={() => setEveryone(true)} className="accent-[#C9A84C]" />
+                  <Users size={14} className="text-[#7A7A7A]" />
+                  Todos los empleados
+                </label>
+                <label className="flex items-center gap-2.5 text-sm text-[#2C2C2C] cursor-pointer">
+                  <input type="radio" checked={!everyone} onChange={() => setEveryone(false)} className="accent-[#C9A84C]" />
+                  <Lock size={14} className="text-[#7A7A7A]" />
+                  Solo empleados seleccionados
+                </label>
+              </div>
+
+              {!everyone && (
+                <div className="border border-[#EDE9E0] bg-white max-h-56 overflow-y-auto">
+                  {employees.length === 0 ? (
+                    <p className="text-[#7A7A7A] text-xs p-4">No hay empleados registrados.</p>
+                  ) : (
+                    employees.map((emp) => (
+                      <label
+                        key={emp.username}
+                        className="flex items-center gap-2.5 px-4 py-2.5 border-b border-[#EDE9E0] last:border-0 hover:bg-[#F5F2EC] cursor-pointer text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={allowed.includes(emp.username)}
+                          onChange={() => toggle(emp.username)}
+                          className="accent-[#C9A84C]"
+                        />
+                        <span className="text-[#2C2C2C]">{emp.nombre}</span>
+                        <span className="text-[#7A7A7A] text-xs">@{emp.username}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {error && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 px-3 py-2.5 text-red-600 text-xs mt-3">
+                  {error}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[#EDE9E0]">
+          <button onClick={onClose} className="px-4 py-2.5 text-xs tracking-widest uppercase font-semibold text-[#7A7A7A] hover:text-[#1B2A5E]">
+            Cancelar
+          </button>
+          <button
+            onClick={save}
+            disabled={saving || loading}
+            className="flex items-center gap-2 bg-[#1B2A5E] text-[#F5F2EC] px-5 py-2.5 text-xs tracking-widest uppercase font-bold hover:bg-[#243470] disabled:opacity-60"
+          >
+            {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+            Guardar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

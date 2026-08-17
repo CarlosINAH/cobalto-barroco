@@ -1,5 +1,5 @@
 import "server-only";
-import { getDB, mutate, type SharedFileMeta } from "@/lib/db";
+import { getDB, mutate, type SharedFileMeta, type FolderShare } from "@/lib/db";
 import { makeDirectory } from "@/lib/webdav";
 
 /**
@@ -100,6 +100,164 @@ export async function metaForPaths(
 export async function getMeta(path: string): Promise<SharedFileMeta | null> {
   const db = await getDB();
   return (db.sharedFiles || []).find((f) => f.path === path) || null;
+}
+
+// ---- Compartición de carpetas con empleados seleccionados ----
+
+function normalize(path: string): string {
+  return (path || "").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+/** Registro de compartición de una carpeta (o null si no tiene). */
+export async function getFolderShare(path: string): Promise<FolderShare | null> {
+  const db = await getDB();
+  const p = normalize(path);
+  return (db.folderShares || []).find((f) => f.path === p) || null;
+}
+
+/** Al crear una carpeta compartida, guarda a su dueño (visible para todos por defecto). */
+export async function recordFolderCreated(
+  path: string,
+  usuario: string,
+): Promise<void> {
+  const p = normalize(path);
+  await mutate((db) => {
+    if (!db.folderShares) db.folderShares = [];
+    if (db.folderShares.some((f) => f.path === p)) return;
+    const now = Date.now();
+    db.folderShares.push({
+      path: p,
+      sharedBy: usuario,
+      allowed: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
+/** Elimina el registro de una carpeta borrada (y sus descendientes). */
+export async function removeFolderShare(path: string): Promise<void> {
+  const p = normalize(path);
+  await mutate((db) => {
+    if (!db.folderShares) return;
+    db.folderShares = db.folderShares.filter(
+      (f) => f.path !== p && !f.path.startsWith(p + "/"),
+    );
+  });
+}
+
+/** ¿El usuario puede gestionar la compartición de esta carpeta? (dueño o admin) */
+export async function canManageFolder(
+  username: string,
+  role: string,
+  path: string,
+): Promise<boolean> {
+  if (role === "admin") return true;
+  const share = await getFolderShare(path);
+  return !!share && share.sharedBy.toLowerCase() === username.toLowerCase();
+}
+
+/** ¿El usuario puede VER esta carpeta compartida? */
+export async function canSeeFolder(
+  username: string,
+  role: string,
+  path: string,
+): Promise<boolean> {
+  if (role === "admin") return true;
+  const share = await getFolderShare(path);
+  if (!share || share.allowed === null) return true; // visible para todos
+  const u = username.toLowerCase();
+  return (
+    share.sharedBy.toLowerCase() === u ||
+    share.allowed.some((a) => a.toLowerCase() === u)
+  );
+}
+
+/**
+ * Define con quién está compartida una carpeta. Solo el dueño o un admin.
+ * `allowed` = null (todos) o lista de usernames.
+ */
+export async function setFolderShare(
+  path: string,
+  session: { username: string; role: string },
+  allowed: string[] | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const p = normalize(path);
+  if (!(await canManageFolder(session.username, session.role, p))) {
+    return { ok: false, error: "No puedes cambiar el acceso de esta carpeta." };
+  }
+  await mutate((db) => {
+    if (!db.folderShares) db.folderShares = [];
+    const now = Date.now();
+    const existing = db.folderShares.find((f) => f.path === p);
+    const clean = allowed === null ? null : [...new Set(allowed.map(String).filter(Boolean))];
+    if (existing) {
+      existing.allowed = clean;
+      existing.updatedAt = now;
+    } else {
+      db.folderShares.push({
+        path: p,
+        sharedBy: session.username,
+        allowed: clean,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  });
+  return { ok: true };
+}
+
+/** Directorio de empleados (para el selector de compartición). */
+export async function employeeDirectory(): Promise<
+  { username: string; nombre: string }[]
+> {
+  const db = await getDB();
+  return db.employees.map((e) => ({ username: e.username, nombre: e.nombre }));
+}
+
+// ---- Versiones en memoria (para filtrar un listado sin N lecturas de disco) ----
+
+export async function allFolderShares(): Promise<FolderShare[]> {
+  const db = await getDB();
+  return db.folderShares || [];
+}
+
+function shareOf(shares: FolderShare[], path: string): FolderShare | undefined {
+  const p = normalize(path);
+  return shares.find((f) => f.path === p);
+}
+
+export function canSeeWith(
+  shares: FolderShare[],
+  username: string,
+  role: string,
+  path: string,
+): boolean {
+  if (role === "admin") return true;
+  const share = shareOf(shares, path);
+  if (!share || share.allowed === null) return true;
+  const u = username.toLowerCase();
+  return (
+    share.sharedBy.toLowerCase() === u ||
+    share.allowed.some((a) => a.toLowerCase() === u)
+  );
+}
+
+export function canManageWith(
+  shares: FolderShare[],
+  username: string,
+  role: string,
+  path: string,
+): boolean {
+  if (role === "admin") return true;
+  const share = shareOf(shares, path);
+  return !!share && share.sharedBy.toLowerCase() === username.toLowerCase();
+}
+
+/** ¿La carpeta está restringida (compartida solo con algunos)? */
+export function isRestrictedWith(shares: FolderShare[], path: string): boolean {
+  const share = shareOf(shares, path);
+  return !!share && share.allowed !== null;
 }
 
 /** Crea la estructura "Archivos Compartidos/{Archivos,Fotos}" si no existe. */

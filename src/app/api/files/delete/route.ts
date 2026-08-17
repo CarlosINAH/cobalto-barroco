@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
 import { deleteEntry } from "@/lib/webdav";
-import { isShared, recordDelete } from "@/lib/shared-files";
+import { isShared, recordDelete, removeFolderShare } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
 
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     if (!ok) throw new Error("delete");
     if (isShared(body.path)) {
       await recordDelete(body.path);
+      await removeFolderShare(body.path);
     }
     return NextResponse.json({ ok: true });
   } catch {

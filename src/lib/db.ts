@@ -48,6 +48,22 @@ export interface Employee {
   createdAt: number;
 }
 
+/**
+ * Compartición de una carpeta dentro de "Archivos compartidos".
+ * Por defecto las carpetas son visibles para todos; se crea un registro solo
+ * cuando alguien la RESTRINGE (o al crearla, para saber el dueño).
+ */
+export interface FolderShare {
+  /** Ruta WebDAV de la carpeta (dentro de SHARED_ROOT). */
+  path: string;
+  /** Usuario que la creó/comparte (dueño). */
+  sharedBy: string;
+  /** null = visible para todos; array = solo esos usuarios (+ dueño + admins). */
+  allowed: string[] | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** Proveedor de la empresa. */
 export interface Supplier {
   id: string;
@@ -152,6 +168,7 @@ export interface DBShape {
   inquiries: Inquiry[];
   sharedFiles: SharedFileMeta[];
   suppliers: Supplier[];
+  folderShares: FolderShare[];
   seededEmployees?: boolean;
 }
 
@@ -165,6 +182,7 @@ const EMPTY: DBShape = {
   inquiries: [],
   sharedFiles: [],
   suppliers: [],
+  folderShares: [],
 };
 
 function dbPath(): string {

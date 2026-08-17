@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
 import { makeDirectory } from "@/lib/webdav";
+import { isShared, recordFolderCreated } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
   try {
     const ok = await makeDirectory(credsOf(session), target);
     if (!ok) throw new Error("mkcol");
+    if (isShared(target)) {
+      await recordFolderCreated(target, session.username);
+    }
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(
