@@ -14,6 +14,7 @@ import {
   HardDrive,
   Share2,
   Truck,
+  UserCheck,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -44,6 +45,7 @@ const adminNav: NavItem[] = [
   { icon: Mail, label: "Mensajes", href: "/dashboard/admin/correo" },
   { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
   { icon: Users, label: "Personal", href: "/dashboard/admin/personal" },
+  { icon: UserCheck, label: "Accesos", href: "/dashboard/admin/accesos" },
   { icon: Package, label: "Inventario", href: "/dashboard/admin/inventario" },
   { icon: Truck, label: "Proveedores", href: "/dashboard/admin/proveedores" },
   { icon: HardDrive, label: "Nube NAS", href: "/dashboard/admin/nas" },
@@ -61,7 +63,7 @@ export default function DashboardShell({
   title: string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [me, setMe] = useState<{ nombre: string; rol: string; unread: number } | null>(null);
+  const [me, setMe] = useState<{ nombre: string; rol: string; unread: number; pendingAccess: number } | null>(null);
   const pathname = usePathname();
   const nav = role === "empleado" ? empleadoNav : adminNav;
   const roleLabel = role === "empleado" ? "Empleado" : "Administrador";
@@ -69,7 +71,16 @@ export default function DashboardShell({
   useEffect(() => {
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setMe({ nombre: d.nombre, rol: d.rol, unread: d.unread }))
+      .then(
+        (d) =>
+          d &&
+          setMe({
+            nombre: d.nombre,
+            rol: d.rol,
+            unread: d.unread,
+            pendingAccess: d.pendingAccess || 0,
+          }),
+      )
       .catch(() => {});
   }, []);
 
@@ -121,6 +132,10 @@ export default function DashboardShell({
           {nav.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
+            const badge =
+              item.href === "/dashboard/admin/accesos"
+                ? me?.pendingAccess
+                : item.badge;
             return (
               <Link
                 key={item.href}
@@ -135,9 +150,9 @@ export default function DashboardShell({
                 {!collapsed && (
                   <span className="truncate flex-1">{item.label}</span>
                 )}
-                {!collapsed && item.badge && (
+                {!collapsed && !!badge && (
                   <span className="bg-[#C9A84C] text-[#1B2A5E] text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                    {item.badge}
+                    {badge}
                   </span>
                 )}
                 {/* Tooltip when collapsed */}

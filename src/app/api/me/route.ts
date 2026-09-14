@@ -17,11 +17,17 @@ export async function GET() {
     (m) =>
       m.toUsername.toLowerCase() === session.username.toLowerCase() && !m.leido,
   ).length;
+  // Solicitudes de acceso pendientes (solo relevante para admins).
+  const pendingAccess =
+    session.role === "admin"
+      ? db.access.filter((a) => a.estado === "pendiente").length
+      : 0;
   return NextResponse.json({
     username: session.username,
     role: session.role,
     nombre: emp?.nombre || session.username,
     rol: emp?.rol || (session.role === "admin" ? "Administrador" : "Empleado"),
     unread,
+    pendingAccess,
   });
 }

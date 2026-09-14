@@ -146,6 +146,21 @@ export interface SharedFileMeta {
   historial: SharedFileEvent[];
 }
 
+/**
+ * Control de acceso a la plataforma. La cuenta de login vive en el NAS; esto
+ * decide quién puede USAR la plataforma. Al entrar por primera vez un usuario
+ * del NAS que no sea admin ni empleado existente queda "pendiente" hasta que un
+ * administrador lo apruebe o rechace.
+ */
+export interface AccessEntry {
+  username: string;
+  nombre?: string;
+  estado: "pendiente" | "aprobado" | "rechazado";
+  solicitadoEn: number;
+  decididoEn?: number;
+  decididoPor?: string;
+}
+
 /** Consulta enviada desde el formulario público de contacto (sin sesión). */
 export interface Inquiry {
   id: string;
@@ -169,6 +184,7 @@ export interface DBShape {
   sharedFiles: SharedFileMeta[];
   suppliers: Supplier[];
   folderShares: FolderShare[];
+  access: AccessEntry[];
   seededEmployees?: boolean;
 }
 
@@ -183,6 +199,7 @@ const EMPTY: DBShape = {
   sharedFiles: [],
   suppliers: [],
   folderShares: [],
+  access: [],
 };
 
 function dbPath(): string {

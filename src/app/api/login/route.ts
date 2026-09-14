@@ -6,6 +6,7 @@ import {
   SESSION_MAX_AGE,
 } from "@/lib/session";
 import { checkCredentials } from "@/lib/webdav";
+import { evaluateAccess } from "@/lib/access";
 
 // Corre en Node (WebDAV / Buffer).
 export const runtime = "nodejs";
@@ -39,6 +40,28 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "Usuario o contraseña incorrectos." },
       { status: 401 },
+    );
+  }
+
+  // Control de acceso a la plataforma (aprobación por el administrador).
+  const decision = await evaluateAccess(username);
+  if (decision === "pending") {
+    return NextResponse.json(
+      {
+        error:
+          "Tu acceso está pendiente de aprobación por un administrador. Te avisaremos cuando esté listo.",
+        pending: true,
+      },
+      { status: 403 },
+    );
+  }
+  if (decision === "rejected") {
+    return NextResponse.json(
+      {
+        error:
+          "Tu acceso a la plataforma no fue autorizado. Contacta a la administración.",
+      },
+      { status: 403 },
     );
   }
 
