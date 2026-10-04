@@ -6,20 +6,14 @@ import { usePathname } from "next/navigation";
 import Logo from "@/components/brand/Logo";
 import {
   LayoutDashboard,
-  Mail,
-  FolderOpen,
-  Package,
   Users,
-  FolderKanban,
   HardDrive,
   Share2,
   FolderLock,
-  Truck,
   UserCheck,
   ChevronLeft,
   ChevronRight,
   LogOut,
-  Bell,
   Settings,
 } from "lucide-react";
 
@@ -34,8 +28,6 @@ interface NavItem {
 
 const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
-  { icon: Mail, label: "Mensajes", href: "/dashboard/empleado/correo" },
-  { icon: FolderOpen, label: "Proyecto", href: "/dashboard/empleado/proyecto" },
   { icon: HardDrive, label: "Nube personal", href: "/dashboard/empleado/repositorio" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/empleado/compartidos" },
   { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
@@ -43,12 +35,8 @@ const empleadoNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/admin" },
-  { icon: Mail, label: "Mensajes", href: "/dashboard/admin/correo" },
-  { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
   { icon: Users, label: "Personal", href: "/dashboard/admin/personal" },
   { icon: UserCheck, label: "Accesos", href: "/dashboard/admin/accesos" },
-  { icon: Package, label: "Inventario", href: "/dashboard/admin/inventario" },
-  { icon: Truck, label: "Proveedores", href: "/dashboard/admin/proveedores" },
   { icon: HardDrive, label: "Nube", href: "/dashboard/admin/nas" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/admin/compartidos" },
   { icon: FolderLock, label: "Permisos", href: "/dashboard/admin/permisos" },
@@ -92,8 +80,6 @@ export default function DashboardShell({
     .slice(0, 2)
     .join("")
     .toUpperCase();
-  const mensajesHref =
-    role === "admin" ? "/dashboard/admin/correo" : "/dashboard/empleado/correo";
 
   return (
     <div className="flex h-screen bg-[#F5F2EC] overflow-hidden">
@@ -201,19 +187,7 @@ export default function DashboardShell({
             {title}
           </h1>
           <div className="flex items-center gap-4">
-            <Link
-              href={mensajesHref}
-              className="relative text-[#7A7A7A] hover:text-[#1B2A5E] transition-colors"
-              title="Mensajes"
-            >
-              <Bell size={18} />
-              {me && me.unread > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#C9A84C] rounded-full text-[8px] text-[#1B2A5E] font-bold flex items-center justify-center">
-                  {me.unread}
-                </span>
-              )}
-            </Link>
-            <div className="flex items-center gap-2 border-l border-[#EDE9E0] pl-4">
+            <div className="flex items-center gap-2 pl-4">
               <div className="w-8 h-8 bg-[#1B2A5E] flex items-center justify-center">
                 <span className="text-[#C9A84C] text-xs font-bold">{initials}</span>
               </div>
