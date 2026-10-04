@@ -13,6 +13,7 @@ import {
   FolderKanban,
   HardDrive,
   Share2,
+  FolderLock,
   Truck,
   UserCheck,
   ChevronLeft,
@@ -35,7 +36,7 @@ const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
   { icon: Mail, label: "Mensajes", href: "/dashboard/empleado/correo" },
   { icon: FolderOpen, label: "Proyecto", href: "/dashboard/empleado/proyecto" },
-  { icon: HardDrive, label: "Nube NAS", href: "/dashboard/empleado/repositorio" },
+  { icon: HardDrive, label: "Nube personal", href: "/dashboard/empleado/repositorio" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/empleado/compartidos" },
   { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
 ];
@@ -48,8 +49,9 @@ const adminNav: NavItem[] = [
   { icon: UserCheck, label: "Accesos", href: "/dashboard/admin/accesos" },
   { icon: Package, label: "Inventario", href: "/dashboard/admin/inventario" },
   { icon: Truck, label: "Proveedores", href: "/dashboard/admin/proveedores" },
-  { icon: HardDrive, label: "Nube NAS", href: "/dashboard/admin/nas" },
+  { icon: HardDrive, label: "Nube", href: "/dashboard/admin/nas" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/admin/compartidos" },
+  { icon: FolderLock, label: "Permisos", href: "/dashboard/admin/permisos" },
   { icon: Settings, label: "Configuración", href: "/dashboard/admin/configuracion" },
 ];
 
