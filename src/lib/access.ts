@@ -20,12 +20,11 @@ export async function evaluateAccess(username: string): Promise<AccessDecision> 
   if (isAdmin(username)) return "allow";
   const u = norm(username);
 
-  // Camino rápido (solo lectura): resuelve sin escribir los casos ya decididos
-  // (aprobado con ficha, pendiente o rechazado), que es lo normal en cada login.
+  // Camino rápido (solo lectura): el rechazo explícito veta; un aprobado con
+  // ficha ya está listo. Es lo normal en cada login.
   const db = await getDB();
   const current = db.access.find((a) => norm(a.username) === u);
   if (current?.estado === "rechazado") return "rejected";
-  if (current?.estado === "pendiente") return "pending";
   if (
     current?.estado === "aprobado" &&
     db.employees.some((e) => norm(e.username) === u)
@@ -33,63 +32,49 @@ export async function evaluateAccess(username: string): Promise<AccessDecision> 
     return "allow";
   }
 
-  // Decisión con escritura (serializada y atómica).
+  // Decisión con escritura (serializada y atómica). El NAS ya validó las
+  // credenciales, así que cualquier usuario autorizado por el NAS queda dado de
+  // alta automáticamente (acceso aprobado + ficha de empleado). La única
+  // excepción es un rechazo explícito del admin, que veta a esa persona.
   return mutate((d) => {
     const entry = d.access.find((a) => norm(a.username) === u);
     if (entry?.estado === "rechazado") return "rejected";
-    if (entry?.estado === "pendiente") return "pending";
 
     const now = Date.now();
-    const emp = d.employees.find((e) => norm(e.username) === u);
-
-    // Usuario ya conocido (empleado del roster inicial o con registro de acceso
-    // previo): conserva su acceso. Así nadie que ya usaba la plataforma queda
-    // bloqueado al introducir la aprobación por administrador.
-    if (emp || entry) {
-      let e = emp;
-      if (!e) {
-        e = {
-          id: newId("EMP"),
-          username: username.trim(),
-          nombre: entry?.nombre || username.trim(),
-          email: "",
-          telefono: "",
-          rol: "",
-          ranking: 0,
-          habilidades: [],
-          cualidades: [],
-          proyectoId: null,
-          createdAt: now,
-        };
-        d.employees.push(e);
-      }
-      if (!entry) {
-        d.access.push({
-          username: username.trim(),
-          nombre: e.nombre,
-          estado: "aprobado",
-          solicitadoEn: now,
-          decididoEn: now,
-          decididoPor: "sistema",
-        });
-      } else if (entry.estado !== "aprobado") {
-        entry.estado = "aprobado";
-        entry.decididoEn = now;
-        entry.decididoPor = "sistema";
-        if (!entry.nombre) entry.nombre = e.nombre;
-      }
-      return "allow";
+    let emp = d.employees.find((e) => norm(e.username) === u);
+    if (!emp) {
+      emp = {
+        id: newId("EMP"),
+        username: username.trim(),
+        nombre: entry?.nombre || username.trim(),
+        email: "",
+        telefono: "",
+        rol: "",
+        ranking: 0,
+        habilidades: [],
+        cualidades: [],
+        proyectoId: null,
+        createdAt: now,
+      };
+      d.employees.push(emp);
     }
-
-    // Usuario nuevo del NAS: queda PENDIENTE hasta que un administrador lo
-    // apruebe en "Accesos". Su ficha de empleado se crea al aprobarlo.
-    d.access.push({
-      username: username.trim(),
-      nombre: username.trim(),
-      estado: "pendiente",
-      solicitadoEn: now,
-    });
-    return "pending";
+    if (!entry) {
+      d.access.push({
+        username: username.trim(),
+        nombre: emp.nombre,
+        estado: "aprobado",
+        solicitadoEn: now,
+        decididoEn: now,
+        decididoPor: "sistema",
+      });
+    } else if (entry.estado !== "aprobado") {
+      // Incluye pendientes heredados: al entrar, quedan aprobados sin trámite.
+      entry.estado = "aprobado";
+      entry.decididoEn = now;
+      entry.decididoPor = "sistema";
+      if (!entry.nombre) entry.nombre = emp.nombre;
+    }
+    return "allow";
   });
 }
 
