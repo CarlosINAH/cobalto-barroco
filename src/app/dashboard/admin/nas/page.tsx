@@ -8,7 +8,7 @@ export default async function NASAdmin() {
   await requireAdmin();
 
   return (
-    <DashboardShell role="admin" title="Nube NAS">
+    <DashboardShell role="admin" title="Nube">
       <div className="mb-5">
         <p className="text-[#7A7A7A] text-sm">
           Todos los archivos de la empresa: repositorios de empleados
@@ -16,7 +16,7 @@ export default async function NASAdmin() {
           (<span className="font-medium">Proyectos/</span>).
         </p>
       </div>
-      <FileBrowser rootLabel="NAS" />
+      <FileBrowser rootLabel="Nube" />
     </DashboardShell>
   );
 }

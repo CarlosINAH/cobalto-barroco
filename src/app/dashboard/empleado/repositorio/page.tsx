@@ -8,7 +8,7 @@ export default async function RepositorioEmpleado() {
   const session = await requireSession();
 
   return (
-    <DashboardShell role="empleado" title="Nube NAS">
+    <DashboardShell role="empleado" title="Nube personal">
       <div className="mb-5">
         <p className="text-[#7A7A7A] text-sm">
           Tu carpeta personal en el NAS, {session.username}. Solo ves y gestionas
