@@ -64,9 +64,10 @@ export default function AccesosManager({ initial }: { initial: Entry[] }) {
     <>
       <div className="flex items-center justify-between mb-6">
         <p className="text-[#7A7A7A] text-sm max-w-xl">
-          Cualquier persona con cuenta en el NAS entra automáticamente al usar la
-          plataforma por primera vez. Desde aquí puedes revocar el acceso de
-          alguien en concreto (o volver a darle acceso si lo revocaste).
+          Cuando alguien con cuenta en el NAS entra por primera vez, queda en
+          <b> Pendientes</b> hasta que lo apruebes aquí. También puedes
+          pre-aprobar a alguien por adelantado, o revocar el acceso de quien ya
+          lo tiene.
         </p>
         <button
           onClick={() => setInviteOpen(true)}
