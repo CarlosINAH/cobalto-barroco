@@ -11,6 +11,7 @@ import {
   canSeeWith,
   canManageWith,
   isRestrictedWith,
+  folderMetaWith,
 } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
@@ -66,14 +67,16 @@ export async function GET(req: Request) {
 
     const mapped = entries.map((e) => {
       const m = meta[e.path];
+      // Para carpetas compartidas, el autor/fecha vienen del registro de share.
+      const fm = inShared && e.isDir ? folderMetaWith(shares, e.path) : null;
       return {
         name: e.name,
         path: e.path,
         isDir: e.isDir,
         size: e.size,
         modified: e.modified ? Date.parse(e.modified) || 0 : 0,
-        subidoPor: m?.subidoPor ?? null,
-        subidoEn: m?.subidoEn ?? null,
+        subidoPor: m?.subidoPor ?? fm?.sharedBy ?? null,
+        subidoEn: m?.subidoEn ?? fm?.createdAt ?? null,
         // Sharing (solo carpetas en el área compartida).
         restricted: inShared && e.isDir ? isRestrictedWith(shares, e.path) : false,
         canManage:

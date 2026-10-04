@@ -22,7 +22,12 @@ import {
   Users,
   Lock,
   Check,
+  Send,
 } from "lucide-react";
+
+const SHARED_ROOT = "Archivos compartidos";
+const inSharedArea = (p: string) =>
+  p === SHARED_ROOT || p.startsWith(SHARED_ROOT + "/");
 
 interface Entry {
   name: string;
@@ -94,10 +99,13 @@ export default function FileBrowser({
   rootLabel = "Inicio",
   basePath = "",
   withMeta = false,
+  canPublish = false,
 }: {
   rootLabel?: string;
   basePath?: string;
   withMeta?: boolean;
+  /** Permite publicar carpetas propias en "Archivos compartidos" (Nube personal). */
+  canPublish?: boolean;
 }) {
   const [path, setPath] = useState(basePath);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -107,6 +115,7 @@ export default function FileBrowser({
   const [error, setError] = useState("");
   const [historyFor, setHistoryFor] = useState<Entry | null>(null);
   const [shareFor, setShareFor] = useState<Entry | null>(null);
+  const [publishFor, setPublishFor] = useState<Entry | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (p: string) => {
@@ -311,10 +320,10 @@ export default function FileBrowser({
               {withMeta ? (
                 <>
                   <div className="col-span-2 hidden md:block text-[#7A7A7A] text-sm truncate">
-                    {e.isDir ? "—" : e.subidoPor || <span className="text-[#C0BDB8]">—</span>}
+                    {e.subidoPor || <span className="text-[#C0BDB8]">—</span>}
                   </div>
                   <div className="col-span-2 hidden md:block text-[#7A7A7A] text-sm">
-                    {e.isDir ? "—" : fmtDate(e.subidoEn)}
+                    {fmtDate(e.subidoEn)}
                   </div>
                 </>
               ) : (
@@ -326,6 +335,16 @@ export default function FileBrowser({
                 {fmtDate(e.modified)}
               </div>
               <div className="col-span-2 flex justify-end gap-2">
+                {canPublish && e.isDir && !inSharedArea(e.path) && (
+                  <button
+                    onClick={() => setPublishFor(e)}
+                    className="flex items-center justify-center border border-[#C9A84C] text-[#1B2A5E] hover:bg-[#C9A84C] hover:text-[#1B2A5E] transition-colors p-1.5"
+                    title="Compartir con el equipo"
+                    aria-label={`Compartir ${e.name} con el equipo`}
+                  >
+                    <Send size={14} />
+                  </button>
+                )}
                 {withMeta && e.isDir && e.canManage && (
                   <button
                     onClick={() => setShareFor(e)}
@@ -382,6 +401,16 @@ export default function FileBrowser({
           onClose={() => setShareFor(null)}
           onSaved={() => {
             setShareFor(null);
+            load(path);
+          }}
+        />
+      )}
+      {publishFor && (
+        <PublishModal
+          entry={publishFor}
+          onClose={() => setPublishFor(null)}
+          onSaved={() => {
+            setPublishFor(null);
             load(path);
           }}
         />
@@ -532,6 +561,169 @@ function ShareModal({
           >
             {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
             Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PublishModal({
+  entry,
+  onClose,
+  onSaved,
+}: {
+  entry: Entry;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [employees, setEmployees] = useState<EmployeeOpt[]>([]);
+  const [everyone, setEveryone] = useState(false);
+  const [allowed, setAllowed] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/files/publish")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setEmployees(d.employees || []))
+      .catch(() => setError("No se pudo cargar la lista de empleados."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (u: string) =>
+    setAllowed((a) => (a.includes(u) ? a.filter((x) => x !== u) : [...a, u]));
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/files/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path: entry.path,
+          allowed: everyone ? null : allowed,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "No se pudo compartir.");
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Error de conexión.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-[#F5F2EC] w-full max-w-md max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EDE9E0]">
+          <div className="min-w-0">
+            <h3
+              className="flex items-center gap-2 text-[#1B2A5E] text-lg"
+              style={{ fontFamily: "var(--font-playfair)" }}
+            >
+              <Send size={16} className="text-[#C9A84C]" /> Compartir con el equipo
+            </h3>
+            <p className="text-[#7A7A7A] text-xs truncate">{entry.name}</p>
+          </div>
+          <button onClick={onClose} className="text-[#7A7A7A] hover:text-[#1B2A5E]">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6">
+          <p className="text-[#7A7A7A] text-xs leading-relaxed mb-4">
+            La carpeta pasará a <b>Archivos compartidos</b> para colaborar. Se
+            mueve una sola copia (no duplica ni gasta espacio en el NAS), se
+            guarda que tú la compartiste y la fecha, y el{" "}
+            <b>administrador siempre tiene acceso</b>.
+          </p>
+
+          {loading ? (
+            <div className="flex items-center gap-2 text-[#7A7A7A] text-sm py-6 justify-center">
+              <Loader2 size={16} className="animate-spin" /> Cargando…
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2 mb-4">
+                <label className="flex items-center gap-2.5 text-sm text-[#2C2C2C] cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={!everyone}
+                    onChange={() => setEveryone(false)}
+                    className="accent-[#C9A84C]"
+                  />
+                  <Lock size={14} className="text-[#7A7A7A]" />
+                  Solo empleados seleccionados
+                </label>
+                <label className="flex items-center gap-2.5 text-sm text-[#2C2C2C] cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={everyone}
+                    onChange={() => setEveryone(true)}
+                    className="accent-[#C9A84C]"
+                  />
+                  <Users size={14} className="text-[#7A7A7A]" />
+                  Todo el equipo
+                </label>
+              </div>
+
+              {!everyone && (
+                <div className="border border-[#EDE9E0] bg-white max-h-56 overflow-y-auto">
+                  {employees.length === 0 ? (
+                    <p className="text-[#7A7A7A] text-xs p-4">
+                      No hay otros empleados registrados.
+                    </p>
+                  ) : (
+                    employees.map((emp) => (
+                      <label
+                        key={emp.username}
+                        className="flex items-center gap-2.5 px-4 py-2.5 border-b border-[#EDE9E0] last:border-0 hover:bg-[#F5F2EC] cursor-pointer text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={allowed.includes(emp.username)}
+                          onChange={() => toggle(emp.username)}
+                          className="accent-[#C9A84C]"
+                        />
+                        <span className="text-[#2C2C2C]">{emp.nombre}</span>
+                        <span className="text-[#7A7A7A] text-xs">@{emp.username}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {error && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 px-3 py-2.5 text-red-600 text-xs mt-3">
+                  {error}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[#EDE9E0]">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 text-xs tracking-widest uppercase font-semibold text-[#7A7A7A] hover:text-[#1B2A5E]"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={save}
+            disabled={saving || loading || (!everyone && allowed.length === 0)}
+            className="flex items-center gap-2 bg-[#1B2A5E] text-[#F5F2EC] px-5 py-2.5 text-xs tracking-widest uppercase font-bold hover:bg-[#243470] disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {saving ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+            Compartir
           </button>
         </div>
       </div>

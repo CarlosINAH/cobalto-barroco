@@ -16,7 +16,7 @@ export default async function NASAdmin() {
           (<span className="font-medium">Proyectos/</span>).
         </p>
       </div>
-      <FileBrowser rootLabel="Nube" />
+      <FileBrowser rootLabel="Nube" canPublish />
     </DashboardShell>
   );
 }
