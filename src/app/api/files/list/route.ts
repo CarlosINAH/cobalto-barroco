@@ -5,10 +5,12 @@ import {
   isShared,
   isSharedRoot,
   sharedTopSubfolder,
+  sharedGoverningFolder,
   visibleSharedFolders,
   metaForPaths,
   allFolderShares,
   canSeeWith,
+  canWriteWith,
   canManageWith,
   isRestrictedWith,
   folderMetaWith,
@@ -34,7 +36,11 @@ export async function GET(req: Request) {
     const allowed = await visibleSharedFolders(session.username);
     const top = sharedTopSubfolder(relPath);
     const blockedByAdmin = allowed !== null && top !== null && !allowed.includes(top);
-    const blockedByShare = !canSeeWith(shares, session.username, session.role, relPath);
+    // Los permisos se gobiernan por la carpeta de primer nivel y se heredan.
+    const gov = sharedGoverningFolder(relPath);
+    const blockedByShare = gov
+      ? !canSeeWith(shares, session.username, session.role, gov)
+      : false;
     if (blockedByAdmin || blockedByShare) {
       return NextResponse.json(
         { error: "No tienes acceso a esa carpeta." },
@@ -85,7 +91,24 @@ export async function GET(req: Request) {
             : false,
       };
     });
-    return NextResponse.json({ path: relPath, entries: mapped, role: session.role });
+    // ¿Puede escribir en la carpeta actual? (oculta "Subir/Carpeta" si no).
+    const govHere = sharedGoverningFolder(relPath);
+    const canWrite =
+      !inShared
+        ? true
+        : canWriteWith(
+            shares,
+            session.username,
+            session.role,
+            govHere ?? relPath,
+          );
+
+    return NextResponse.json({
+      path: relPath,
+      entries: mapped,
+      role: session.role,
+      canWrite,
+    });
   } catch {
     return NextResponse.json(
       { error: "No tienes acceso a esa carpeta o el NAS no respondió." },

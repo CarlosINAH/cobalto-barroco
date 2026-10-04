@@ -1,5 +1,11 @@
 import "server-only";
-import { getDB, mutate, type SharedFileMeta, type FolderShare } from "@/lib/db";
+import {
+  getDB,
+  mutate,
+  type SharedFileMeta,
+  type FolderShare,
+  type FolderPermLevel,
+} from "@/lib/db";
 import { makeDirectory } from "@/lib/webdav";
 
 /**
@@ -26,6 +32,17 @@ export function sharedTopSubfolder(path: string): string | null {
   const p = (path || "").replace(/^\/+/, "");
   if (!p.startsWith(SHARED_ROOT + "/")) return null;
   return p.slice(SHARED_ROOT.length + 1).split("/")[0] || null;
+}
+
+/**
+ * Carpeta de primer nivel (bajo SHARED_ROOT) que gobierna los permisos de una
+ * ruta: los permisos se administran por subcarpeta de primer nivel y se heredan
+ * a todo su contenido. null = la ruta está en la raíz compartida (sin carpeta
+ * que la restrinja).
+ */
+export function sharedGoverningFolder(path: string): string | null {
+  const top = sharedTopSubfolder(path);
+  return top ? `${SHARED_ROOT}/${top}` : null;
 }
 
 /**
@@ -146,7 +163,71 @@ export async function removeFolderShare(path: string): Promise<void> {
   });
 }
 
-/** ¿El usuario puede gestionar la compartición de esta carpeta? (dueño o admin) */
+const LEVELS: FolderPermLevel[] = ["total", "escritura", "lectura", "none"];
+
+/**
+ * Nivel efectivo de un usuario sobre una carpeta (estilo Windows). Admins y el
+ * dueño siempre tienen acceso total. Sin registro de compartición, la carpeta
+ * está abierta (todos pueden ver y editar). Con `perms` definido manda el modelo
+ * nuevo; si no, se deduce del modelo antiguo (`allowed`).
+ */
+export function permOf(
+  share: FolderShare | undefined,
+  username: string,
+  role: string,
+): FolderPermLevel {
+  if (role === "admin") return "total";
+  const u = username.toLowerCase();
+  if (!share) return "escritura";
+  if (share.sharedBy.toLowerCase() === u) return "total";
+  if (share.perms) {
+    return share.perms[u] ?? share.defaultPerm ?? "none";
+  }
+  if (share.allowed === null) return "escritura";
+  return share.allowed.some((a) => a.toLowerCase() === u) ? "escritura" : "none";
+}
+
+function canWriteLevel(p: FolderPermLevel): boolean {
+  return p === "escritura" || p === "total";
+}
+
+/** Nivel efectivo (async, lee la DB). */
+export async function folderPerm(
+  username: string,
+  role: string,
+  path: string,
+): Promise<FolderPermLevel> {
+  if (role === "admin") return "total";
+  const share = await getFolderShare(path);
+  return permOf(share ?? undefined, username, role);
+}
+
+/** ¿El usuario puede escribir (subir/crear/mover) en esta carpeta? */
+export async function canWriteFolder(
+  username: string,
+  role: string,
+  path: string,
+): Promise<boolean> {
+  return canWriteLevel(await folderPerm(username, role, path));
+}
+
+/**
+ * ¿Puede escribir en una ruta del área compartida? Resuelve la carpeta de
+ * primer nivel que gobierna los permisos (herencia a subcarpetas). Si la ruta
+ * está en la raíz compartida, se permite (no hay carpeta que la restrinja).
+ */
+export async function canWriteSharedPath(
+  username: string,
+  role: string,
+  path: string,
+): Promise<boolean> {
+  if (role === "admin") return true;
+  const gov = sharedGoverningFolder(path);
+  if (!gov) return true;
+  return canWriteFolder(username, role, gov);
+}
+
+/** ¿El usuario puede gestionar los permisos de esta carpeta? (acceso total) */
 export async function canManageFolder(
   username: string,
   role: string,
@@ -154,7 +235,7 @@ export async function canManageFolder(
 ): Promise<boolean> {
   if (role === "admin") return true;
   const share = await getFolderShare(path);
-  return !!share && share.sharedBy.toLowerCase() === username.toLowerCase();
+  return permOf(share ?? undefined, username, role) === "total";
 }
 
 /** ¿El usuario puede VER esta carpeta compartida? */
@@ -165,12 +246,51 @@ export async function canSeeFolder(
 ): Promise<boolean> {
   if (role === "admin") return true;
   const share = await getFolderShare(path);
-  if (!share || share.allowed === null) return true; // visible para todos
-  const u = username.toLowerCase();
-  return (
-    share.sharedBy.toLowerCase() === u ||
-    share.allowed.some((a) => a.toLowerCase() === u)
-  );
+  return permOf(share ?? undefined, username, role) !== "none";
+}
+
+/**
+ * Define los permisos por usuario de una carpeta (modelo estilo Windows).
+ * Solo el dueño o un admin. `perms` = nivel por username; `defaultPerm` = nivel
+ * para "Todos los demás".
+ */
+export async function setFolderPerms(
+  path: string,
+  session: { username: string; role: string },
+  perms: Record<string, FolderPermLevel>,
+  defaultPerm: FolderPermLevel,
+): Promise<{ ok: boolean; error?: string }> {
+  const p = normalize(path);
+  if (!(await canManageFolder(session.username, session.role, p))) {
+    return { ok: false, error: "No puedes cambiar los permisos de esta carpeta." };
+  }
+  const clean: Record<string, FolderPermLevel> = {};
+  for (const [k, v] of Object.entries(perms || {})) {
+    if (LEVELS.includes(v)) clean[String(k).toLowerCase()] = v;
+  }
+  const def = LEVELS.includes(defaultPerm) ? defaultPerm : "escritura";
+  await mutate((db) => {
+    if (!db.folderShares) db.folderShares = [];
+    const now = Date.now();
+    const existing = db.folderShares.find((f) => f.path === p);
+    if (existing) {
+      existing.perms = clean;
+      existing.defaultPerm = def;
+      existing.allowed = null; // manda el modelo nuevo
+      existing.updatedAt = now;
+    } else {
+      db.folderShares.push({
+        path: p,
+        sharedBy: session.username,
+        allowed: null,
+        perms: clean,
+        defaultPerm: def,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  });
+  return { ok: true };
 }
 
 /**
@@ -227,20 +347,32 @@ function shareOf(shares: FolderShare[], path: string): FolderShare | undefined {
   return shares.find((f) => f.path === p);
 }
 
+/** Nivel efectivo usando la lista de shares ya cargada (sin leer disco). */
+export function permWith(
+  shares: FolderShare[],
+  username: string,
+  role: string,
+  path: string,
+): FolderPermLevel {
+  return permOf(shareOf(shares, path), username, role);
+}
+
 export function canSeeWith(
   shares: FolderShare[],
   username: string,
   role: string,
   path: string,
 ): boolean {
-  if (role === "admin") return true;
-  const share = shareOf(shares, path);
-  if (!share || share.allowed === null) return true;
-  const u = username.toLowerCase();
-  return (
-    share.sharedBy.toLowerCase() === u ||
-    share.allowed.some((a) => a.toLowerCase() === u)
-  );
+  return permWith(shares, username, role, path) !== "none";
+}
+
+export function canWriteWith(
+  shares: FolderShare[],
+  username: string,
+  role: string,
+  path: string,
+): boolean {
+  return canWriteLevel(permWith(shares, username, role, path));
 }
 
 export function canManageWith(
@@ -249,15 +381,19 @@ export function canManageWith(
   role: string,
   path: string,
 ): boolean {
-  if (role === "admin") return true;
-  const share = shareOf(shares, path);
-  return !!share && share.sharedBy.toLowerCase() === username.toLowerCase();
+  return permWith(shares, username, role, path) === "total";
 }
 
-/** ¿La carpeta está restringida (compartida solo con algunos)? */
+/** ¿La carpeta está restringida (alguien con solo lectura o sin acceso)? */
 export function isRestrictedWith(shares: FolderShare[], path: string): boolean {
   const share = shareOf(shares, path);
-  return !!share && share.allowed !== null;
+  if (!share) return false;
+  if (share.perms) {
+    const def = share.defaultPerm ?? "none";
+    if (def === "none" || def === "lectura") return true;
+    return Object.values(share.perms).some((p) => p === "none" || p === "lectura");
+  }
+  return share.allowed !== null;
 }
 
 /** Dueño y fecha de creación de una carpeta compartida (o null si no hay registro). */

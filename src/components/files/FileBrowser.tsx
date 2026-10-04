@@ -110,6 +110,7 @@ export default function FileBrowser({
   const [path, setPath] = useState(basePath);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canWrite, setCanWrite] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -131,6 +132,7 @@ export default function FileBrowser({
       }
       setEntries(data.entries);
       setIsAdmin(data.role === "admin");
+      setCanWrite(data.canWrite !== false);
     } catch {
       setError("Error de conexión.");
     } finally {
@@ -234,30 +236,32 @@ export default function FileBrowser({
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onNewFolder}
-            disabled={busy}
-            className="flex items-center gap-2 border border-[#EDE9E0] text-[#1B2A5E] px-3 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#F5F2EC] transition-colors disabled:opacity-50"
-          >
-            <FolderPlus size={13} /> Carpeta
-          </button>
-          <button
-            onClick={() => fileInput.current?.click()}
-            disabled={busy}
-            className="flex items-center gap-2 bg-[#1B2A5E] text-[#F5F2EC] px-4 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#243470] transition-colors disabled:opacity-50"
-          >
-            {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-            Subir
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => onUpload(e.target.files)}
-          />
-        </div>
+        {canWrite && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onNewFolder}
+              disabled={busy}
+              className="flex items-center gap-2 border border-[#EDE9E0] text-[#1B2A5E] px-3 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#F5F2EC] transition-colors disabled:opacity-50"
+            >
+              <FolderPlus size={13} /> Carpeta
+            </button>
+            <button
+              onClick={() => fileInput.current?.click()}
+              disabled={busy}
+              className="flex items-center gap-2 bg-[#1B2A5E] text-[#F5F2EC] px-4 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#243470] transition-colors disabled:opacity-50"
+            >
+              {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+              Subir
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => onUpload(e.target.files)}
+            />
+          </div>
+        )}
       </div>
 
       {error && (

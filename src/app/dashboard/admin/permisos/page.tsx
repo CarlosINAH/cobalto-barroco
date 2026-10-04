@@ -1,23 +1,31 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import PermisosManager from "@/components/permisos/PermisosManager";
 import { requireAdmin, credsOf } from "@/lib/auth-server";
+import type { FolderPermLevel } from "@/lib/db";
 import { listDirectory } from "@/lib/webdav";
 import {
   ensureSharedStructure,
   SHARED_ROOT,
   allFolderShares,
   employeeDirectory,
+  permOf,
 } from "@/lib/shared-files";
 
 export const dynamic = "force-dynamic";
 
 const norm = (p: string) => p.replace(/^\/+/, "").replace(/\/+$/, "");
 
+export interface FolderPerms {
+  levels: Record<string, FolderPermLevel>;
+  defaultPerm: FolderPermLevel;
+  owner: string | null;
+}
+
 export default async function PermisosAdmin() {
   const session = await requireAdmin();
   await ensureSharedStructure(credsOf(session));
 
-  // Subcarpetas de "Archivos compartidos" (las que se pueden compartir).
+  // Subcarpetas de "Archivos compartidos" (las que se administran).
   let folders: { name: string; path: string }[] = [];
   try {
     const entries = await listDirectory(credsOf(session), SHARED_ROOT);
@@ -33,11 +41,19 @@ export default async function PermisosAdmin() {
     employeeDirectory(),
   ]);
 
-  // null = visible para todos; array = solo esos usuarios.
-  const initialShares: Record<string, string[] | null> = {};
+  // Nivel efectivo actual de cada empleado por carpeta (para prellenar).
+  const initial: Record<string, FolderPerms> = {};
   for (const f of folders) {
     const s = shares.find((x) => x.path === norm(f.path));
-    initialShares[f.path] = s ? s.allowed : null;
+    const levels: Record<string, FolderPermLevel> = {};
+    for (const e of employees) {
+      levels[e.username] = permOf(s, e.username, "empleado");
+    }
+    initial[f.path] = {
+      levels,
+      defaultPerm: s?.defaultPerm ?? "escritura",
+      owner: s?.sharedBy ?? null,
+    };
   }
 
   return (
@@ -45,7 +61,7 @@ export default async function PermisosAdmin() {
       <PermisosManager
         folders={folders}
         employees={employees}
-        initialShares={initialShares}
+        initial={initial}
       />
     </DashboardShell>
   );
