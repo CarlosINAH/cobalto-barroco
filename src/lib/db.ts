@@ -49,6 +49,15 @@ export interface Employee {
 }
 
 /**
+ * Nivel de permiso de un usuario sobre una carpeta compartida (estilo Windows):
+ * - total: ver, escribir y gestionar permisos de la carpeta.
+ * - escritura: ver, descargar, subir y modificar.
+ * - lectura: solo ver y descargar.
+ * - none: sin acceso (la carpeta queda oculta para esa persona).
+ */
+export type FolderPermLevel = "total" | "escritura" | "lectura" | "none";
+
+/**
  * Compartición de una carpeta dentro de "Archivos compartidos".
  * Por defecto las carpetas son visibles para todos; se crea un registro solo
  * cuando alguien la RESTRINGE (o al crearla, para saber el dueño).
@@ -56,10 +65,17 @@ export interface Employee {
 export interface FolderShare {
   /** Ruta WebDAV de la carpeta (dentro de SHARED_ROOT). */
   path: string;
-  /** Usuario que la creó/comparte (dueño). */
+  /** Usuario que la creó/comparte (dueño, siempre con acceso total). */
   sharedBy: string;
-  /** null = visible para todos; array = solo esos usuarios (+ dueño + admins). */
+  /**
+   * Modelo antiguo (compat): null = visible para todos; array = solo esos.
+   * Si `perms` está definido, manda `perms` y este campo se ignora.
+   */
   allowed: string[] | null;
+  /** Nivel por usuario (username en minúsculas). Modelo nuevo estilo Windows. */
+  perms?: Record<string, FolderPermLevel>;
+  /** Nivel para "Todos los demás" (quienes no estén en `perms`). */
+  defaultPerm?: FolderPermLevel;
   createdAt: number;
   updatedAt: number;
 }

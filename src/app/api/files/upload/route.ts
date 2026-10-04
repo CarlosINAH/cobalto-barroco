@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
 import { uploadFile } from "@/lib/webdav";
-import { isShared, recordFileEvent } from "@/lib/shared-files";
+import { isShared, recordFileEvent, canWriteSharedPath } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
 
@@ -24,6 +24,17 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "No se recibió ningún archivo." },
       { status: 400 },
+    );
+  }
+
+  // En el área compartida, solo quien tenga escritura o acceso total.
+  if (
+    isShared(dir) &&
+    !(await canWriteSharedPath(session.username, session.role, dir))
+  ) {
+    return NextResponse.json(
+      { error: "No tienes permiso de escritura en esta carpeta." },
+      { status: 403 },
     );
   }
 
