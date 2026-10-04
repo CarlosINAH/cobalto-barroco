@@ -101,6 +101,7 @@ export default function FileBrowser({
 }) {
   const [path, setPath] = useState(basePath);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -120,6 +121,7 @@ export default function FileBrowser({
         return;
       }
       setEntries(data.entries);
+      setIsAdmin(data.role === "admin");
     } catch {
       setError("Error de conexión.");
     } finally {
@@ -354,15 +356,17 @@ export default function FileBrowser({
                     <Download size={14} />
                   </a>
                 )}
-                <button
-                  onClick={() => onDelete(e)}
-                  disabled={busy}
-                  className="flex items-center justify-center border border-red-200 text-red-500 hover:bg-red-500 hover:text-white transition-colors p-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Eliminar"
-                  aria-label={`Eliminar ${e.name}`}
-                >
-                  <Trash2 size={14} />
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => onDelete(e)}
+                    disabled={busy}
+                    className="flex items-center justify-center border border-red-200 text-red-500 hover:bg-red-500 hover:text-white transition-colors p-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Eliminar"
+                    aria-label={`Eliminar ${e.name}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             </div>
           ))

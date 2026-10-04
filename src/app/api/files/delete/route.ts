@@ -10,6 +10,13 @@ export async function POST(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  // Solo los administradores pueden eliminar archivos; los empleados no.
+  if (session.role !== "admin") {
+    return NextResponse.json(
+      { error: "Solo los administradores pueden eliminar archivos." },
+      { status: 403 },
+    );
+  }
   let body: { path?: string };
   try {
     body = await req.json();
