@@ -131,6 +131,31 @@ export async function makeDirectory(
   return res.ok || res.status === 405; // 405 = ya existe
 }
 
+/**
+ * Mueve (o renombra) un archivo/carpeta dentro del NAS con MOVE de WebDAV.
+ * Es una operación del servidor: no vuelve a transferir datos, así que no
+ * duplica ni gasta espacio extra. `Overwrite: F` evita pisar un destino que
+ * ya exista (devuelve 412).
+ */
+export async function moveEntry(
+  creds: Credentials,
+  from: string,
+  to: string,
+): Promise<{ ok: boolean; status: number }> {
+  const src = baseUrl() + "/" + encodePath(from);
+  const dest = baseUrl() + "/" + encodePath(to);
+  const res = await fetch(src, {
+    method: "MOVE",
+    headers: {
+      Authorization: authHeader(creds.username, creds.password),
+      Destination: dest,
+      Overwrite: "F",
+    },
+    signal: AbortSignal.timeout(60000),
+  });
+  return { ok: res.ok, status: res.status };
+}
+
 /** Borra un archivo o carpeta. */
 export async function deleteEntry(
   creds: Credentials,

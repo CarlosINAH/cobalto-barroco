@@ -12,10 +12,13 @@ export default async function RepositorioEmpleado() {
       <div className="mb-5">
         <p className="text-[#7A7A7A] text-sm">
           Tu carpeta personal en el NAS, {session.username}. Solo ves y gestionas
-          lo que el NAS te permite.
+          lo que el NAS te permite. Usa{" "}
+          <span className="font-medium">Compartir con el equipo</span> en una
+          carpeta para colaborar con tus colegas (el administrador siempre tiene
+          acceso).
         </p>
       </div>
-      <FileBrowser rootLabel="Mi carpeta" />
+      <FileBrowser rootLabel="Mi carpeta" canPublish />
     </DashboardShell>
   );
 }

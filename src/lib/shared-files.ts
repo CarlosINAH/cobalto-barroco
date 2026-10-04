@@ -260,6 +260,37 @@ export function isRestrictedWith(shares: FolderShare[], path: string): boolean {
   return !!share && share.allowed !== null;
 }
 
+/** Dueño y fecha de creación de una carpeta compartida (o null si no hay registro). */
+export function folderMetaWith(
+  shares: FolderShare[],
+  path: string,
+): { sharedBy: string; createdAt: number } | null {
+  const s = shareOf(shares, path);
+  return s ? { sharedBy: s.sharedBy, createdAt: s.createdAt } : null;
+}
+
+/**
+ * Asegura que los empleados dados puedan VER la subcarpeta `folderName` dentro
+ * de "Archivos compartidos". Solo afecta a quienes tienen una restricción
+ * (carpetasVisibles definida); a los demás (ven todo) no les cambia nada. Así,
+ * una carpeta recién compartida no queda oculta por la restricción del admin.
+ */
+export async function grantTopFolderVisibility(
+  usernames: string[],
+  folderName: string,
+): Promise<void> {
+  const wanted = usernames.map((u) => u.toLowerCase());
+  await mutate((db) => {
+    for (const emp of db.employees) {
+      if (!wanted.includes(emp.username.toLowerCase())) continue;
+      if (emp.carpetasVisibles === undefined) continue; // ya ve todo
+      if (!emp.carpetasVisibles.includes(folderName)) {
+        emp.carpetasVisibles.push(folderName);
+      }
+    }
+  });
+}
+
 /** Crea la estructura "Archivos Compartidos/{Archivos,Fotos}" si no existe. */
 export async function ensureSharedStructure(creds: {
   username: string;
