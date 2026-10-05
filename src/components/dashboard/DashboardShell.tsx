@@ -10,7 +10,6 @@ import {
   HardDrive,
   Share2,
   FolderLock,
-  UserCheck,
   Trash2,
   ChevronLeft,
   ChevronRight,
@@ -38,7 +37,6 @@ const empleadoNav: NavItem[] = [
 const adminNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/admin" },
   { icon: Users, label: "Personal", href: "/dashboard/admin/personal" },
-  { icon: UserCheck, label: "Accesos", href: "/dashboard/admin/accesos" },
   { icon: HardDrive, label: "Nube", href: "/dashboard/admin/nas" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/admin/compartidos" },
   { icon: FolderLock, label: "Permisos", href: "/dashboard/admin/permisos" },
@@ -56,7 +54,7 @@ export default function DashboardShell({
   title: string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [me, setMe] = useState<{ nombre: string; rol: string; unread: number; pendingAccess: number } | null>(null);
+  const [me, setMe] = useState<{ nombre: string; rol: string; unread: number } | null>(null);
   const pathname = usePathname();
   const nav = role === "empleado" ? empleadoNav : adminNav;
   const roleLabel = role === "empleado" ? "Empleado" : "Administrador";
@@ -71,7 +69,6 @@ export default function DashboardShell({
             nombre: d.nombre,
             rol: d.rol,
             unread: d.unread,
-            pendingAccess: d.pendingAccess || 0,
           }),
       )
       .catch(() => {});
@@ -123,10 +120,7 @@ export default function DashboardShell({
           {nav.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
-            const badge =
-              item.href === "/dashboard/admin/accesos"
-                ? me?.pendingAccess
-                : item.badge;
+            const badge = item.badge;
             return (
               <Link
                 key={item.href}
