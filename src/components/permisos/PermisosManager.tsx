@@ -15,7 +15,12 @@ import {
   Users,
 } from "lucide-react";
 import type { FolderPermLevel } from "@/lib/db";
-import type { FolderPerms } from "@/app/dashboard/admin/permisos/page";
+
+export interface FolderPerms {
+  levels: Record<string, FolderPermLevel>;
+  defaultPerm: FolderPermLevel;
+  owner: string | null;
+}
 
 interface Emp {
   username: string;
