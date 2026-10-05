@@ -177,6 +177,25 @@ export interface AccessEntry {
   decididoPor?: string;
 }
 
+/**
+ * Elemento en la papelera de reciclaje. Al "eliminar", el archivo o carpeta se
+ * mueve a una carpeta de papelera en el NAS (no se borra de inmediato); aquí se
+ * guarda de dónde salió para poder restaurarlo. Solo un admin vacía la papelera.
+ */
+export interface TrashEntry {
+  id: string;
+  /** Nombre original del archivo/carpeta. */
+  nombre: string;
+  /** Ruta original (para restaurar). */
+  originalPath: string;
+  /** Ruta actual dentro de la carpeta de papelera. */
+  trashPath: string;
+  isDir: boolean;
+  /** Usuario que lo envió a la papelera. */
+  deletedBy: string;
+  deletedAt: number;
+}
+
 /** Consulta enviada desde el formulario público de contacto (sin sesión). */
 export interface Inquiry {
   id: string;
@@ -201,6 +220,7 @@ export interface DBShape {
   suppliers: Supplier[];
   folderShares: FolderShare[];
   access: AccessEntry[];
+  trash: TrashEntry[];
   seededEmployees?: boolean;
 }
 
@@ -216,6 +236,7 @@ const EMPTY: DBShape = {
   suppliers: [],
   folderShares: [],
   access: [],
+  trash: [],
 };
 
 function dbPath(): string {
