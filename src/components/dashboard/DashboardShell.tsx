@@ -9,7 +9,6 @@ import {
   Users,
   HardDrive,
   Share2,
-  FolderLock,
   Trash2,
   ChevronLeft,
   ChevronRight,
@@ -36,10 +35,9 @@ const empleadoNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/admin" },
-  { icon: Users, label: "Personal", href: "/dashboard/admin/personal" },
+  { icon: Users, label: "Personal y permisos", href: "/dashboard/admin/personal" },
   { icon: HardDrive, label: "Nube", href: "/dashboard/admin/nas" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/admin/compartidos" },
-  { icon: FolderLock, label: "Permisos", href: "/dashboard/admin/permisos" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/admin/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/admin/configuracion" },
 ];
