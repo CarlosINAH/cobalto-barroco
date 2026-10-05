@@ -3,7 +3,7 @@ import Link from "next/link";
 import SolicitudesPendientes from "@/components/panel/SolicitudesPendientes";
 import { requireAdmin } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
-import { Users, Package, UserCheck, ArrowRight } from "lucide-react";
+import { Users, Package, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -12,18 +12,16 @@ export default async function PanelAdmin() {
   const db = await getDB();
 
   const pendientes = db.materials.filter((m) => m.estado === "pendiente");
-  const porAprobar = db.access.filter((a) => a.estado === "pendiente").length;
 
   const stats = [
     { label: "Empleados", value: db.employees.length, href: "/dashboard/admin/personal", icon: Users },
     { label: "Solicitudes pendientes", value: pendientes.length, href: "/dashboard/admin", icon: Package },
-    { label: "Accesos por revisar", value: porAprobar, href: "/dashboard/admin/accesos", icon: UserCheck },
   ];
 
   return (
     <DashboardShell role="admin" title="Panel general">
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+      <div className="grid gap-4 sm:grid-cols-2 mb-8">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
