@@ -89,14 +89,24 @@ export async function listDirectory(
   return parsePropfind(xml, rel);
 }
 
-/** Descarga un archivo como stream/respuesta. */
+/**
+ * Descarga un archivo como stream/respuesta.
+ *
+ * `range` reenvía la cabecera Range del cliente al NAS para que el navegador
+ * pueda hacer seek en videos (respuestas 206 Partial Content).
+ */
 export async function downloadFile(
   creds: Credentials,
   filePath: string,
+  range?: string | null,
 ): Promise<Response> {
   const url = baseUrl() + "/" + encodePath(filePath);
+  const headers: Record<string, string> = {
+    Authorization: authHeader(creds.username, creds.password),
+  };
+  if (range) headers.Range = range;
   return fetch(url, {
-    headers: { Authorization: authHeader(creds.username, creds.password) },
+    headers,
     signal: AbortSignal.timeout(60000),
   });
 }

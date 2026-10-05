@@ -45,9 +45,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Ruta inválida." }, { status: 400 });
   }
 
+  // Reenviamos el Range solo en vista inline, para que el navegador pueda
+  // hacer seek en videos (respuestas 206 Partial Content).
+  const range = req.headers.get("range");
+
   let res: Response;
   try {
-    res = await downloadFile(credsOf(session), relPath);
+    res = await downloadFile(credsOf(session), relPath, inline ? range : null);
   } catch {
     return NextResponse.json({ error: "El NAS no respondió." }, { status: 502 });
   }
@@ -68,10 +72,22 @@ export async function GET(req: Request) {
     ? `inline; filename*=UTF-8''${encodeURIComponent(name)}`
     : `attachment; filename*=UTF-8''${encodeURIComponent(name)}`;
 
+  const headers = new Headers({
+    "Content-Type": contentType,
+    "Content-Disposition": disposition,
+  });
+
+  // Reenvío de cabeceras de rango para que el navegador pueda hacer seek en video.
+  const acceptRanges = res.headers.get("accept-ranges");
+  const contentRange = res.headers.get("content-range");
+  const contentLength = res.headers.get("content-length");
+  if (acceptRanges) headers.set("Accept-Ranges", acceptRanges);
+  if (contentRange) headers.set("Content-Range", contentRange);
+  if (contentLength) headers.set("Content-Length", contentLength);
+
+  // 206 si el NAS respondió parcial; si no, 200.
   return new Response(res.body, {
-    headers: {
-      "Content-Type": contentType,
-      "Content-Disposition": disposition,
-    },
+    status: res.status === 206 ? 206 : 200,
+    headers,
   });
 }
