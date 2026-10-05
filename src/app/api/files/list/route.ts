@@ -10,6 +10,7 @@ import {
   canWriteWith,
   canManageWith,
   isRestrictedWith,
+  hiddenWith,
   folderMetaWith,
 } from "@/lib/shared-files";
 import { isInTrash } from "@/lib/trash";
@@ -55,11 +56,13 @@ export async function GET(req: Request) {
     // La carpeta de papelera no se muestra en el explorador compartido.
     if (inShared) entries = entries.filter((e) => !isInTrash(e.path));
 
-    // Filtrado para empleados: oculta las carpetas sin acceso según permisos.
+    // Filtrado para empleados: una carpeta sin acceso se OCULTA, salvo que su
+    // "ojito" la deje visible (se mostrará en gris con candado, sin poder entrar).
     if (inShared && isEmployee) {
       entries = entries.filter((e) => {
         if (!e.isDir) return true;
-        return canSeeWith(shares, session.username, session.role, e.path);
+        if (canSeeWith(shares, session.username, session.role, e.path)) return true;
+        return !hiddenWith(shares, e.path);
       });
     }
 
@@ -74,6 +77,12 @@ export async function GET(req: Request) {
       const m = meta[e.path];
       // Para carpetas compartidas, el autor/fecha vienen del registro de share.
       const fm = inShared && e.isDir ? folderMetaWith(shares, e.path) : null;
+      // Carpeta visible pero sin acceso (candado): empleado que no puede entrar
+      // a una carpeta que su "ojito" deja a la vista.
+      const noAccess =
+        inShared && isEmployee && e.isDir
+          ? !canSeeWith(shares, session.username, session.role, e.path)
+          : false;
       return {
         name: e.name,
         path: e.path,
@@ -84,6 +93,7 @@ export async function GET(req: Request) {
         subidoEn: m?.subidoEn ?? fm?.createdAt ?? null,
         // Sharing (solo carpetas en el área compartida).
         restricted: inShared && e.isDir ? isRestrictedWith(shares, e.path) : false,
+        noAccess,
         canManage:
           inShared && e.isDir
             ? canManageWith(shares, session.username, session.role, e.path)

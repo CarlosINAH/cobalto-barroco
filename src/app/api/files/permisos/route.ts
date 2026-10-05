@@ -41,6 +41,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     levels,
     defaultPerm: share?.defaultPerm ?? (share?.allowed === null ? "escritura" : "escritura"),
+    hidden: share?.hidden ?? true,
     owner: share?.sharedBy ?? null,
     canManage: await canManageFolder(session.username, session.role, path),
     employees,
@@ -56,6 +57,7 @@ export async function POST(req: Request) {
     path?: string;
     perms?: Record<string, FolderPermLevel>;
     defaultPerm?: FolderPermLevel;
+    hidden?: boolean;
   };
   try {
     b = await req.json();
@@ -70,8 +72,10 @@ export async function POST(req: Request) {
     ? (b.defaultPerm as FolderPermLevel)
     : "escritura";
   const perms = b.perms && typeof b.perms === "object" ? b.perms : {};
+  // Por defecto oculta (comportamiento histórico) si no se especifica.
+  const hidden = b.hidden !== false;
 
-  const res = await setFolderPerms(path, session, perms, defaultPerm);
+  const res = await setFolderPerms(path, session, perms, defaultPerm, hidden);
   if (!res.ok) {
     return NextResponse.json({ error: res.error }, { status: 403 });
   }

@@ -66,6 +66,8 @@ interface Entry {
   subidoPor?: string | null;
   subidoEn?: number | null;
   restricted?: boolean;
+  /** Carpeta visible pero sin acceso: se ve con candado y no se puede abrir. */
+  noAccess?: boolean;
   canManage?: boolean;
 }
 
@@ -328,7 +330,14 @@ export default function FileBrowser({
             >
               <div className={`${withMeta ? "col-span-4" : "col-span-6"} flex items-center gap-3 min-w-0`}>
                 {fileIcon(e.name, e.isDir)}
-                {e.isDir ? (
+                {e.isDir && e.noAccess ? (
+                  <span
+                    className="text-[#B9B6B0] text-sm truncate cursor-not-allowed"
+                    title="No tienes acceso a esta carpeta"
+                  >
+                    {e.name}
+                  </span>
+                ) : e.isDir ? (
                   <button
                     onClick={() => setPath(e.path)}
                     className="text-[#2C2C2C] text-sm truncate hover:text-[#1B2A5E] hover:underline text-left"
@@ -345,14 +354,21 @@ export default function FileBrowser({
                 ) : (
                   <span className="text-[#2C2C2C] text-sm truncate">{e.name}</span>
                 )}
-                {e.restricted && (
+                {e.noAccess ? (
+                  <span
+                    className="shrink-0 text-[#B9B6B0]"
+                    title="No tienes acceso a esta carpeta"
+                  >
+                    <Lock size={11} />
+                  </span>
+                ) : e.restricted ? (
                   <span
                     className="shrink-0 text-[#C9A84C]"
                     title="Compartida solo con algunos empleados"
                   >
                     <Lock size={11} />
                   </span>
-                )}
+                ) : null}
               </div>
               {withMeta ? (
                 <>
@@ -422,7 +438,7 @@ export default function FileBrowser({
                     <Download size={14} />
                   </a>
                 )}
-                {canWrite && (
+                {canWrite && !e.noAccess && (
                   <button
                     onClick={() => onDelete(e)}
                     disabled={busy}

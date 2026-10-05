@@ -19,6 +19,8 @@ import type { FolderPermLevel } from "@/lib/db";
 export interface FolderPerms {
   levels: Record<string, FolderPermLevel>;
   defaultPerm: FolderPermLevel;
+  /** El "ojito": true oculta la carpeta a quien no tiene acceso. */
+  hidden: boolean;
   owner: string | null;
 }
 
@@ -59,9 +61,11 @@ export default function PermisosManager({
       <p className="text-[#7A7A7A] text-sm max-w-2xl mb-6">
         Define, como en Windows, qué puede hacer cada empleado dentro de cada
         carpeta de <b>Archivos compartidos</b>: <b>Acceso total</b>,{" "}
-        <b>Lectura y escritura</b>, <b>Solo lectura</b> o <b>Sin acceso</b> (la
-        carpeta queda oculta). Los administradores siempre tienen acceso total.
-        Las carpetas nuevas aparecen aquí automáticamente.
+        <b>Lectura y escritura</b>, <b>Solo lectura</b> o <b>Sin acceso</b>. Con
+        el <b>ojito</b> de cada carpeta decides si quien no tiene acceso{" "}
+        <b>no la ve</b> (oculta) o <b>la ve en gris con candado</b> sin poder
+        entrar. Los administradores siempre tienen acceso total. Las carpetas
+        nuevas aparecen aquí automáticamente.
       </p>
 
       {folders.length === 0 ? (
@@ -104,6 +108,7 @@ function FolderRow({
   const [defaultPerm, setDefaultPerm] = useState<FolderPermLevel>(
     initial?.defaultPerm ?? "escritura",
   );
+  const [hidden, setHidden] = useState<boolean>(initial?.hidden ?? true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -111,11 +116,15 @@ function FolderRow({
   const owner = (initial?.owner || "").toLowerCase();
 
   const baseline = useMemo(
-    () => JSON.stringify({ levels: initial?.levels ?? {}, defaultPerm: initial?.defaultPerm }),
+    () =>
+      JSON.stringify({
+        levels: initial?.levels ?? {},
+        defaultPerm: initial?.defaultPerm,
+        hidden: initial?.hidden ?? true,
+      }),
     [initial],
   );
-  const dirty =
-    JSON.stringify({ levels, defaultPerm }) !== baseline;
+  const dirty = JSON.stringify({ levels, defaultPerm, hidden }) !== baseline;
 
   // Quién tiene acceso (nivel != none), para las iniciales tipo Drive.
   const conAcceso = employees.filter(
@@ -134,7 +143,7 @@ function FolderRow({
       const res = await fetch("/api/files/permisos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: folder.path, perms: levels, defaultPerm }),
+        body: JSON.stringify({ path: folder.path, perms: levels, defaultPerm, hidden }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -172,6 +181,26 @@ function FolderRow({
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
+          {/* Ojito: ocultar / mostrar (con candado) a quien no tiene acceso */}
+          <button
+            onClick={() => {
+              setHidden((h) => !h);
+              setOpen(true);
+            }}
+            title={
+              hidden
+                ? "Oculta: quien no tiene acceso no ve esta carpeta. Clic para mostrarla con candado."
+                : "Visible con candado: quien no tiene acceso la ve pero no entra. Clic para ocultarla."
+            }
+            aria-label={hidden ? "Mostrar carpeta con candado" : "Ocultar carpeta"}
+            className={`flex items-center justify-center border p-2 transition-colors ${
+              hidden
+                ? "border-[#EDE9E0] text-[#7A7A7A] hover:bg-[#F5F2EC]"
+                : "border-[#C9A84C] text-[#C9A84C] hover:bg-[#F5F2EC]"
+            }`}
+          >
+            {hidden ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
           {/* Iniciales tipo Drive de quienes tienen acceso */}
           <div className="hidden sm:flex -space-x-2">
             {conAcceso.slice(0, 5).map((e) => (

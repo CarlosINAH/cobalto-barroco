@@ -50,6 +50,7 @@ export default async function PersonalAdmin() {
     initialPerms[f.path] = {
       levels,
       defaultPerm: s?.defaultPerm ?? "escritura",
+      hidden: s?.hidden ?? true,
       owner: s?.sharedBy ?? null,
     };
   }

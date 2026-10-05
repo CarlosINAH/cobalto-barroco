@@ -76,6 +76,12 @@ export interface FolderShare {
   perms?: Record<string, FolderPermLevel>;
   /** Nivel para "Todos los demás" (quienes no estén en `perms`). */
   defaultPerm?: FolderPermLevel;
+  /**
+   * ¿La carpeta se oculta a quien no tiene acceso? (el "ojito").
+   * true (por defecto) = quien no puede entrar tampoco la ve.
+   * false = quien no puede entrar la ve en gris con candado, pero no entra.
+   */
+  hidden?: boolean;
   createdAt: number;
   updatedAt: number;
 }
