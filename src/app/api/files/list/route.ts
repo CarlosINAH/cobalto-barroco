@@ -3,10 +3,7 @@ import { getSession, credsOf } from "@/lib/auth-server";
 import { listDirectory, type WebDavEntry } from "@/lib/webdav";
 import {
   isShared,
-  isSharedRoot,
-  sharedTopSubfolder,
   sharedGoverningFolder,
-  visibleSharedFolders,
   metaForPaths,
   allFolderShares,
   canSeeWith,
@@ -40,17 +37,11 @@ export async function GET(req: Request) {
   // Cargar comparticiones una sola vez (para filtrar/anotar sin N lecturas).
   const shares = inShared ? await allFolderShares() : [];
 
-  // Acceso a la carpeta solicitada (visibilidad admin + compartición por carpeta).
+  // Acceso a la carpeta solicitada: lo gobiernan los permisos por carpeta
+  // (estilo Windows), que se aplican a la carpeta de primer nivel y se heredan.
   if (inShared && isEmployee) {
-    const allowed = await visibleSharedFolders(session.username);
-    const top = sharedTopSubfolder(relPath);
-    const blockedByAdmin = allowed !== null && top !== null && !allowed.includes(top);
-    // Los permisos se gobiernan por la carpeta de primer nivel y se heredan.
     const gov = sharedGoverningFolder(relPath);
-    const blockedByShare = gov
-      ? !canSeeWith(shares, session.username, session.role, gov)
-      : false;
-    if (blockedByAdmin || blockedByShare) {
+    if (gov && !canSeeWith(shares, session.username, session.role, gov)) {
       return NextResponse.json(
         { error: "No tienes acceso a esa carpeta." },
         { status: 403 },
@@ -64,15 +55,11 @@ export async function GET(req: Request) {
     // La carpeta de papelera no se muestra en el explorador compartido.
     if (inShared) entries = entries.filter((e) => !isInTrash(e.path));
 
-    // Filtrado para empleados: visibilidad admin + compartición por carpeta.
+    // Filtrado para empleados: oculta las carpetas sin acceso según permisos.
     if (inShared && isEmployee) {
-      const allowed = isSharedRoot(relPath)
-        ? await visibleSharedFolders(session.username)
-        : null;
       entries = entries.filter((e) => {
         if (!e.isDir) return true;
-        if (allowed !== null && !allowed.includes(e.name)) return false; // regla admin
-        return canSeeWith(shares, session.username, session.role, e.path); // compartición
+        return canSeeWith(shares, session.username, session.role, e.path);
       });
     }
 

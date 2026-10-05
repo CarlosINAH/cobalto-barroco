@@ -16,7 +16,6 @@ import {
   FolderOpen,
   Plus,
   Award,
-  FolderTree,
 } from "lucide-react";
 
 interface Project {
@@ -71,11 +70,9 @@ function Stars({ nivel }: { nivel: number }) {
 export default function PersonalManager({
   initial,
   projects,
-  sharedFolders = [],
 }: {
   initial: Employee[];
   projects: Project[];
-  sharedFolders?: string[];
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -236,7 +233,6 @@ export default function PersonalManager({
           mode={modal.mode}
           data={modal.data}
           projects={projects}
-          sharedFolders={sharedFolders}
           saving={saving}
           error={error}
           onClose={() => {
@@ -254,7 +250,6 @@ function EmployeeModal({
   mode,
   data,
   projects,
-  sharedFolders,
   saving,
   error,
   onClose,
@@ -263,7 +258,6 @@ function EmployeeModal({
   mode: "new" | "edit";
   data: Partial<Employee>;
   projects: Project[];
-  sharedFolders: string[];
   saving: boolean;
   error: string;
   onClose: () => void;
@@ -274,10 +268,6 @@ function EmployeeModal({
     habilidades: (data.habilidades || []).join(", "),
   });
   const [cuals, setCuals] = useState<Quality[]>(data.cualidades || []);
-  // Visibilidad: si no está configurado (undefined) => ve todas => todas marcadas.
-  const [vis, setVis] = useState<string[]>(
-    data.carpetasVisibles === undefined ? sharedFolders : data.carpetasVisibles,
-  );
 
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -287,16 +277,13 @@ function EmployeeModal({
 
   const setCual = (i: number, patch: Partial<Quality>) =>
     setCuals((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)));
-  const toggleVis = (name: string) =>
-    setVis((v) => (v.includes(name) ? v.filter((x) => x !== name) : [...v, name]));
 
   const submit = () => {
-    const allChecked = sharedFolders.length > 0 && vis.length === sharedFolders.length;
     onSave({
       ...form,
       cualidades: cuals.filter((c) => c.nombre.trim()),
-      // null = ve todas (sin restricción); array = solo esas.
-      carpetasVisibles: allChecked || sharedFolders.length === 0 ? null : vis,
+      // El acceso a carpetas se gestiona en la pestaña «Permisos de carpetas».
+      carpetasVisibles: null,
     });
   };
 
@@ -454,31 +441,6 @@ function EmployeeModal({
               </div>
             )}
           </div>
-
-          {/* Visibilidad de carpetas compartidas */}
-          {sharedFolders.length > 0 && (
-            <div className="border-t border-[#EDE9E0] pt-4">
-              <label className="flex items-center gap-1.5 text-[#7A7A7A] text-xs tracking-widest uppercase mb-2">
-                <FolderTree size={12} className="text-[#C9A84C]" /> Carpetas compartidas visibles
-              </label>
-              <p className="text-[#7A7A7A] text-xs mb-2">
-                Marca las subcarpetas de «Archivos compartidos» que este empleado puede ver.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                {sharedFolders.map((f) => (
-                  <label key={f} className="flex items-center gap-2 text-sm text-[#2C2C2C]">
-                    <input
-                      type="checkbox"
-                      checked={vis.includes(f)}
-                      onChange={() => toggleVis(f)}
-                      className="accent-[#C9A84C]"
-                    />
-                    {f}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 px-3 py-2 text-red-600 text-xs">
