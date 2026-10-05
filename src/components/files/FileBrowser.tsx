@@ -23,9 +23,17 @@ import {
   Lock,
   Check,
   Send,
+  Eye,
 } from "lucide-react";
 
 const SHARED_ROOT = "Archivos compartidos";
+
+const IMAGE_EXT = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif", "heic", "tiff", "tif"];
+const VIDEO_EXT = ["mp4", "m4v", "webm", "ogv", "ogg", "mov", "avi", "mkv", "3gp"];
+const extOf = (name: string) => name.split(".").pop()?.toLowerCase() || "";
+const isImage = (name: string) => IMAGE_EXT.includes(extOf(name));
+const isVideo = (name: string) => VIDEO_EXT.includes(extOf(name));
+const isViewable = (name: string) => isImage(name) || isVideo(name);
 const inSharedArea = (p: string) =>
   p === SHARED_ROOT || p.startsWith(SHARED_ROOT + "/");
 
@@ -116,6 +124,7 @@ export default function FileBrowser({
   const [historyFor, setHistoryFor] = useState<Entry | null>(null);
   const [shareFor, setShareFor] = useState<Entry | null>(null);
   const [publishFor, setPublishFor] = useState<Entry | null>(null);
+  const [viewFor, setViewFor] = useState<Entry | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (p: string) => {
@@ -306,6 +315,13 @@ export default function FileBrowser({
                   >
                     {e.name}
                   </button>
+                ) : isViewable(e.name) ? (
+                  <button
+                    onClick={() => setViewFor(e)}
+                    className="text-[#2C2C2C] text-sm truncate hover:text-[#1B2A5E] hover:underline text-left"
+                  >
+                    {e.name}
+                  </button>
                 ) : (
                   <span className="text-[#2C2C2C] text-sm truncate">{e.name}</span>
                 )}
@@ -366,6 +382,16 @@ export default function FileBrowser({
                     <History size={14} />
                   </button>
                 )}
+                {!e.isDir && isViewable(e.name) && (
+                  <button
+                    onClick={() => setViewFor(e)}
+                    className="flex items-center justify-center border border-[#EDE9E0] text-[#1B2A5E] hover:bg-[#1B2A5E] hover:text-[#F5F2EC] transition-colors p-1.5"
+                    title="Ver"
+                    aria-label={`Ver ${e.name}`}
+                  >
+                    <Eye size={14} />
+                  </button>
+                )}
                 {!e.isDir && (
                   <a
                     href={`/api/files/download?path=${encodeURIComponent(e.path)}`}
@@ -416,6 +442,63 @@ export default function FileBrowser({
           }}
         />
       )}
+      {viewFor && (
+        <ViewerModal entry={viewFor} onClose={() => setViewFor(null)} />
+      )}
+    </div>
+  );
+}
+
+function ViewerModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
+  const src = `/api/files/download?path=${encodeURIComponent(entry.path)}&inline=1`;
+  const dl = `/api/files/download?path=${encodeURIComponent(entry.path)}`;
+  const video = isVideo(entry.name);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-5xl max-h-[90vh] w-full flex flex-col items-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between w-full mb-3 gap-4">
+          <p className="text-white/90 text-sm truncate">{entry.name}</p>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href={dl}
+              className="flex items-center gap-1.5 border border-white/30 text-white px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
+            >
+              <Download size={13} /> Descargar
+            </a>
+            <button
+              onClick={onClose}
+              className="flex items-center justify-center text-white/80 hover:text-white p-1.5"
+              aria-label="Cerrar"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
+          {video ? (
+            <video
+              src={src}
+              controls
+              autoPlay
+              className="max-w-full max-h-[80vh] bg-black"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src}
+              alt={entry.name}
+              className="max-w-full max-h-[80vh] object-contain"
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
