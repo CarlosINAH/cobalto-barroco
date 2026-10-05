@@ -15,6 +15,7 @@ import {
   isRestrictedWith,
   folderMetaWith,
 } from "@/lib/shared-files";
+import { isInTrash } from "@/lib/trash";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,14 @@ export async function GET(req: Request) {
   const relPath = searchParams.get("path") || "";
   const isEmployee = session.role !== "admin";
   const inShared = isShared(relPath);
+
+  // La papelera no se navega desde el explorador (tiene su propia pestaña).
+  if (isInTrash(relPath)) {
+    return NextResponse.json(
+      { error: "No disponible." },
+      { status: 403 },
+    );
+  }
 
   // Cargar comparticiones una sola vez (para filtrar/anotar sin N lecturas).
   const shares = inShared ? await allFolderShares() : [];
@@ -51,6 +60,9 @@ export async function GET(req: Request) {
 
   try {
     let entries = await listDirectory(credsOf(session), relPath);
+
+    // La carpeta de papelera no se muestra en el explorador compartido.
+    if (inShared) entries = entries.filter((e) => !isInTrash(e.path));
 
     // Filtrado para empleados: visibilidad admin + compartición por carpeta.
     if (inShared && isEmployee) {

@@ -11,6 +11,7 @@ import {
   Share2,
   FolderLock,
   UserCheck,
+  Trash2,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -30,6 +31,7 @@ const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
   { icon: HardDrive, label: "Nube personal", href: "/dashboard/empleado/repositorio" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/empleado/compartidos" },
+  { icon: Trash2, label: "Papelera", href: "/dashboard/empleado/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
 ];
 
@@ -40,6 +42,7 @@ const adminNav: NavItem[] = [
   { icon: HardDrive, label: "Nube", href: "/dashboard/admin/nas" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/admin/compartidos" },
   { icon: FolderLock, label: "Permisos", href: "/dashboard/admin/permisos" },
+  { icon: Trash2, label: "Papelera", href: "/dashboard/admin/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/admin/configuracion" },
 ];
 

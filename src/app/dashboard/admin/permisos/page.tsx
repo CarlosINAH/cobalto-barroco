@@ -10,6 +10,7 @@ import {
   employeeDirectory,
   permOf,
 } from "@/lib/shared-files";
+import { isInTrash } from "@/lib/trash";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function PermisosAdmin() {
   try {
     const entries = await listDirectory(credsOf(session), SHARED_ROOT);
     folders = entries
-      .filter((e) => e.isDir)
+      .filter((e) => e.isDir && !isInTrash(e.path))
       .map((e) => ({ name: e.name, path: e.path }));
   } catch {
     /* el NAS puede no responder; la lista queda vacía */

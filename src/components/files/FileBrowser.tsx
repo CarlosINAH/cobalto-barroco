@@ -109,7 +109,6 @@ export default function FileBrowser({
 }) {
   const [path, setPath] = useState(basePath);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [canWrite, setCanWrite] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -131,7 +130,6 @@ export default function FileBrowser({
         return;
       }
       setEntries(data.entries);
-      setIsAdmin(data.role === "admin");
       setCanWrite(data.canWrite !== false);
     } catch {
       setError("Error de conexión.");
@@ -183,14 +181,13 @@ export default function FileBrowser({
   };
 
   const onDelete = async (entry: Entry) => {
-    if (!window.confirm(`¿Eliminar "${entry.name}"? Esta acción no se puede deshacer.`))
-      return;
+    if (!window.confirm(`¿Enviar "${entry.name}" a la papelera?`)) return;
     setBusy(true);
     try {
       const res = await fetch("/api/files/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: entry.path }),
+        body: JSON.stringify({ path: entry.path, isDir: entry.isDir }),
       });
       const data = await res.json();
       if (!res.ok) setError(data.error || "No se pudo eliminar.");
@@ -379,13 +376,13 @@ export default function FileBrowser({
                     <Download size={14} />
                   </a>
                 )}
-                {isAdmin && (
+                {canWrite && (
                   <button
                     onClick={() => onDelete(e)}
                     disabled={busy}
                     className="flex items-center justify-center border border-red-200 text-red-500 hover:bg-red-500 hover:text-white transition-colors p-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Eliminar"
-                    aria-label={`Eliminar ${e.name}`}
+                    title="Enviar a la papelera"
+                    aria-label={`Enviar ${e.name} a la papelera`}
                   >
                     <Trash2 size={14} />
                   </button>
