@@ -33,7 +33,6 @@ export default async function PersonalAdmin() {
     /* el NAS puede no responder */
   }
   const dirs = entries.filter((e) => e.isDir && !isInTrash(e.path));
-  const sharedFolders = dirs.map((e) => e.name);
   const folders = dirs.map((e) => ({ name: e.name, path: e.path }));
 
   // Permisos actuales por carpeta (para la pestaña de permisos).
@@ -61,7 +60,6 @@ export default async function PersonalAdmin() {
         personal={{
           initial: db.employees,
           projects: db.projects.map((p) => ({ id: p.id, nombre: p.nombre })),
-          sharedFolders,
         }}
         permisos={{ folders, employees, initial: initialPerms }}
       />
