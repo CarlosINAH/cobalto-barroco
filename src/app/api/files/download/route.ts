@@ -26,6 +26,9 @@ const MIME: Record<string, string> = {
   avi: "video/x-msvideo",
   mkv: "video/x-matroska",
   "3gp": "video/3gpp",
+  heif: "image/heif",
+  // documentos que el navegador puede previsualizar inline
+  pdf: "application/pdf",
 };
 
 function mimeFor(name: string): string | null {

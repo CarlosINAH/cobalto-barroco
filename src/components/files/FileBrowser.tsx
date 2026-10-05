@@ -24,16 +24,36 @@ import {
   Check,
   Send,
   Eye,
+  ImageOff,
 } from "lucide-react";
 
 const SHARED_ROOT = "Archivos compartidos";
 
-const IMAGE_EXT = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif", "heic", "tiff", "tif"];
+// Formatos que el navegador dibuja de forma nativa en <img>.
+const NATIVE_IMAGE_EXT = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif"];
+// TIFF requiere decodificarse en el cliente (UTIF) antes de dibujarse.
+const TIFF_EXT = ["tif", "tiff"];
+// Todas las imágenes (para icono / clasificación general), incl. las que no
+// se pueden previsualizar en el navegador (heic/heif).
+const IMAGE_EXT = [...NATIVE_IMAGE_EXT, ...TIFF_EXT, "heic", "heif"];
 const VIDEO_EXT = ["mp4", "m4v", "webm", "ogv", "ogg", "mov", "avi", "mkv", "3gp"];
 const extOf = (name: string) => name.split(".").pop()?.toLowerCase() || "";
 const isImage = (name: string) => IMAGE_EXT.includes(extOf(name));
 const isVideo = (name: string) => VIDEO_EXT.includes(extOf(name));
-const isViewable = (name: string) => isImage(name) || isVideo(name);
+const isPdf = (name: string) => extOf(name) === "pdf";
+const isViewable = (name: string) => isImage(name) || isVideo(name) || isPdf(name);
+
+type ViewKind = "native-image" | "tiff" | "video" | "pdf" | "unsupported";
+/** Cómo intentar previsualizar un archivo en el visor. */
+function viewKind(name: string): ViewKind {
+  const ext = extOf(name);
+  if (NATIVE_IMAGE_EXT.includes(ext)) return "native-image";
+  if (TIFF_EXT.includes(ext)) return "tiff";
+  if (VIDEO_EXT.includes(ext)) return "video";
+  if (ext === "pdf") return "pdf";
+  return "unsupported"; // heic/heif y cualquier otro: solo descarga.
+}
+
 const inSharedArea = (p: string) =>
   p === SHARED_ROOT || p.startsWith(SHARED_ROOT + "/");
 
@@ -452,7 +472,20 @@ export default function FileBrowser({
 function ViewerModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
   const src = `/api/files/download?path=${encodeURIComponent(entry.path)}&inline=1`;
   const dl = `/api/files/download?path=${encodeURIComponent(entry.path)}`;
-  const video = isVideo(entry.name);
+  const kind = viewKind(entry.name);
+  const [failed, setFailed] = useState(false);
+  const onError = useCallback(() => setFailed(true), []);
+
+  // Esc cierra el visor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const showFallback = failed || kind === "unsupported";
 
   return (
     <div
@@ -482,12 +515,35 @@ function ViewerModal({ entry, onClose }: { entry: Entry; onClose: () => void }) 
           </div>
         </div>
         <div className="flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden">
-          {video ? (
+          {showFallback ? (
+            <div className="flex flex-col items-center gap-4 text-center text-white/80 px-6">
+              <ImageOff size={40} className="text-[#C9A84C]" />
+              <p className="text-sm max-w-xs">
+                Este archivo no se puede previsualizar en el navegador.
+                Descárgalo para abrirlo en tu equipo.
+              </p>
+              <a
+                href={dl}
+                className="flex items-center gap-2 bg-[#1B2A5E] text-[#F5F2EC] px-4 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#243470] transition-colors"
+              >
+                <Download size={14} /> Descargar
+              </a>
+            </div>
+          ) : kind === "pdf" ? (
+            <iframe
+              src={src}
+              title={entry.name}
+              className="w-full h-[80vh] bg-white"
+            />
+          ) : kind === "tiff" ? (
+            <TiffView src={src} onError={onError} />
+          ) : kind === "video" ? (
             <video
               src={src}
               controls
               autoPlay
               className="max-w-full max-h-[80vh] bg-black"
+              onError={onError}
             />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
@@ -495,11 +551,71 @@ function ViewerModal({ entry, onClose }: { entry: Entry; onClose: () => void }) 
               src={src}
               alt={entry.name}
               className="max-w-full max-h-[80vh] object-contain"
+              onError={onError}
             />
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Previsualiza un TIFF decodificándolo en el navegador con UTIF y dibujándolo
+ * en un canvas (los navegadores no muestran TIFF de forma nativa). La librería
+ * se carga bajo demanda para no inflar el bundle. Si algo falla, llama onError
+ * para que el visor muestre la opción de descarga.
+ */
+function TiffView({ src, onError }: { src: string; onError: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const [{ default: UTIF }, buf] = await Promise.all([
+          import("utif"),
+          fetch(src).then((r) => {
+            if (!r.ok) throw new Error("fetch");
+            return r.arrayBuffer();
+          }),
+        ]);
+        if (cancelled) return;
+        const ifds = UTIF.decode(buf);
+        if (!ifds.length) throw new Error("decode");
+        UTIF.decodeImage(buf, ifds[0]);
+        const rgba = UTIF.toRGBA8(ifds[0]);
+        const w = ifds[0].width;
+        const h = ifds[0].height;
+        const canvas = canvasRef.current;
+        if (!canvas || !w || !h) throw new Error("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("ctx");
+        const imgData = ctx.createImageData(w, h);
+        imgData.data.set(rgba);
+        ctx.putImageData(imgData, 0, 0);
+        if (!cancelled) setLoading(false);
+      } catch {
+        if (!cancelled) onError();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [src, onError]);
+
+  return (
+    <>
+      {loading && <Loader2 size={28} className="animate-spin text-white/80" />}
+      <canvas
+        ref={canvasRef}
+        className={`max-w-full max-h-[80vh] object-contain ${loading ? "hidden" : ""}`}
+      />
+    </>
   );
 }
 
