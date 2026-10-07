@@ -14,6 +14,7 @@ import {
   ChevronRight,
   LogOut,
   Settings,
+  CalendarDays,
 } from "lucide-react";
 
 type Role = "empleado" | "admin";
@@ -27,6 +28,7 @@ interface NavItem {
 
 const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
+  { icon: CalendarDays, label: "Calendario", href: "/dashboard/empleado/calendario" },
   { icon: HardDrive, label: "Nube personal", href: "/dashboard/empleado/repositorio" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/empleado/compartidos" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/empleado/papelera" },
@@ -35,6 +37,7 @@ const empleadoNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/admin" },
+  { icon: CalendarDays, label: "Calendario", href: "/dashboard/admin/calendario" },
   { icon: Users, label: "Personal y permisos", href: "/dashboard/admin/personal" },
   { icon: HardDrive, label: "Nube", href: "/dashboard/admin/nas" },
   { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/admin/compartidos" },
