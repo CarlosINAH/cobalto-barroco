@@ -12,6 +12,7 @@ import {
   MapPin,
   Bell,
   Check,
+  Users,
 } from "lucide-react";
 
 interface Evt {
@@ -23,10 +24,16 @@ interface Evt {
   fin: number;
   allDay: boolean;
   color: string;
+  integrantes: string[];
   recordatorioMin: number | null;
   recordatorioEnviado: boolean;
   creadoPor: string;
   creadoEn: number;
+}
+
+interface Emp {
+  username: string;
+  nombre: string;
 }
 
 const COLORS = [
@@ -85,6 +92,14 @@ export default function CalendarManager() {
   });
   const [editing, setEditing] = useState<Evt | null>(null);
   const [draftDate, setDraftDate] = useState<Date | null>(null);
+  const [employees, setEmployees] = useState<Emp[]>([]);
+
+  useEffect(() => {
+    fetch("/api/directory")
+      .then((r) => (r.ok ? r.json() : { employees: [] }))
+      .then((d) => setEmployees(d.employees || []))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -249,14 +264,26 @@ export default function CalendarManager() {
                           setEditing(ev);
                           setDraftDate(null);
                         }}
-                        className="block truncate text-[11px] leading-tight px-1.5 py-1 text-white cursor-pointer hover:opacity-90"
+                        className="flex items-center gap-1 truncate text-[11px] leading-tight px-1.5 py-1 text-white cursor-pointer hover:opacity-90"
                         style={{ backgroundColor: ev.color }}
-                        title={ev.titulo}
+                        title={
+                          ev.integrantes.length > 0
+                            ? `${ev.titulo} · ${ev.integrantes.length} integrante(s)`
+                            : ev.titulo
+                        }
                       >
-                        {!ev.allDay && (
-                          <span className="opacity-80">{hora(ev.inicio)} </span>
+                        <span className="truncate flex-1">
+                          {!ev.allDay && (
+                            <span className="opacity-80">{hora(ev.inicio)} </span>
+                          )}
+                          {ev.titulo}
+                        </span>
+                        {ev.integrantes.length > 0 && (
+                          <span className="flex items-center gap-0.5 opacity-90 shrink-0">
+                            <Users size={10} />
+                            {ev.integrantes.length}
+                          </span>
                         )}
-                        {ev.titulo}
                       </span>
                     ))}
                     {dayEvents.length > 3 && (
@@ -281,6 +308,7 @@ export default function CalendarManager() {
         <EventModal
           event={editing}
           date={draftDate}
+          employees={employees}
           onClose={closeModal}
           onSaved={() => {
             closeModal();
@@ -295,11 +323,13 @@ export default function CalendarManager() {
 function EventModal({
   event,
   date,
+  employees,
   onClose,
   onSaved,
 }: {
   event: Evt | null;
   date: Date | null;
+  employees: Emp[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -321,6 +351,9 @@ function EventModal({
     timeInput(event ? new Date(event.fin) : roundedNow(base, 60)),
   );
   const [color, setColor] = useState(event?.color ?? COLORS[0].hex);
+  const [integrantes, setIntegrantes] = useState<string[]>(
+    event?.integrantes ?? [],
+  );
   const [recordatorio, setRecordatorio] = useState<number | null>(
     event?.recordatorioMin ?? null,
   );
@@ -336,6 +369,13 @@ function EventModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const toggleIntegrante = (username: string) =>
+    setIntegrantes((list) =>
+      list.some((u) => u.toLowerCase() === username.toLowerCase())
+        ? list.filter((u) => u.toLowerCase() !== username.toLowerCase())
+        : [...list, username],
+    );
 
   const save = async () => {
     if (!titulo.trim()) {
@@ -362,6 +402,7 @@ function EventModal({
       inicio,
       fin: Number.isFinite(fin) && fin >= inicio ? fin : inicio,
       color,
+      integrantes,
       recordatorioMin: recordatorio,
     };
     try {
@@ -530,6 +571,49 @@ function EventModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-1.5 text-[#7A7A7A] text-xs tracking-widest uppercase mb-1.5">
+              <Users size={12} /> Integrantes
+              {integrantes.length > 0 && (
+                <span className="text-[#C9A84C] normal-case tracking-normal">
+                  · {integrantes.length} seleccionado(s)
+                </span>
+              )}
+            </label>
+            {employees.length === 0 ? (
+              <p className="text-[#7A7A7A] text-xs border border-[#EDE9E0] bg-white p-3">
+                No hay empleados registrados.
+              </p>
+            ) : (
+              <div className="border border-[#EDE9E0] bg-white max-h-44 overflow-y-auto">
+                {employees.map((emp) => {
+                  const checked = integrantes.some(
+                    (u) => u.toLowerCase() === emp.username.toLowerCase(),
+                  );
+                  return (
+                    <label
+                      key={emp.username}
+                      className="flex items-center gap-2.5 px-3 py-2 border-b border-[#EDE9E0] last:border-0 hover:bg-[#F5F2EC] cursor-pointer text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleIntegrante(emp.username)}
+                        className="accent-[#C9A84C]"
+                      />
+                      <span className="text-[#2C2C2C]">{emp.nombre}</span>
+                      <span className="text-[#7A7A7A] text-xs">@{emp.username}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-[#7A7A7A] text-[11px] mt-1">
+              Si marcas integrantes, el recordatorio por correo se envía solo a
+              ellos; si no, a todo el equipo.
+            </p>
           </div>
 
           <div>

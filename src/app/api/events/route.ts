@@ -16,13 +16,30 @@ function sanitizeReminder(v: unknown): number | null {
   return (RECORDATORIOS as readonly (number | null)[]).includes(n) ? n : null;
 }
 
+/** Deja solo los integrantes que son empleados reales, con su username canónico. */
+export function canonIntegrantes(
+  raw: unknown,
+  employees: { username: string }[],
+): string[] {
+  if (!Array.isArray(raw)) return [];
+  const byLower = new Map(employees.map((e) => [e.username.toLowerCase(), e.username]));
+  const out = new Set<string>();
+  for (const u of raw) {
+    const canon = byLower.get(String(u).toLowerCase());
+    if (canon) out.add(canon);
+  }
+  return [...out];
+}
+
 /** Calendario de empresa: cualquier usuario autenticado ve todos los eventos. */
 export async function GET() {
   const session = await getSession();
   if (!session)
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   const db = await getDB();
-  const events = [...db.events].sort((a, b) => a.inicio - b.inicio);
+  const events = [...db.events]
+    .map((e) => ({ ...e, integrantes: e.integrantes ?? [] }))
+    .sort((a, b) => a.inicio - b.inicio);
   return NextResponse.json({ events });
 }
 
@@ -62,11 +79,15 @@ export async function POST(req: Request) {
     fin,
     allDay: !!b.allDay,
     color: sanitizeColor(b.color),
+    integrantes: [],
     recordatorioMin: sanitizeReminder(b.recordatorioMin),
     recordatorioEnviado: false,
     creadoPor: session.username,
     creadoEn: Date.now(),
   };
-  await mutate((db) => db.events.push(event));
+  await mutate((db) => {
+    event.integrantes = canonIntegrantes(b.integrantes, db.employees);
+    db.events.push(event);
+  });
   return NextResponse.json({ ok: true, event });
 }
