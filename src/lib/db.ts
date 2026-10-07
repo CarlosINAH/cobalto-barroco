@@ -214,6 +214,27 @@ export interface Inquiry {
   createdAt: number;
 }
 
+/** Evento del calendario de empresa (compartido por todo el equipo). */
+export interface CalendarEvent {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  lugar: string;
+  /** Instantes absolutos (epoch ms). */
+  inicio: number;
+  fin: number;
+  /** Evento de todo el día (sin hora). */
+  allDay: boolean;
+  /** Color/categoría (hex). */
+  color: string;
+  /** Minutos antes del evento para el recordatorio por correo; null = sin recordatorio. */
+  recordatorioMin: number | null;
+  /** Ya se envió el recordatorio por correo (para no repetirlo). */
+  recordatorioEnviado: boolean;
+  creadoPor: string;
+  creadoEn: number;
+}
+
 export interface DBShape {
   projects: Project[];
   employees: Employee[];
@@ -227,6 +248,7 @@ export interface DBShape {
   folderShares: FolderShare[];
   access: AccessEntry[];
   trash: TrashEntry[];
+  events: CalendarEvent[];
   seededEmployees?: boolean;
 }
 
@@ -243,6 +265,7 @@ const EMPTY: DBShape = {
   folderShares: [],
   access: [],
   trash: [],
+  events: [],
 };
 
 function dbPath(): string {
