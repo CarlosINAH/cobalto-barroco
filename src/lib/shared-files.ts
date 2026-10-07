@@ -259,6 +259,7 @@ export async function setFolderPerms(
   session: { username: string; role: string },
   perms: Record<string, FolderPermLevel>,
   defaultPerm: FolderPermLevel,
+  hidden: boolean = true,
 ): Promise<{ ok: boolean; error?: string }> {
   const p = normalize(path);
   if (!(await canManageFolder(session.username, session.role, p))) {
@@ -276,6 +277,7 @@ export async function setFolderPerms(
     if (existing) {
       existing.perms = clean;
       existing.defaultPerm = def;
+      existing.hidden = hidden;
       existing.allowed = null; // manda el modelo nuevo
       existing.updatedAt = now;
     } else {
@@ -285,6 +287,7 @@ export async function setFolderPerms(
         allowed: null,
         perms: clean,
         defaultPerm: def,
+        hidden,
         createdAt: now,
         updatedAt: now,
       });
@@ -382,6 +385,15 @@ export function canManageWith(
   path: string,
 ): boolean {
   return permWith(shares, username, role, path) === "total";
+}
+
+/**
+ * ¿La carpeta se oculta a quien no tiene acceso? (el "ojito"). Por defecto sí:
+ * sin registro, o con `hidden` sin definir, se comporta como antes (oculta).
+ */
+export function hiddenWith(shares: FolderShare[], path: string): boolean {
+  const share = shareOf(shares, path);
+  return share?.hidden ?? true;
 }
 
 /** ¿La carpeta está restringida (alguien con solo lectura o sin acceso)? */
