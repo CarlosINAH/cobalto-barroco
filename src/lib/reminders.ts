@@ -22,6 +22,25 @@ function emailValido(e: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e || "");
 }
 
+/**
+ * A quién se avisa de un evento: a sus integrantes si los tiene; si no, a todo
+ * el equipo. Devuelve los correos válidos.
+ */
+function destinatariosDe(
+  ev: CalendarEvent,
+  employees: { username: string; email: string }[],
+): string[] {
+  const elegidos =
+    ev.integrantes && ev.integrantes.length > 0
+      ? employees.filter((e) =>
+          ev.integrantes.some(
+            (u) => u.toLowerCase() === e.username.toLowerCase(),
+          ),
+        )
+      : employees;
+  return elegidos.map((e) => e.email).filter((e) => emailValido(e));
+}
+
 function fmtFecha(ev: CalendarEvent): string {
   const opts: Intl.DateTimeFormatOptions = ev.allDay
     ? { dateStyle: "full", timeZone: TZ }
@@ -54,22 +73,26 @@ export async function runReminderScan(): Promise<void> {
   );
   if (due.length === 0) return;
 
-  const destinatarios = db.employees
-    .map((e) => e.email)
-    .filter((e) => emailValido(e));
-
   const marcar: string[] = [];
   for (const ev of due) {
     const yaPaso = now >= ev.inicio;
-    if (!yaPaso && mailConfigured() && destinatarios.length > 0) {
+    if (yaPaso) {
+      // La ventana ya pasó: lo marcamos para no reintentar indefinidamente.
+      marcar.push(ev.id);
+      continue;
+    }
+    const destinatarios = destinatariosDe(ev, db.employees);
+    if (destinatarios.length === 0) {
+      // No hay a quién avisar (sin correos): no tiene sentido reintentar.
+      marcar.push(ev.id);
+      continue;
+    }
+    if (mailConfigured()) {
       const subject = `Recordatorio: ${ev.titulo}`;
       const text = cuerpo(ev);
       for (const to of destinatarios) {
         await sendMail({ to, subject, text });
       }
-      marcar.push(ev.id);
-    } else if (yaPaso) {
-      // La ventana ya pasó: lo marcamos para no reintentar indefinidamente.
       marcar.push(ev.id);
     }
     // Si no hay SMTP y el evento aún no pasa, se deja para el próximo ciclo.

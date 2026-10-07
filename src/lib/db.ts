@@ -227,6 +227,8 @@ export interface CalendarEvent {
   allDay: boolean;
   /** Color/categoría (hex). */
   color: string;
+  /** Empleados señalados como integrantes del evento (usernames del NAS). */
+  integrantes: string[];
   /** Minutos antes del evento para el recordatorio por correo; null = sin recordatorio. */
   recordatorioMin: number | null;
   /** Ya se envió el recordatorio por correo (para no repetirlo). */
