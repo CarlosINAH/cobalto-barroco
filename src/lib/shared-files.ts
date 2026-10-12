@@ -6,7 +6,7 @@ import {
   type FolderShare,
   type FolderPermLevel,
 } from "@/lib/db";
-import { makeDirectory } from "@/lib/webdav";
+import { makeDirectory, makeDirectoryDeep } from "@/lib/webdav";
 
 /**
  * Carpeta raíz compartida entre empleados y administradores.
@@ -453,4 +453,90 @@ export async function ensureSharedStructure(creds: {
   } catch {
     return false;
   }
+}
+
+/**
+ * Estructura estándar de carpetas del servidor (del Excel "ORGANIZACIÓN DEL
+ * SERVIDOR"), relativa a SHARED_ROOT. Se define como árbol anidado y se aplana
+ * en orden padre→hijo para crearla de una sola vez. ESTADO y TIPO DE BIEN son
+ * plantillas: el usuario las renombra/llena por proyecto.
+ */
+type FolderTree = Record<string, FolderTree>;
+
+const PROYECTO_PLANTILLA: FolderTree = {
+  "EJECUTADO": { "ESTADO": { "TIPO DE BIEN": {} } },
+  "NO EJECUTADO": { "ESTADO": { "TIPO DE BIEN": {} } },
+};
+
+const STANDARD_TREE: FolderTree = {
+  "CV": {},
+  "PLANTILLAS": {},
+  "ECONÓMICO": {
+    "PRESUPUESTOS": {},
+    "BALANCE DE OBRA": {},
+    "RENDIMIENTOS": {},
+  },
+  "GABINETE": {
+    "INAH": { "PROYECTO 06": {}, "INFORME": {} },
+    "DGPU": { "INFORME": {} },
+    "PARTICULARES": { "FICHA": {}, "INFORME": {} },
+  },
+  "PROYECTOS": {
+    "2025": PROYECTO_PLANTILLA,
+    "2026": PROYECTO_PLANTILLA,
+  },
+  "DIRECTORIO": {
+    "MANO DE OBRA": { "RESTAURADORXS": {}, "TÉCNICXS": {} },
+    "PROVEEDORES": {},
+  },
+  "INVENTARIO": {},
+};
+
+/** Aplana el árbol a rutas relativas a SHARED_ROOT, en orden padre→hijo. */
+function flattenTree(tree: FolderTree, prefix = ""): string[] {
+  const out: string[] = [];
+  for (const [name, children] of Object.entries(tree)) {
+    const rel = prefix ? `${prefix}/${name}` : name;
+    out.push(rel);
+    out.push(...flattenTree(children, rel));
+  }
+  return out;
+}
+
+/** Rutas (relativas a SHARED_ROOT) de la estructura estándar. */
+export function standardStructurePaths(): string[] {
+  return flattenTree(STANDARD_TREE);
+}
+
+/** Carpetas de primer nivel de la estructura estándar. */
+export function standardTopFolders(): string[] {
+  return Object.keys(STANDARD_TREE);
+}
+
+/**
+ * Crea la estructura estándar del servidor bajo SHARED_ROOT en el NAS. Es
+ * idempotente: una carpeta existente no cuenta como error (MKCOL 405). Registra
+ * las carpetas de primer nivel en el sistema de comparticiones (dueño = quien
+ * la crea, visible para todos por defecto) para que aparezcan con sus permisos.
+ */
+export async function createStandardStructure(creds: {
+  username: string;
+  password: string;
+}): Promise<{ ok: boolean; created: number; total: number }> {
+  const rels = standardStructurePaths();
+  let created = 0;
+  try {
+    await makeDirectory(creds, SHARED_ROOT);
+    for (const rel of rels) {
+      const ok = await makeDirectoryDeep(creds, `${SHARED_ROOT}/${rel}`);
+      if (ok) created++;
+    }
+  } catch {
+    return { ok: false, created, total: rels.length };
+  }
+  // Registra las carpetas de primer nivel como comparticiones (si no existían).
+  for (const top of standardTopFolders()) {
+    await recordFolderCreated(`${SHARED_ROOT}/${top}`, creds.username);
+  }
+  return { ok: created > 0, created, total: rels.length };
 }
