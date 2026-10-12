@@ -111,20 +111,36 @@ export async function downloadFile(
   });
 }
 
-/** Sube (crea/sobrescribe) un archivo. */
+/**
+ * Sube (crea/sobrescribe) un archivo.
+ *
+ * Acepta un `Blob`/`File` y lo pasa tal cual al `PUT`: `fetch` (undici) lo
+ * transmite como stream y calcula `Content-Length` solo, así el archivo NO se
+ * copia entero a un `Uint8Array` en memoria. Esto evita los fallos al subir
+ * archivos grandes (fotos/video) por presión de memoria.
+ *
+ * Sin timeout por defecto: un archivo grande o una conexión lenta al NAS no
+ * debe abortarse a mitad (antes se cortaba a los 120 s). Se puede acotar con
+ * WEBDAV_UPLOAD_TIMEOUT_MS si hiciera falta un tope.
+ *
+ * Devuelve el estado HTTP para poder dar un mensaje de error útil (507 sin
+ * espacio, 413 demasiado grande, 401/403 permisos).
+ */
 export async function uploadFile(
   creds: Credentials,
   filePath: string,
-  body: ArrayBuffer | Uint8Array,
-): Promise<boolean> {
+  body: Blob | ArrayBuffer | Uint8Array,
+): Promise<{ ok: boolean; status: number }> {
   const url = baseUrl() + "/" + encodePath(filePath);
-  const res = await fetch(url, {
+  const init: RequestInit = {
     method: "PUT",
     headers: { Authorization: authHeader(creds.username, creds.password) },
     body: body as BodyInit,
-    signal: AbortSignal.timeout(120000),
-  });
-  return res.ok;
+  };
+  const ms = Number(process.env.WEBDAV_UPLOAD_TIMEOUT_MS || 0);
+  if (ms > 0) init.signal = AbortSignal.timeout(ms);
+  const res = await fetch(url, init);
+  return { ok: res.ok, status: res.status };
 }
 
 /** Crea una carpeta (MKCOL). */
