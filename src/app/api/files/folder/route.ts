@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
 import { makeDirectory } from "@/lib/webdav";
 import { isShared, recordFolderCreated, canWriteSharedPath } from "@/lib/shared-files";
+import { canDoFileAction } from "@/lib/access";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,14 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
+  // Crear carpetas es una acción de escritura: se rige por "subir".
+  if (!(await canDoFileAction(session.username, session.role, "subir"))) {
+    return NextResponse.json(
+      { error: "No tienes permiso para crear carpetas." },
+      { status: 403 },
+    );
   }
   let body: { path?: string; name?: string };
   try {
