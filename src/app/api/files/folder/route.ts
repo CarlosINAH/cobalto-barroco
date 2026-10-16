@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, credsOf } from "@/lib/auth-server";
+import { getSession, credsForPath } from "@/lib/auth-server";
 import { makeDirectoryDeep } from "@/lib/webdav";
 import { isShared, recordFolderCreated, canWriteSharedPath } from "@/lib/shared-files";
 import { canDoFileAction } from "@/lib/access";
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const ok = await makeDirectoryDeep(credsOf(session), target);
+    const ok = await makeDirectoryDeep(credsForPath(session, target), target);
     if (!ok) throw new Error("mkcol");
     if (isShared(target)) {
       await recordFolderCreated(target, session.username);

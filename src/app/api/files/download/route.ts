@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, credsOf } from "@/lib/auth-server";
+import { getSession, credsForPath } from "@/lib/auth-server";
 import { downloadFile } from "@/lib/webdav";
 import { canDoFileAction } from "@/lib/access";
 
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
 
   let res: Response;
   try {
-    res = await downloadFile(credsOf(session), relPath, inline ? range : null);
+    res = await downloadFile(credsForPath(session, relPath), relPath, inline ? range : null);
   } catch {
     return NextResponse.json({ error: "El NAS no respondió." }, { status: 502 });
   }

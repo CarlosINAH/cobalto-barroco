@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, credsOf } from "@/lib/auth-server";
+import { getSession, credsForPath } from "@/lib/auth-server";
 import { uploadFile } from "@/lib/webdav";
 import { isShared, recordFileEvent, canWriteSharedPath } from "@/lib/shared-files";
 import { canDoFileAction } from "@/lib/access";
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const creds = credsOf(session);
+  const creds = credsForPath(session, dir);
   let ok = 0;
   let lastStatus = 0;
   for (const file of files) {
