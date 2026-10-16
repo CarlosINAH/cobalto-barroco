@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
 import { uploadFile } from "@/lib/webdav";
 import { isShared, recordFileEvent, canWriteSharedPath } from "@/lib/shared-files";
+import { canDoFileAction } from "@/lib/access";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,14 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
+  // Autorización global de acción (matriz del Excel): ¿puede subir?
+  if (!(await canDoFileAction(session.username, session.role, "subir"))) {
+    return NextResponse.json(
+      { error: "No tienes permiso para subir archivos." },
+      { status: 403 },
+    );
   }
 
   let form: FormData;

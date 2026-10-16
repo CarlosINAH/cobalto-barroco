@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
 import { downloadFile } from "@/lib/webdav";
+import { canDoFileAction } from "@/lib/access";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,18 @@ export async function GET(req: Request) {
   const inline = searchParams.get("inline") === "1";
   if (!relPath) {
     return NextResponse.json({ error: "Ruta inválida." }, { status: 400 });
+  }
+
+  // Autorización global (matriz del Excel): sin permiso de "descargar" no se
+  // puede bajar el archivo a disco, pero sí previsualizarlo inline (ver).
+  if (
+    !inline &&
+    !(await canDoFileAction(session.username, session.role, "descargar"))
+  ) {
+    return NextResponse.json(
+      { error: "No tienes permiso para descargar archivos." },
+      { status: 403 },
+    );
   }
 
   // Reenviamos el Range solo en vista inline, para que el navegador pueda

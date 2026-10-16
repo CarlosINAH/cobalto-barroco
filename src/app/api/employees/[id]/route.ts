@@ -53,6 +53,16 @@ export async function PATCH(
         ? b.carpetasVisibles.map((s) => String(s)).filter(Boolean)
         : undefined;
     }
+    if (b.acciones !== undefined) {
+      e.acciones =
+        b.acciones && typeof b.acciones === "object"
+          ? {
+              subir: b.acciones.subir !== false,
+              descargar: b.acciones.descargar !== false,
+              borrar: b.acciones.borrar !== false,
+            }
+          : undefined;
+    }
     return e;
   });
   if (!updated)
