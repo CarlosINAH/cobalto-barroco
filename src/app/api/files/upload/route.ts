@@ -40,26 +40,36 @@ export async function POST(req: Request) {
 
   const creds = credsOf(session);
   let ok = 0;
+  let lastStatus = 0;
   for (const file of files) {
-    const buf = new Uint8Array(await file.arrayBuffer());
     const target = dir ? `${dir}/${file.name}` : file.name;
     try {
-      if (await uploadFile(creds, target, buf)) {
+      // Pasa el File directo: se transmite como stream, sin copiarlo a memoria.
+      const { ok: uploaded, status } = await uploadFile(creds, target, file);
+      if (uploaded) {
         ok++;
         if (isShared(target)) {
           await recordFileEvent(target, file.name, session.username);
         }
+      } else {
+        lastStatus = status;
       }
     } catch {
-      /* continúa con los demás */
+      /* continúa con los demás (timeout/red): queda reflejado en ok === 0) */
     }
   }
 
   if (ok === 0) {
-    return NextResponse.json(
-      { error: "No se pudo guardar en esa ubicación (¿permiso del NAS?)." },
-      { status: 403 },
-    );
+    const msg =
+      lastStatus === 507
+        ? "No hay espacio suficiente en el NAS."
+        : lastStatus === 413
+          ? "El archivo es demasiado grande para el NAS."
+          : lastStatus === 401 || lastStatus === 403
+            ? "El NAS rechazó la subida por permisos."
+            : "No se pudo guardar en esa ubicación (¿permiso o espacio del NAS?).";
+    const code = lastStatus === 507 || lastStatus === 413 ? lastStatus : 403;
+    return NextResponse.json({ error: msg }, { status: code });
   }
   return NextResponse.json({ ok: true, count: ok });
 }
