@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSession, credsOf } from "@/lib/auth-server";
+import { getSession, credsForPath } from "@/lib/auth-server";
 import {
   listTrash,
   restoreItem,
   deleteTrashEntry,
   emptyTrash,
+  TRASH_ROOT,
 } from "@/lib/trash";
 
 export const runtime = "nodejs";
@@ -36,7 +37,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
 
-  const creds = credsOf(session);
+  // La papelera vive dentro de "Archivos compartidos", así que sus operaciones
+  // usan la cuenta de servicio del área compartida (si está configurada).
+  const creds = credsForPath(session, TRASH_ROOT);
   let res: { ok: boolean; error?: string };
 
   if (b.action === "restore") {

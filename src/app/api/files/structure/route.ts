@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession, credsOf } from "@/lib/auth-server";
-import { createStandardStructure } from "@/lib/shared-files";
+import { getSession, credsForPath } from "@/lib/auth-server";
+import { createStandardStructure, SHARED_ROOT } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,7 @@ export async function POST() {
     );
   }
 
-  const res = await createStandardStructure(credsOf(session));
+  const res = await createStandardStructure(credsForPath(session, SHARED_ROOT));
   if (!res.ok) {
     return NextResponse.json(
       { error: "No se pudo crear la estructura (¿permiso o conexión del NAS?)." },
