@@ -1,24 +1,31 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import FileBrowser from "@/components/files/FileBrowser";
+import NubeTabs from "@/components/files/NubeTabs";
 import { requireSession } from "@/lib/auth-server";
+import { SHARED_ROOT } from "@/lib/shared-files";
 
 export const dynamic = "force-dynamic";
 
-export default async function RepositorioEmpleado() {
-  const session = await requireSession();
+export default async function NubeEmpleado({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  await requireSession();
+  const { tab } = await searchParams;
 
   return (
-    <DashboardShell role="empleado" title="Nube personal">
-      <div className="mb-5">
-        <p className="text-[#7A7A7A] text-sm">
-          Tu carpeta personal en el NAS, {session.username}. Solo ves y gestionas
-          lo que el NAS te permite. Usa{" "}
-          <span className="font-medium">Compartir con el equipo</span> en una
-          carpeta para colaborar con tus colegas (el administrador siempre tiene
-          acceso).
-        </p>
-      </div>
-      <FileBrowser rootLabel="Mi carpeta" canPublish />
+    <DashboardShell role="empleado" title="Nube">
+      <NubeTabs
+        personalLabel="Mi carpeta"
+        initialTab={tab === "compartidos" ? "compartidos" : "personal"}
+        personal={{ rootLabel: "Mi carpeta", canPublish: true }}
+        shared={{
+          rootLabel: "Compartidos",
+          basePath: SHARED_ROOT,
+          withMeta: true,
+          autoRefreshMs: 180000,
+        }}
+      />
     </DashboardShell>
   );
 }

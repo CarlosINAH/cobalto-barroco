@@ -131,6 +131,7 @@ export default function FileBrowser({
   withMeta = false,
   canPublish = false,
   canCreateStructure = false,
+  autoRefreshMs = 0,
 }: {
   rootLabel?: string;
   basePath?: string;
@@ -139,6 +140,8 @@ export default function FileBrowser({
   canPublish?: boolean;
   /** Muestra "Crear estructura" en la raíz compartida (solo admin). */
   canCreateStructure?: boolean;
+  /** Si > 0, re-lee la carpeta en segundo plano cada N ms (p. ej. archivos nuevos). */
+  autoRefreshMs?: number;
 }) {
   const [path, setPath] = useState(basePath);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -152,29 +155,58 @@ export default function FileBrowser({
   const [viewFor, setViewFor] = useState<Entry | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async (p: string) => {
-    setLoading(true);
-    setError("");
+  // `silent` = refresco en segundo plano (auto-actualización): no muestra el
+  // spinner ni borra la lista si falla, para no interrumpir al usuario.
+  const load = useCallback(async (p: string, silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const res = await fetch(`/api/files/list?path=${encodeURIComponent(p)}`);
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "No se pudo cargar.");
-        setEntries([]);
+        if (!silent) {
+          setError(data.error || "No se pudo cargar.");
+          setEntries([]);
+        }
         return;
       }
       setEntries(data.entries);
       setCanWrite(data.canWrite !== false);
+      if (silent) setError("");
     } catch {
-      setError("Error de conexión.");
+      if (!silent) setError("Error de conexión.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load(path);
   }, [path, load]);
+
+  // Auto-actualización en segundo plano (p. ej. para ver archivos nuevos que
+  // subió otra persona). Se omite mientras el usuario está en medio de algo
+  // (subiendo, con un diálogo abierto) para no interrumpir.
+  const refreshState = useRef({
+    path,
+    busy,
+    historyFor,
+    shareFor,
+    publishFor,
+    viewFor,
+  });
+  refreshState.current = { path, busy, historyFor, shareFor, publishFor, viewFor };
+  useEffect(() => {
+    if (!autoRefreshMs) return;
+    const id = setInterval(() => {
+      const s = refreshState.current;
+      if (s.busy || s.historyFor || s.shareFor || s.publishFor || s.viewFor) return;
+      load(s.path, true);
+    }, autoRefreshMs);
+    return () => clearInterval(id);
+  }, [autoRefreshMs, load]);
 
   const onUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;

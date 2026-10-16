@@ -1,22 +1,35 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import FileBrowser from "@/components/files/FileBrowser";
-import { requireAdmin } from "@/lib/auth-server";
+import NubeTabs from "@/components/files/NubeTabs";
+import { requireAdmin, credsForPath } from "@/lib/auth-server";
+import { SHARED_ROOT, ensureSharedStructure } from "@/lib/shared-files";
 
 export const dynamic = "force-dynamic";
 
-export default async function NASAdmin() {
-  await requireAdmin();
+export default async function NubeAdmin({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const session = await requireAdmin();
+  const { tab } = await searchParams;
+  // Asegura "Archivos compartidos/{Archivos,Fotos}" (con la cuenta de servicio
+  // si está configurada) antes de mostrar la pestaña de compartidos.
+  await ensureSharedStructure(credsForPath(session, SHARED_ROOT));
 
   return (
     <DashboardShell role="admin" title="Nube">
-      <div className="mb-5">
-        <p className="text-[#7A7A7A] text-sm">
-          Todos los archivos de la empresa: repositorios de empleados
-          (<span className="font-medium">Empleados/</span>) y proyectos
-          (<span className="font-medium">Proyectos/</span>).
-        </p>
-      </div>
-      <FileBrowser rootLabel="Nube" canPublish />
+      <NubeTabs
+        personalLabel="Nube"
+        initialTab={tab === "compartidos" ? "compartidos" : "personal"}
+        personal={{ rootLabel: "Nube", canPublish: true }}
+        shared={{
+          rootLabel: "Compartidos",
+          basePath: SHARED_ROOT,
+          withMeta: true,
+          canCreateStructure: true,
+          autoRefreshMs: 180000,
+        }}
+      />
     </DashboardShell>
   );
 }
