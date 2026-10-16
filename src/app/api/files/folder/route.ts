@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, credsOf } from "@/lib/auth-server";
-import { makeDirectory } from "@/lib/webdav";
+import { makeDirectoryDeep } from "@/lib/webdav";
 import { isShared, recordFolderCreated, canWriteSharedPath } from "@/lib/shared-files";
 
 export const runtime = "nodejs";
@@ -16,7 +16,15 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
-  const name = (body.name || "").trim().replace(/[\\/]/g, "");
+  // Admite nombres anidados ("A/B/C"): se crea cada nivel. Se saneja cada
+  // segmento y se descartan vacíos y "." / "..".
+  const name = (body.name || "")
+    .trim()
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((s) => s.trim())
+    .filter((s) => s && s !== "." && s !== "..")
+    .join("/");
   if (!name) {
     return NextResponse.json(
       { error: "Nombre de carpeta inválido." },
@@ -37,7 +45,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const ok = await makeDirectory(credsOf(session), target);
+    const ok = await makeDirectoryDeep(credsOf(session), target);
     if (!ok) throw new Error("mkcol");
     if (isShared(target)) {
       await recordFolderCreated(target, session.username);

@@ -20,7 +20,12 @@ export default async function CompartidosAdmin() {
           quién lo subió, cuándo, y su historial de cambios.
         </p>
       </div>
-      <FileBrowser rootLabel="Compartidos" basePath={SHARED_ROOT} withMeta />
+      <FileBrowser
+        rootLabel="Compartidos"
+        basePath={SHARED_ROOT}
+        withMeta
+        canCreateStructure
+      />
     </DashboardShell>
   );
 }

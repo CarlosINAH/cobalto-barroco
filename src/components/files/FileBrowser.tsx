@@ -130,12 +130,15 @@ export default function FileBrowser({
   basePath = "",
   withMeta = false,
   canPublish = false,
+  canCreateStructure = false,
 }: {
   rootLabel?: string;
   basePath?: string;
   withMeta?: boolean;
   /** Permite publicar carpetas propias en "Archivos compartidos" (Nube personal). */
   canPublish?: boolean;
+  /** Muestra "Crear estructura" en la raíz compartida (solo admin). */
+  canCreateStructure?: boolean;
 }) {
   const [path, setPath] = useState(basePath);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -211,6 +214,29 @@ export default function FileBrowser({
     }
   };
 
+  const onCreateStructure = async () => {
+    if (
+      !window.confirm(
+        "¿Crear la estructura estándar de carpetas del servidor (CV, ECONÓMICO, " +
+          "GABINETE, PROYECTOS, DIRECTORIO, INVENTARIO…)? No borra ni pisa nada: " +
+          "solo agrega las carpetas que falten.",
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/files/structure", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) setError(data.error || "No se pudo crear la estructura.");
+      else await load(path);
+    } catch {
+      setError("Error al crear la estructura.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onDelete = async (entry: Entry) => {
     if (!window.confirm(`¿Enviar "${entry.name}" a la papelera?`)) return;
     setBusy(true);
@@ -266,6 +292,16 @@ export default function FileBrowser({
 
         {canWrite && (
           <div className="flex items-center gap-2">
+            {canCreateStructure && path === basePath && (
+              <button
+                onClick={onCreateStructure}
+                disabled={busy}
+                title="Crear la estructura estándar de carpetas del servidor"
+                className="flex items-center gap-2 border border-[#EDE9E0] text-[#1B2A5E] px-3 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#F5F2EC] transition-colors disabled:opacity-50"
+              >
+                <Folder size={13} /> Estructura
+              </button>
+            )}
             <button
               onClick={onNewFolder}
               disabled={busy}

@@ -191,6 +191,25 @@ export async function makeDirectory(
 }
 
 /**
+ * Crea una carpeta y todas las intermedias que falten (como `mkdir -p`).
+ * WebDAV/MKCOL solo crea un nivel: si el padre no existe devuelve 409, así que
+ * para rutas anidadas (p. ej. "PROYECTOS/2025/EJECUTADO") hay que crear cada
+ * segmento en orden. Un 405 por segmento ya existente no es error.
+ */
+export async function makeDirectoryDeep(
+  creds: Credentials,
+  dir: string,
+): Promise<boolean> {
+  const parts = safePath(dir).split("/").filter(Boolean);
+  let acc = "";
+  for (const seg of parts) {
+    acc = acc ? `${acc}/${seg}` : seg;
+    if (!(await makeDirectory(creds, acc))) return false;
+  }
+  return parts.length > 0;
+}
+
+/**
  * Mueve (o renombra) un archivo/carpeta dentro del NAS con MOVE de WebDAV.
  * Es una operación del servidor: no vuelve a transferir datos, así que no
  * duplica ni gasta espacio extra. `Overwrite: F` evita pisar un destino que
