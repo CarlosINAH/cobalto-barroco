@@ -461,7 +461,9 @@ export async function ensureSharedStructure(creds: {
  * en orden padre→hijo para crearla de una sola vez. ESTADO y TIPO DE BIEN son
  * plantillas: el usuario las renombra/llena por proyecto.
  */
-type FolderTree = Record<string, FolderTree>;
+interface FolderTree {
+  [name: string]: FolderTree;
+}
 
 const PROYECTO_PLANTILLA: FolderTree = {
   "EJECUTADO": { "ESTADO": { "TIPO DE BIEN": {} } },
