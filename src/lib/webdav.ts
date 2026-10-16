@@ -127,7 +127,38 @@ export async function uploadFile(
   return res.ok;
 }
 
-/** Crea una carpeta (MKCOL). */
+/** ¿Existe la carpeta? (PROPFIND Depth 0). */
+export async function directoryExists(
+  creds: Credentials,
+  dir: string,
+): Promise<boolean> {
+  const url = baseUrl() + "/" + encodePath(dir) + "/";
+  try {
+    const res = await fetch(url, {
+      method: "PROPFIND",
+      headers: {
+        Authorization: authHeader(creds.username, creds.password),
+        Depth: "0",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.status === 207 || res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Crea una carpeta (MKCOL). Devuelve true solo si al terminar la carpeta
+ * existe de verdad.
+ *
+ * Ojo: un MKCOL puede devolver 405 porque la carpeta YA existe (idempotente,
+ * ok) o porque el NAS NO permite crear ahí (p. ej. en la raíz WebDAV del
+ * usuario). Antes se trataba cualquier 405 como éxito, así que una carpeta que
+ * nunca se creó se reportaba como creada y luego "no aparecía". Por eso, ante
+ * cualquier respuesta que no sea 2xx (405/403/409…), confirmamos con PROPFIND
+ * si la carpeta existe antes de dar éxito.
+ */
 export async function makeDirectory(
   creds: Credentials,
   dir: string,
@@ -138,7 +169,9 @@ export async function makeDirectory(
     headers: { Authorization: authHeader(creds.username, creds.password) },
     signal: AbortSignal.timeout(15000),
   });
-  return res.ok || res.status === 405; // 405 = ya existe
+  if (res.ok) return true; // 201 Created
+  // No se creó en este intento: solo es éxito si ya existía realmente.
+  return directoryExists(creds, dir);
 }
 
 /**
