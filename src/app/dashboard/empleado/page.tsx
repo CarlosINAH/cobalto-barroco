@@ -14,8 +14,8 @@ export default async function PanelGeneralEmpleado() {
   );
 
   const accesos = [
-    { label: "Nube personal", href: "/dashboard/empleado/repositorio", icon: HardDrive },
-    { label: "Archivos Compartidos", href: "/dashboard/empleado/compartidos", icon: Share2 },
+    { label: "Nube", href: "/dashboard/empleado/repositorio", icon: HardDrive },
+    { label: "Archivos compartidos", href: "/dashboard/empleado/repositorio?tab=compartidos", icon: Share2 },
     { label: "Configuración", href: "/dashboard/empleado/configuracion", icon: Settings },
   ];
 
