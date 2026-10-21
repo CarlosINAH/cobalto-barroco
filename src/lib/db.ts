@@ -235,6 +235,162 @@ export interface CalendarEvent {
   creadoEn: number;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Módulo de costos / Precios Unitarios (P.U.)
+//
+// Replica en código el flujo del Excel de presupuestos. Los catálogos
+// (materiales, recetas, salarios, conceptos) son GLOBALES y reutilizables entre
+// proyectos; el presupuesto (Budget) es por proyecto. El cálculo vive en
+// `src/lib/pu.ts` (funciones puras): precio de catálogo → costo directo →
+// P.U. = CD × (1 + indirectos) × (1 + utilidad).
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Factores por defecto tomados del Excel (hoja P.U.). */
+export const FACTOR_INDIRECTOS = 0.25;
+export const FACTOR_UTILIDAD = 0.3;
+export const FACTOR_IVA = 0.16;
+
+/** Clasificación de un insumo dentro de una matriz de P.U. */
+export type CostInputKind =
+  | "material"
+  | "herramienta"
+  | "equipo"
+  | "mano_obra"
+  | "receta";
+
+/**
+ * Insumo del catálogo global de precios (hoja ` MATERIALES`): material,
+ * herramienta o equipo, con su precio de compra y enlace al proveedor.
+ */
+export interface CostMaterial {
+  id: string;
+  nombre: string;
+  kind: "material" | "herramienta" | "equipo";
+  /** Etapa/proceso del catálogo: PRELIMINARES, EMBALAJE, LIMPIEZA FINA, … */
+  categoria: string;
+  /** Precio unitario de compra (MXN). */
+  precio: number;
+  /** Presentación/unidad de compra (p. ej. "1 L", "100 pzas"). */
+  unidad: string;
+  /** Enlace de compra. */
+  url?: string;
+  supplierId?: string | null;
+  nota?: string;
+  /** Última actualización del precio (para historial de costos). */
+  actualizadoEn: number;
+  createdAt: number;
+}
+
+/** Componente de una receta: un material base consumido por una fracción. */
+export interface RecipeComponent {
+  /** Referencia a un CostMaterial del catálogo (o null si es externo). */
+  materialId: string | null;
+  /** Referencia a otra receta anidada (p. ej. BOL usa AGUA COLA). */
+  recipeId?: string | null;
+  /** Snapshot legible por si la referencia se borra. */
+  nombre: string;
+  unidad: string;
+  /** Precio unitario de compra usado en el cálculo. */
+  precio: number;
+  /** Fracción/rendimiento consumido del envase. */
+  cantidad: number;
+}
+
+/**
+ * Solución/mezcla compuesta (hoja `RECETAS`). Su costo calculado se usa luego
+ * como un "material" más dentro de las matrices de P.U.
+ */
+export interface Recipe {
+  id: string;
+  nombre: string;
+  /** Rendimiento del lote (p. ej. "1 L", "950 ML"). */
+  rendimiento: string;
+  unidad: string;
+  componentes: RecipeComponent[];
+  /** Costo del lote = suma de componentes (cache calculado). */
+  costo: number;
+  /** "Final" del Excel (costo + indirectos); informativo. */
+  costoFinal?: number;
+  nota?: string;
+  createdAt: number;
+}
+
+/** Tarifa de mano de obra por rol (hoja `SALARIOS`), en MXN. */
+export interface LaborRate {
+  id: string;
+  rol: string;
+  /** Jornada de 8 h. */
+  jornada: number;
+  hora: number;
+  semana: number;
+  mes: number;
+  createdAt: number;
+}
+
+/** Renglón de insumo dentro de la matriz de P.U. de un concepto. */
+export interface ConceptInput {
+  kind: CostInputKind;
+  /** CostMaterial.id, Recipe.id o LaborRate.id según `kind`. */
+  refId: string | null;
+  /** Snapshot del nombre/unidad/precio por resiliencia y legibilidad. */
+  nombre: string;
+  unidad: string;
+  precio: number;
+  /** Rendimiento/consumo por unidad de obra. */
+  cantidad: number;
+}
+
+/**
+ * Concepto de obra con su matriz de P.U. (hojas `1`..`n` + `P.U.`). Puede ser
+ * de catálogo global (reutilizable) o propio de un presupuesto.
+ */
+export interface Concept {
+  id: string;
+  clave: string;
+  concepto: string;
+  descripcion: string;
+  unidad: string;
+  insumos: ConceptInput[];
+  factorIndirectos: number;
+  factorUtilidad: number;
+  /** Jornadas por unidad de obra (para el cronograma); null si no aplica. */
+  tiempoPU?: number | null;
+  /** Calculados (cache; la verdad la da `pu.ts`). */
+  costoDirecto: number;
+  pu: number;
+  /** true = concepto de catálogo reutilizable entre proyectos. */
+  global: boolean;
+  createdAt: number;
+}
+
+/** Línea de un presupuesto: un concepto con su cantidad para el proyecto. */
+export interface BudgetLine {
+  conceptId: string | null;
+  /** Snapshot del concepto al momento de presupuestar (la cotización se congela). */
+  clave: string;
+  concepto: string;
+  descripcion: string;
+  unidad: string;
+  pu: number;
+  cantidad: number;
+  /** Jornadas por unidad (cronograma). */
+  tiempoPU?: number | null;
+}
+
+/** Presupuesto/cotización de un proyecto (hojas `COTIZACIÓN`/`CRONO`). */
+export interface Budget {
+  id: string;
+  projectId: string;
+  nombre: string;
+  cliente: string;
+  lineas: BudgetLine[];
+  factorIva: number;
+  factorIndirectos: number;
+  factorUtilidad: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DBShape {
   projects: Project[];
   employees: Employee[];
@@ -249,6 +405,12 @@ export interface DBShape {
   access: AccessEntry[];
   trash: TrashEntry[];
   events: CalendarEvent[];
+  // Módulo de costos / P.U.
+  costMaterials: CostMaterial[];
+  recipes: Recipe[];
+  laborRates: LaborRate[];
+  concepts: Concept[];
+  budgets: Budget[];
   seededEmployees?: boolean;
 }
 
@@ -266,6 +428,11 @@ const EMPTY: DBShape = {
   access: [],
   trash: [],
   events: [],
+  costMaterials: [],
+  recipes: [],
+  laborRates: [],
+  concepts: [],
+  budgets: [],
 };
 
 function dbPath(): string {
