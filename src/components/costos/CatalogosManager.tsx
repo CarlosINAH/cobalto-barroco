@@ -18,8 +18,10 @@ import type {
   LaborRate,
   Recipe,
   Concept,
+  ConceptInput,
   CostInputKind,
 } from "@/lib/db";
+import { buildCatalogs, conceptBreakdown } from "@/lib/pu";
 
 /** Concepto con su desglose ya calculado en el servidor. */
 type ConceptoView = Concept & {
@@ -100,7 +102,14 @@ export default function CatalogosManager({
       {tab === "materiales" && <Materiales initial={materiales} />}
       {tab === "salarios" && <Salarios initial={salarios} />}
       {tab === "recetas" && <Recetas recetas={recetas} />}
-      {tab === "conceptos" && <Conceptos conceptos={conceptos} />}
+      {tab === "conceptos" && (
+        <Conceptos
+          initial={conceptos}
+          materiales={materiales}
+          recetas={recetas}
+          salarios={salarios}
+        />
+      )}
     </div>
   );
 }
@@ -393,36 +402,313 @@ function Recetas({ recetas }: { recetas: Recipe[] }) {
   );
 }
 
-// ─── Conceptos (lectura, P.U. en vivo) ───────────────────────────────────────
-function Conceptos({ conceptos }: { conceptos: ConceptoView[] }) {
-  if (conceptos.length === 0)
+// ─── Conceptos (constructor de matrices de P.U.) ─────────────────────────────
+const KIND_OPTS: { value: CostInputKind; label: string }[] = [
+  { value: "material", label: "Material" },
+  { value: "herramienta", label: "Herramienta" },
+  { value: "equipo", label: "Equipo" },
+  { value: "receta", label: "Receta" },
+  { value: "mano_obra", label: "Mano de obra" },
+];
+
+function Conceptos({
+  initial,
+  materiales,
+  recetas,
+  salarios,
+}: {
+  initial: ConceptoView[];
+  materiales: CostMaterial[];
+  recetas: Recipe[];
+  salarios: LaborRate[];
+}) {
+  const catalogs = useMemo(
+    () => buildCatalogs({ costMaterials: materiales, recipes: recetas, laborRates: salarios }),
+    [materiales, recetas, salarios],
+  );
+  const toView = (c: Concept): ConceptoView => {
+    const b = conceptBreakdown(c, catalogs);
+    return { ...c, costoDirecto: b.costoDirecto, pu: b.pu, porTipo: b.porTipo };
+  };
+
+  const [items, setItems] = useState<ConceptoView[]>(initial);
+  const [editing, setEditing] = useState<Concept | null>(null); // objeto en edición
+  const [creating, setCreating] = useState(false);
+
+  function onSaved(c: Concept) {
+    const v = toView(c);
+    setItems((xs) => (xs.some((x) => x.id === v.id) ? xs.map((x) => (x.id === v.id ? v : x)) : [...xs, v]));
+    setEditing(null);
+    setCreating(false);
+  }
+
+  async function borrar(id: string) {
+    if (!confirm("¿Eliminar este concepto?")) return;
+    const res = await fetch(`/api/costos/conceptos/${id}`, { method: "DELETE" });
+    if (res.ok) setItems((xs) => xs.filter((x) => x.id !== id));
+  }
+
+  if (creating || editing) {
     return (
-      <Empty>
-        Aún no hay conceptos. El constructor de matrices de P.U. (elegir insumos
-        de los catálogos y fijar rendimientos) llega en la Fase 3.
-      </Empty>
+      <ConceptoEditor
+        concept={editing}
+        materiales={materiales}
+        recetas={recetas}
+        salarios={salarios}
+        catalogs={catalogs}
+        onCancel={() => { setEditing(null); setCreating(false); }}
+        onSaved={onSaved}
+      />
     );
+  }
+
   return (
-    <div className="space-y-3">
-      {conceptos.map((c) => (
-        <div key={c.id} className="bg-white border border-[#EDE9E0] p-5">
-          <div className="flex items-baseline justify-between">
-            <h3 className="text-[#1B2A5E] font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
-              <span className="data-label text-[#7A7A7A] mr-2">{c.clave || "—"}</span>
-              {c.concepto || c.descripcion || "Concepto"}
-            </h3>
-            <span className="data-label text-[#C9A84C] font-bold">{money(c.pu)} / {c.unidad || "u"}</span>
-          </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-xs text-[#7A7A7A] data-label">
-            <span>Material {money(c.porTipo.material)}</span>
-            <span>Herr. {money(c.porTipo.herramienta)}</span>
-            <span>Equipo {money(c.porTipo.equipo)}</span>
-            <span>M.O. {money(c.porTipo.mano_obra)}</span>
-            <span>Recetas {money(c.porTipo.receta)}</span>
-            <span className="text-[#1B2A5E]">CD {money(c.costoDirecto)}</span>
-          </div>
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <p className="text-sm text-[#7A7A7A]">Conceptos de obra reutilizables. Cada uno es una matriz de P.U.: insumos × rendimiento → costo directo → P.U.</p>
+        <button onClick={() => setCreating(true)} className={BTN_PRIMARY}><Plus size={14} /> Nuevo concepto</button>
+      </div>
+      {items.length === 0 ? (
+        <Empty>Aún no hay conceptos. Crea el primero con “Nuevo concepto”.</Empty>
+      ) : (
+        <div className="space-y-3">
+          {items.map((c) => (
+            <div key={c.id} className="bg-white border border-[#EDE9E0] p-5 group">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-[#1B2A5E] font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
+                  <span className="data-label text-[#7A7A7A] mr-2">{c.clave || "—"}</span>
+                  {c.concepto || c.descripcion || "Concepto"}
+                </h3>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="data-label text-[#C9A84C] font-bold">{money(c.pu)} / {c.unidad || "u"}</span>
+                  <button onClick={() => setEditing(c)} className="text-[#7A7A7A] hover:text-[#1B2A5E]"><Pencil size={15} /></button>
+                  <button onClick={() => borrar(c.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={15} /></button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-xs text-[#7A7A7A] data-label">
+                <span>Material {money(c.porTipo.material)}</span>
+                <span>Herr. {money(c.porTipo.herramienta)}</span>
+                <span>Equipo {money(c.porTipo.equipo)}</span>
+                <span>M.O. {money(c.porTipo.mano_obra)}</span>
+                <span>Recetas {money(c.porTipo.receta)}</span>
+                <span className="text-[#1B2A5E]">CD {money(c.costoDirecto)}</span>
+                <span className="text-[#7A7A7A]">{c.insumos.length} insumos</span>
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
+    </div>
+  );
+}
+
+function ConceptoEditor({
+  concept,
+  materiales,
+  recetas,
+  salarios,
+  catalogs,
+  onCancel,
+  onSaved,
+}: {
+  concept: Concept | null;
+  materiales: CostMaterial[];
+  recetas: Recipe[];
+  salarios: LaborRate[];
+  catalogs: ReturnType<typeof buildCatalogs>;
+  onCancel: () => void;
+  onSaved: (c: Concept) => void;
+}) {
+  const [form, setForm] = useState({
+    clave: concept?.clave ?? "",
+    concepto: concept?.concepto ?? "",
+    descripcion: concept?.descripcion ?? "",
+    unidad: concept?.unidad ?? "PZA",
+    factorIndirectos: String(concept?.factorIndirectos ?? 0.25),
+    factorUtilidad: String(concept?.factorUtilidad ?? 0.3),
+    tiempoPU: concept?.tiempoPU != null ? String(concept.tiempoPU) : "",
+  });
+  const [insumos, setInsumos] = useState<ConceptInput[]>(concept?.insumos ?? []);
+  const [kind, setKind] = useState<CostInputKind>("material");
+  const [refId, setRefId] = useState("");
+  const [cant, setCant] = useState("1");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  // Opciones del picker según el tipo elegido.
+  const opciones = useMemo(() => {
+    if (kind === "receta")
+      return recetas.map((r) => ({ id: r.id, label: `${r.nombre} · ${money(r.costo)}` }));
+    if (kind === "mano_obra")
+      return salarios.map((s) => ({ id: s.id, label: `${s.rol} · ${money(s.jornada)}/jornada` }));
+    return materiales
+      .filter((m) => m.kind === kind)
+      .map((m) => ({ id: m.id, label: `${m.nombre} · ${money(m.precio)}` }));
+  }, [kind, materiales, recetas, salarios]);
+
+  // Cálculo en vivo con el mismo motor del servidor.
+  const preview = useMemo(() => {
+    const c: Concept = {
+      id: concept?.id ?? "nuevo",
+      clave: form.clave,
+      concepto: form.concepto,
+      descripcion: form.descripcion,
+      unidad: form.unidad,
+      insumos,
+      factorIndirectos: Number(form.factorIndirectos) || 0,
+      factorUtilidad: Number(form.factorUtilidad) || 0,
+      tiempoPU: form.tiempoPU === "" ? null : Number(form.tiempoPU),
+      costoDirecto: 0,
+      pu: 0,
+      global: true,
+      createdAt: concept?.createdAt ?? 0,
+    };
+    return conceptBreakdown(c, catalogs);
+  }, [form, insumos, catalogs, concept]);
+
+  function addInsumo() {
+    if (!refId) return;
+    const cantidad = Number(cant) || 0;
+    let nombre = "", unidad = "", precio = 0;
+    if (kind === "receta") {
+      const r = recetas.find((x) => x.id === refId);
+      if (r) { nombre = r.nombre; unidad = r.unidad; precio = r.costo; }
+    } else if (kind === "mano_obra") {
+      const s = salarios.find((x) => x.id === refId);
+      if (s) { nombre = s.rol; unidad = "jornada"; precio = s.jornada; }
+    } else {
+      const m = materiales.find((x) => x.id === refId);
+      if (m) { nombre = m.nombre; unidad = m.unidad; precio = m.precio; }
+    }
+    setInsumos((xs) => [...xs, { kind, refId, nombre, unidad, precio, cantidad }]);
+    setRefId("");
+    setCant("1");
+  }
+
+  async function guardar() {
+    if (!form.concepto.trim() && !form.descripcion.trim()) {
+      setError("Ponle un nombre o descripción al concepto.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    const payload = {
+      clave: form.clave,
+      concepto: form.concepto,
+      descripcion: form.descripcion,
+      unidad: form.unidad,
+      factorIndirectos: Number(form.factorIndirectos) || 0,
+      factorUtilidad: Number(form.factorUtilidad) || 0,
+      tiempoPU: form.tiempoPU === "" ? null : Number(form.tiempoPU),
+      insumos,
+      global: true,
+    };
+    const res = await fetch(
+      concept ? `/api/costos/conceptos/${concept.id}` : "/api/costos/conceptos",
+      {
+        method: concept ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    setBusy(false);
+    if (res.ok) {
+      const data = await res.json();
+      onSaved(data.concepto);
+    } else {
+      setError("No se pudo guardar.");
+    }
+  }
+
+  return (
+    <div className="bg-white border border-[#EDE9E0] p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[#1B2A5E] text-lg" style={{ fontFamily: "var(--font-playfair)" }}>
+          {concept ? "Editar concepto" : "Nuevo concepto"}
+        </h3>
+        <button onClick={onCancel} className="text-[#7A7A7A] hover:text-[#1B2A5E]"><X size={18} /></button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-5">
+        <input className={INPUT} placeholder="Clave" value={form.clave} onChange={(e) => setForm({ ...form, clave: e.target.value })} />
+        <input className={INPUT + " sm:col-span-2 lg:col-span-2"} placeholder="Concepto" value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} />
+        <input className={INPUT} placeholder="Unidad (PZA, M2…)" value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} />
+        <input className={INPUT + " sm:col-span-2 lg:col-span-4"} placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+        <label className="text-xs text-[#7A7A7A]">Indirectos<input className={INPUT} type="number" step="0.01" value={form.factorIndirectos} onChange={(e) => setForm({ ...form, factorIndirectos: e.target.value })} /></label>
+        <label className="text-xs text-[#7A7A7A]">Utilidad<input className={INPUT} type="number" step="0.01" value={form.factorUtilidad} onChange={(e) => setForm({ ...form, factorUtilidad: e.target.value })} /></label>
+        <label className="text-xs text-[#7A7A7A]">Jornadas / unidad<input className={INPUT} type="number" step="0.0001" placeholder="cronograma" value={form.tiempoPU} onChange={(e) => setForm({ ...form, tiempoPU: e.target.value })} /></label>
+      </div>
+
+      {/* Matriz de insumos */}
+      <div className="border border-[#EDE9E0] overflow-x-auto mb-3">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0] bg-[#F5F2EC]/60">
+              <th className="px-3 py-2 font-semibold">Tipo</th>
+              <th className="px-3 py-2 font-semibold">Insumo</th>
+              <th className="px-3 py-2 font-semibold text-right">P.U.</th>
+              <th className="px-3 py-2 font-semibold text-right">Cantidad</th>
+              <th className="px-3 py-2 font-semibold text-right">Importe</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {insumos.map((i, idx) => (
+              <tr key={idx} className="border-b border-[#F5F2EC]">
+                <td className="px-3 py-2 text-[#7A7A7A]">{KIND_OPTS.find((k) => k.value === i.kind)?.label}</td>
+                <td className="px-3 py-2 text-[#2C2C2C]">{i.nombre}</td>
+                <td className="px-3 py-2 text-right text-[#7A7A7A] data-label">{money(i.precio)}</td>
+                <td className="px-3 py-2 text-right data-label">
+                  <input
+                    type="number" step="0.0001" defaultValue={i.cantidad}
+                    onBlur={(e) => { const v = Number(e.target.value) || 0; setInsumos((xs) => xs.map((x, j) => (j === idx ? { ...x, cantidad: v } : x))); }}
+                    className="w-20 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]"
+                  />
+                </td>
+                <td className="px-3 py-2 text-right text-[#2C2C2C] data-label">{money(i.precio * i.cantidad)}</td>
+                <td className="px-3 py-2 text-right"><button onClick={() => setInsumos((xs) => xs.filter((_, j) => j !== idx))} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
+              </tr>
+            ))}
+            {insumos.length === 0 && (
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-[#7A7A7A] text-sm">Agrega insumos abajo.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Agregar insumo */}
+      <div className="flex flex-wrap items-end gap-2 mb-5">
+        <select value={kind} onChange={(e) => { setKind(e.target.value as CostInputKind); setRefId(""); }} className={INPUT + " w-40"}>
+          {KIND_OPTS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+        </select>
+        <select value={refId} onChange={(e) => setRefId(e.target.value)} className={INPUT + " flex-1 min-w-[220px]"}>
+          <option value="">Elegir del catálogo…</option>
+          {opciones.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+        <input type="number" step="0.0001" value={cant} onChange={(e) => setCant(e.target.value)} placeholder="Cant." className={INPUT + " w-24"} />
+        <button onClick={addInsumo} disabled={!refId} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
+      </div>
+
+      {/* Totales en vivo */}
+      <div className="bg-[#1B2A5E] text-[#F5F2EC] p-4 flex flex-wrap items-center justify-between gap-4 mb-5">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs data-label text-[#F5F2EC]/70">
+          <span>Material {money(preview.porTipo.material)}</span>
+          <span>Herr. {money(preview.porTipo.herramienta)}</span>
+          <span>Equipo {money(preview.porTipo.equipo)}</span>
+          <span>M.O. {money(preview.porTipo.mano_obra)}</span>
+          <span>Recetas {money(preview.porTipo.receta)}</span>
+        </div>
+        <div className="flex items-center gap-5 data-label">
+          <span className="text-xs text-[#F5F2EC]/70">CD {money(preview.costoDirecto)} · +Ind {money(preview.indirectos)} · +Util {money(preview.utilidad)}</span>
+          <span className="text-[#C9A84C] font-bold text-lg">P.U. {money(preview.pu)}</span>
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={guardar} disabled={busy} className={BTN_PRIMARY}><Save size={14} /> {concept ? "Guardar cambios" : "Crear concepto"}</button>
+        <button onClick={onCancel} className="px-4 py-2.5 text-xs tracking-widest uppercase text-[#7A7A7A] hover:text-[#1B2A5E]">Cancelar</button>
+      </div>
     </div>
   );
 }

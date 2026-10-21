@@ -1,5 +1,10 @@
 import "server-only";
-import type { ConceptInput, CostInputKind, RecipeComponent } from "@/lib/db";
+import type {
+  BudgetLine,
+  ConceptInput,
+  CostInputKind,
+  RecipeComponent,
+} from "@/lib/db";
 
 /**
  * Normalizadores de payloads del módulo de costos. Viven aquí (no en los route
@@ -45,6 +50,24 @@ export function cleanComponents(raw: unknown): RecipeComponent[] {
       unidad: (o.unidad || "").trim(),
       precio: Number(o.precio) || 0,
       cantidad: Number(o.cantidad) || 0,
+    };
+  });
+}
+
+/** Normaliza las líneas de un presupuesto recibidas del cliente. */
+export function cleanBudgetLines(raw: unknown): BudgetLine[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((l): BudgetLine => {
+    const o = (l ?? {}) as Partial<BudgetLine>;
+    return {
+      conceptId: o.conceptId ?? null,
+      clave: (o.clave || "").trim(),
+      concepto: (o.concepto || "").trim(),
+      descripcion: (o.descripcion || "").trim(),
+      unidad: (o.unidad || "").trim(),
+      pu: Number(o.pu) || 0,
+      cantidad: Number(o.cantidad) || 0,
+      tiempoPU: o.tiempoPU != null ? Number(o.tiempoPU) : null,
     };
   });
 }
