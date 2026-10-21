@@ -34,6 +34,8 @@ export async function PATCH(
       p.factorIndirectos = Number(b.factorIndirectos) || 0;
     if (b.factorUtilidad !== undefined)
       p.factorUtilidad = Number(b.factorUtilidad) || 0;
+    if (b.personas !== undefined)
+      p.personas = b.personas != null ? Number(b.personas) : undefined;
     p.updatedAt = Date.now();
     return p;
   });

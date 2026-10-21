@@ -11,13 +11,19 @@ import {
   ChevronLeft,
   MapPin,
   ArrowRight,
-  Construction,
   Plus,
   Trash2,
   Save,
   Printer,
+  Download,
 } from "lucide-react";
-import type { Project, Budget, BudgetLine } from "@/lib/db";
+import type {
+  Project,
+  Budget,
+  BudgetLine,
+  LedgerEntry,
+  PayrollEntry,
+} from "@/lib/db";
 import { budgetTotals } from "@/lib/pu";
 
 /** Concepto de la biblioteca, con su P.U. ya calculado. */
@@ -61,10 +67,14 @@ export default function ProyectosManager({
   proyectos,
   budgets,
   conceptos,
+  ledger,
+  payroll,
 }: {
   proyectos: Project[];
   budgets: Budget[];
   conceptos: ConceptoLite[];
+  ledger: LedgerEntry[];
+  payroll: PayrollEntry[];
 }) {
   const [selId, setSelId] = useState<string | null>(null);
   const sel = proyectos.find((p) => p.id === selId) || null;
@@ -75,6 +85,8 @@ export default function ProyectosManager({
         proyecto={sel}
         budgetInicial={budgets.find((b) => b.projectId === sel.id) || null}
         conceptos={conceptos}
+        ledgerInicial={ledger.filter((e) => e.projectId === sel.id)}
+        payrollInicial={payroll.filter((e) => e.projectId === sel.id)}
         onBack={() => setSelId(null)}
       />
     );
@@ -123,11 +135,15 @@ function ProyectoDetalle({
   proyecto,
   budgetInicial,
   conceptos,
+  ledgerInicial,
+  payrollInicial,
   onBack,
 }: {
   proyecto: Project;
   budgetInicial: Budget | null;
   conceptos: ConceptoLite[];
+  ledgerInicial: LedgerEntry[];
+  payrollInicial: PayrollEntry[];
   onBack: () => void;
 }) {
   const [tab, setTab] = useState<SubTab>("presupuesto");
@@ -166,9 +182,9 @@ function ProyectoDetalle({
         <Presupuesto proyecto={proyecto} budget={budget} conceptos={conceptos} onChange={setBudget} />
       )}
       {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} />}
-      {(tab === "cronograma" || tab === "administracion" || tab === "nomina") && (
-        <Scaffold tab={tab} budget={budget} />
-      )}
+      {tab === "cronograma" && <Cronograma budget={budget} onChange={setBudget} />}
+      {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} />}
+      {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} />}
     </div>
   );
 }
@@ -331,8 +347,9 @@ function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | 
   return (
     <div>
       <style>{`@media print { [data-no-print]{display:none!important} body{background:#fff} .cotiz-print{border:none!important} }`}</style>
-      <div className="flex justify-end mb-3" data-no-print>
-        <button onClick={() => window.print()} className={BTN_PRIMARY}><Printer size={14} /> Imprimir / PDF</button>
+      <div className="flex justify-end gap-2 mb-3" data-no-print>
+        <a href={`/api/costos/budgets/${budget.id}/pdf`} target="_blank" rel="noopener noreferrer" className={BTN_PRIMARY}><Download size={14} /> Descargar PDF</a>
+        <button onClick={() => window.print()} className="flex items-center gap-2 border border-[#EDE9E0] text-[#1B2A5E] px-4 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#F5F2EC]"><Printer size={14} /> Imprimir</button>
       </div>
       <div className={`${CARD} p-8 cotiz-print`}>
         <div className="flex items-start justify-between mb-6">
@@ -381,25 +398,233 @@ function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | 
   );
 }
 
-// ─── Hojas aún por construir (Fase 4) ────────────────────────────────────────
-function Scaffold({ tab, budget }: { tab: SubTab; budget: Budget | null }) {
-  const info: Record<string, { label: string; hoja: string; desc: string }> = {
-    cronograma: { label: "Cronograma", hoja: "CRONO", desc: "Distribuye las jornadas del presupuesto por semanas." },
-    administracion: { label: "Administración", hoja: "ADMINISTRACIÓN", desc: "Anticipo, finiquito, egresos y utilidad: lo real contra lo presupuestado." },
-    nomina: { label: "Nómina", hoja: "NÓMINA", desc: "Nómina del proyecto por persona y periodo." },
-  };
-  const i = info[tab];
-  const jornadas = budget ? budgetTotals(budget).jornadas : 0;
+// ─── Cronograma (jornales → semanas) ─────────────────────────────────────────
+function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b: Budget) => void }) {
+  const [personas, setPersonas] = useState(budget?.personas ?? 2);
+  if (!budget || budget.lineas.length === 0)
+    return <div className={`${CARD} py-14 px-6 text-center text-sm text-[#7A7A7A]`}>Arma primero el presupuesto para calcular el cronograma.</div>;
+
+  const b = budget;
+  const p = Math.max(1, personas);
+  const capSemana = 5 * p; // jornales por semana (5 días × personas)
+  const totalJornales = budgetTotals(b).jornadas;
+  const dias = totalJornales / p;
+
+  async function guardarPersonas(v: number) {
+    const next = { ...b, personas: v };
+    onChange(next);
+    await fetch(`/api/costos/budgets/${b.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ personas: v }),
+    });
+  }
+
+  // Asignación secuencial de cada concepto a semanas.
+  let acum = 0;
+  const filas = b.lineas.map((l) => {
+    const j = (l.tiempoPU ?? 0) * l.cantidad;
+    const ini = Math.floor(acum / capSemana) + 1;
+    acum += j;
+    const fin = Math.max(ini, Math.ceil(acum / capSemana));
+    return { l, j, ini, fin };
+  });
+
   return (
-    <div className={`${CARD} p-8`}>
-      <span className="data-label text-xs uppercase tracking-widest text-[#C9A84C]">Hoja: {i.hoja}</span>
-      <h3 className="text-[#1B2A5E] text-xl mb-2 mt-1" style={{ fontFamily: "var(--font-playfair)" }}>{i.label}</h3>
-      <p className="text-sm text-[#2C2C2C] max-w-2xl">{i.desc}</p>
-      {tab === "cronograma" && budget && (
-        <p className="mt-3 text-sm text-[#1B2A5E] data-label">Jornadas totales del presupuesto actual: <strong>{jornadas.toFixed(2)}</strong></p>
-      )}
-      <div className="mt-6 flex items-center gap-2 text-sm text-[#7A7A7A] bg-[#F5F2EC] border border-[#EDE9E0] px-4 py-3">
-        <Construction size={16} className="text-[#C9A84C] shrink-0" /> Módulo en construcción (Fase 4).
+    <div>
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <label className="text-xs text-[#7A7A7A] flex items-center gap-2">Cuadrilla (personas)
+          <input type="number" min={1} value={personas} onChange={(e) => setPersonas(Number(e.target.value) || 1)} onBlur={(e) => guardarPersonas(Number(e.target.value) || 1)} className={INPUT + " w-20"} />
+        </label>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-4 mb-5">
+        <Stat label="Jornales" val={totalJornales.toFixed(2)} />
+        <Stat label="Días" val={dias.toFixed(1)} />
+        <Stat label="Semanas" val={(dias / 5).toFixed(1)} />
+        <Stat label="Meses" val={(dias / 20).toFixed(1)} />
+      </div>
+      <div className={`${CARD} overflow-x-auto`}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+              <th className="px-3 py-3 font-semibold">Concepto</th>
+              <th className="px-3 py-3 font-semibold text-right">Jornales</th>
+              <th className="px-3 py-3 font-semibold text-right">Semana</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((f, i) => (
+              <tr key={i} className="border-b border-[#F5F2EC]">
+                <td className="px-3 py-2 text-[#2C2C2C]">{f.l.concepto || f.l.descripcion}</td>
+                <td className="px-3 py-2 text-right data-label">{f.j.toFixed(2)}</td>
+                <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{f.ini === f.fin ? f.ini : `${f.ini}–${f.fin}`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[#7A7A7A] mt-2">Jornales = tiempo por unidad × cantidad. Semanas asumen {p} persona(s) a 5 días ({capSemana} jornales/semana).</p>
+    </div>
+  );
+}
+
+function Stat({ label, val }: { label: string; val: string }) {
+  return (
+    <div className={`${CARD} p-4`}>
+      <p className="text-[#1B2A5E] text-2xl data-label" style={{ fontFamily: "var(--font-playfair)" }}>{val}</p>
+      <p className="text-[#7A7A7A] text-xs uppercase tracking-wider mt-1">{label}</p>
+    </div>
+  );
+}
+
+// ─── Administración (movimientos del proyecto) ───────────────────────────────
+const CATEGORIAS = ["anticipo", "finiquito", "pago", "egreso", "indirectos", "impuestos", "nómina", "otro"];
+
+function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[] }) {
+  const [items, setItems] = useState<LedgerEntry[]>(inicial);
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({ fecha: new Date().toISOString().slice(0, 10), categoria: "anticipo", tipo: "ingreso" as LedgerEntry["tipo"], concepto: "", monto: "" });
+
+  async function crear() {
+    setBusy(true);
+    const res = await fetch("/api/costos/ledger", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...f, projectId: proyecto.id, monto: Number(f.monto) || 0 }),
+    });
+    setBusy(false);
+    if (res.ok) { const { entry } = await res.json(); setItems((xs) => [...xs, entry]); setF({ ...f, concepto: "", monto: "" }); }
+  }
+  async function borrar(id: string) {
+    if (!confirm("¿Eliminar movimiento?")) return;
+    if ((await fetch(`/api/costos/ledger/${id}`, { method: "DELETE" })).ok) setItems((xs) => xs.filter((x) => x.id !== id));
+  }
+
+  const ingresos = items.filter((e) => e.tipo === "ingreso").reduce((a, e) => a + e.monto, 0);
+  const egresos = items.filter((e) => e.tipo === "egreso").reduce((a, e) => a + e.monto, 0);
+  const contratado = budget ? budgetTotals(budget).total : 0;
+
+  return (
+    <div>
+      <div className="grid gap-3 sm:grid-cols-4 mb-5">
+        <Stat label="Ingresos" val={money(ingresos)} />
+        <Stat label="Egresos" val={money(egresos)} />
+        <Stat label="Balance" val={money(ingresos - egresos)} />
+        <Stat label="Contratado (cotización)" val={money(contratado)} />
+      </div>
+      <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
+        <input type="date" value={f.fecha} onChange={(e) => setF({ ...f, fecha: e.target.value })} className={INPUT} />
+        <select value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} className={INPUT}>
+          {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value as LedgerEntry["tipo"] })} className={INPUT}>
+          <option value="ingreso">Ingreso</option>
+          <option value="egreso">Egreso</option>
+        </select>
+        <input placeholder="Concepto" value={f.concepto} onChange={(e) => setF({ ...f, concepto: e.target.value })} className={INPUT + " flex-1 min-w-[160px]"} />
+        <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
+        <button onClick={crear} disabled={busy} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
+      </div>
+      <div className={`${CARD} overflow-x-auto`}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+              <th className="px-3 py-3 font-semibold">Fecha</th>
+              <th className="px-3 py-3 font-semibold">Categoría</th>
+              <th className="px-3 py-3 font-semibold">Concepto</th>
+              <th className="px-3 py-3 font-semibold text-right">Monto</th>
+              <th className="px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((e) => (
+              <tr key={e.id} className="border-b border-[#F5F2EC]">
+                <td className="px-3 py-2 data-label text-[#7A7A7A]">{e.fecha}</td>
+                <td className="px-3 py-2 text-[#7A7A7A]">{e.categoria}</td>
+                <td className="px-3 py-2 text-[#2C2C2C]">{e.concepto || "—"}</td>
+                <td className={`px-3 py-2 text-right data-label ${e.tipo === "ingreso" ? "text-green-700" : "text-[#2C2C2C]"}`}>{e.tipo === "egreso" ? "−" : ""}{money(e.monto)}</td>
+                <td className="px-3 py-2 text-right"><button onClick={() => borrar(e.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
+              </tr>
+            ))}
+            {items.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-[#7A7A7A]">Sin movimientos.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Nómina del proyecto ─────────────────────────────────────────────────────
+function Nomina({ proyecto, inicial }: { proyecto: Project; inicial: PayrollEntry[] }) {
+  const [items, setItems] = useState<PayrollEntry[]>(inicial);
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({ persona: "", rol: "", periodo: "", monto: "" });
+
+  async function crear() {
+    if (!f.persona.trim()) return;
+    setBusy(true);
+    const res = await fetch("/api/costos/payroll", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...f, projectId: proyecto.id, monto: Number(f.monto) || 0 }),
+    });
+    setBusy(false);
+    if (res.ok) { const { entry } = await res.json(); setItems((xs) => [...xs, entry]); setF({ persona: "", rol: "", periodo: "", monto: "" }); }
+  }
+  async function togglePagado(e: PayrollEntry) {
+    const res = await fetch(`/api/costos/payroll/${e.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pagado: !e.pagado }),
+    });
+    if (res.ok) setItems((xs) => xs.map((x) => (x.id === e.id ? { ...x, pagado: !e.pagado } : x)));
+  }
+  async function borrar(id: string) {
+    if (!confirm("¿Eliminar pago?")) return;
+    if ((await fetch(`/api/costos/payroll/${id}`, { method: "DELETE" })).ok) setItems((xs) => xs.filter((x) => x.id !== id));
+  }
+
+  const total = items.reduce((a, e) => a + e.monto, 0);
+  const pagado = items.filter((e) => e.pagado).reduce((a, e) => a + e.monto, 0);
+
+  return (
+    <div>
+      <div className="grid gap-3 sm:grid-cols-3 mb-5">
+        <Stat label="Total nómina" val={money(total)} />
+        <Stat label="Pagado" val={money(pagado)} />
+        <Stat label="Por pagar" val={money(total - pagado)} />
+      </div>
+      <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
+        <input placeholder="Persona" value={f.persona} onChange={(e) => setF({ ...f, persona: e.target.value })} className={INPUT + " flex-1 min-w-[160px]"} />
+        <input placeholder="Rol" value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value })} className={INPUT + " w-40"} />
+        <input placeholder="Periodo" value={f.periodo} onChange={(e) => setF({ ...f, periodo: e.target.value })} className={INPUT + " w-32"} />
+        <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
+        <button onClick={crear} disabled={busy} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
+      </div>
+      <div className={`${CARD} overflow-x-auto`}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+              <th className="px-3 py-3 font-semibold">Persona</th>
+              <th className="px-3 py-3 font-semibold">Rol</th>
+              <th className="px-3 py-3 font-semibold">Periodo</th>
+              <th className="px-3 py-3 font-semibold text-right">Monto</th>
+              <th className="px-3 py-3 font-semibold text-center">Pagado</th>
+              <th className="px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((e) => (
+              <tr key={e.id} className="border-b border-[#F5F2EC]">
+                <td className="px-3 py-2 text-[#2C2C2C]">{e.persona}</td>
+                <td className="px-3 py-2 text-[#7A7A7A]">{e.rol || "—"}</td>
+                <td className="px-3 py-2 text-[#7A7A7A] data-label">{e.periodo || "—"}</td>
+                <td className="px-3 py-2 text-right data-label">{money(e.monto)}</td>
+                <td className="px-3 py-2 text-center">
+                  <button onClick={() => togglePagado(e)} className={`text-xs px-2 py-0.5 border ${e.pagado ? "bg-green-50 text-green-700 border-green-200" : "bg-[#F5F2EC] text-[#7A7A7A] border-[#EDE9E0]"}`}>{e.pagado ? "Sí" : "No"}</button>
+                </td>
+                <td className="px-3 py-2 text-right"><button onClick={() => borrar(e.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
+              </tr>
+            ))}
+            {items.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-[#7A7A7A]">Sin pagos registrados.</td></tr>}
+          </tbody>
+        </table>
       </div>
     </div>
   );

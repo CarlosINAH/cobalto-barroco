@@ -31,6 +31,8 @@ export default async function ProyectosAdmin() {
         proyectos={db.projects}
         budgets={db.budgets}
         conceptos={conceptos}
+        ledger={db.ledgerEntries}
+        payroll={db.payrollEntries}
       />
     </DashboardShell>
   );

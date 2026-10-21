@@ -387,8 +387,38 @@ export interface Budget {
   factorIva: number;
   factorIndirectos: number;
   factorUtilidad: number;
+  /** Tamaño de cuadrilla para el cronograma (personas trabajando en paralelo). */
+  personas?: number;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Movimiento financiero de un proyecto (hoja `ADMINISTRACIÓN` / OBRAS). */
+export type LedgerKind = "ingreso" | "egreso";
+export interface LedgerEntry {
+  id: string;
+  projectId: string;
+  fecha: string; // YYYY-MM-DD
+  /** anticipo, finiquito, pago, egreso, indirectos, impuestos, nómina, otro. */
+  categoria: string;
+  tipo: LedgerKind;
+  concepto: string;
+  monto: number;
+  createdAt: number;
+}
+
+/** Pago de nómina de un proyecto (hoja `NÓMINA`). */
+export interface PayrollEntry {
+  id: string;
+  projectId: string;
+  persona: string;
+  rol?: string;
+  /** Etiqueta de periodo (quincena/fecha), libre. */
+  periodo: string;
+  monto: number;
+  pagado: boolean;
+  nota?: string;
+  createdAt: number;
 }
 
 export interface DBShape {
@@ -411,6 +441,8 @@ export interface DBShape {
   laborRates: LaborRate[];
   concepts: Concept[];
   budgets: Budget[];
+  ledgerEntries: LedgerEntry[];
+  payrollEntries: PayrollEntry[];
   seededEmployees?: boolean;
 }
 
@@ -433,6 +465,8 @@ const EMPTY: DBShape = {
   laborRates: [],
   concepts: [],
   budgets: [],
+  ledgerEntries: [],
+  payrollEntries: [],
 };
 
 function dbPath(): string {
