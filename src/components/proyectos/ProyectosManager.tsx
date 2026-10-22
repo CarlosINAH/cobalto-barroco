@@ -16,6 +16,7 @@ import {
   Save,
   Printer,
   Download,
+  Scale,
 } from "lucide-react";
 import type {
   Project,
@@ -23,10 +24,11 @@ import type {
   BudgetLine,
   LedgerEntry,
   PayrollEntry,
+  CostInputKind,
 } from "@/lib/db";
 import { budgetTotals } from "@/lib/pu";
 
-/** Concepto de la biblioteca, con su P.U. ya calculado. */
+/** Concepto de la biblioteca, con su P.U. y desglose por tipo ya calculados. */
 export interface ConceptoLite {
   id: string;
   clave: string;
@@ -35,6 +37,7 @@ export interface ConceptoLite {
   unidad: string;
   pu: number;
   tiempoPU: number | null;
+  porTipo: Record<CostInputKind, number>;
 }
 
 const mxn = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
@@ -47,12 +50,19 @@ const BTN_PRIMARY =
 const INPUT =
   "border border-[#EDE9E0] bg-white px-3 py-2 text-sm text-[#2C2C2C] focus:outline-none focus:border-[#C9A84C]";
 
-type SubTab = "presupuesto" | "cotizacion" | "cronograma" | "administracion" | "nomina";
+type SubTab =
+  | "presupuesto"
+  | "cotizacion"
+  | "cronograma"
+  | "balance"
+  | "administracion"
+  | "nomina";
 
 const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: "presupuesto", label: "Presupuesto", icon: Calculator },
   { id: "cotizacion", label: "Cotización", icon: FileText },
   { id: "cronograma", label: "Cronograma", icon: CalendarRange },
+  { id: "balance", label: "Balance", icon: Scale },
   { id: "administracion", label: "Administración", icon: Wallet },
   { id: "nomina", label: "Nómina", icon: Users },
 ];
@@ -183,6 +193,7 @@ function ProyectoDetalle({
       )}
       {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} />}
       {tab === "cronograma" && <Cronograma budget={budget} onChange={setBudget} />}
+      {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} />}
       {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} />}
       {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} />}
     </div>
@@ -398,6 +409,111 @@ function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | 
   );
 }
 
+// ─── Balance económico (presupuestado vs real) ───────────────────────────────
+type Bucket = "mano_obra" | "material" | "herramienta" | "equipo" | "viaticos" | "indirectos" | "impuestos" | "otro";
+const BUCKET: Record<string, Bucket> = {
+  "mano de obra": "mano_obra", material: "material", herramienta: "herramienta",
+  equipo: "equipo", "viáticos": "viaticos", viaticos: "viaticos", indirectos: "indirectos", impuestos: "impuestos",
+};
+const bucketOf = (cat: string): Bucket => BUCKET[cat.toLowerCase()] ?? "otro";
+
+function Balance({ budget, conceptos, ledger, payroll }: {
+  budget: Budget | null;
+  conceptos: ConceptoLite[];
+  ledger: LedgerEntry[];
+  payroll: PayrollEntry[];
+}) {
+  if (!budget || budget.lineas.length === 0)
+    return <div className={`${CARD} py-14 px-6 text-center text-sm text-[#7A7A7A]`}>Arma primero el presupuesto para comparar contra lo real.</div>;
+
+  // Presupuestado por rubro: desglose de cada concepto × cantidad.
+  const byId = new Map(conceptos.map((c) => [c.id, c]));
+  const pres = { mano_obra: 0, material: 0, herramienta: 0, equipo: 0 };
+  for (const l of budget.lineas) {
+    const c = l.conceptId ? byId.get(l.conceptId) : undefined;
+    if (!c) continue;
+    pres.mano_obra += c.porTipo.mano_obra * l.cantidad;
+    pres.material += (c.porTipo.material + c.porTipo.receta) * l.cantidad;
+    pres.herramienta += c.porTipo.herramienta * l.cantidad;
+    pres.equipo += c.porTipo.equipo * l.cantidad;
+  }
+  const cdPres = pres.mano_obra + pres.material + pres.herramienta + pres.equipo;
+  const ciPres = cdPres * budget.factorIndirectos;
+  const t = budgetTotals(budget);
+  const utilPres = t.subtotal - cdPres - ciPres;
+
+  // Real por rubro: egresos del ledger (por categoría) + nómina del proyecto.
+  const real: Record<Bucket, number> = { mano_obra: 0, material: 0, herramienta: 0, equipo: 0, viaticos: 0, indirectos: 0, impuestos: 0, otro: 0 };
+  for (const e of ledger) if (e.tipo === "egreso") real[bucketOf(e.categoria)] += e.monto;
+  real.mano_obra += payroll.reduce((a, e) => a + e.monto, 0);
+  const ingresos = ledger.filter((e) => e.tipo === "ingreso").reduce((a, e) => a + e.monto, 0);
+  const costoReal = (Object.values(real) as number[]).reduce((a, n) => a + n, 0);
+  const utilReal = ingresos - costoReal;
+
+  const rows: { label: string; p: number; r: number }[] = [
+    { label: "Mano de obra", p: pres.mano_obra, r: real.mano_obra },
+    { label: "Material", p: pres.material, r: real.material },
+    { label: "Herramienta", p: pres.herramienta, r: real.herramienta },
+    { label: "Equipo", p: pres.equipo, r: real.equipo },
+    { label: "Indirectos", p: ciPres, r: real.indirectos },
+    { label: "Viáticos", p: 0, r: real.viaticos },
+    { label: "Impuestos", p: 0, r: real.impuestos },
+  ];
+  if (real.otro) rows.push({ label: "Otros", p: 0, r: real.otro });
+
+  const dif = (p: number, r: number) => (
+    <span className={p - r >= 0 ? "text-green-700" : "text-red-600"}>{money(p - r)}</span>
+  );
+
+  return (
+    <div>
+      <div className="grid gap-3 sm:grid-cols-4 mb-5">
+        <Stat label="Contratado (cotización)" val={money(t.total)} />
+        <Stat label="Ingresos cobrados" val={money(ingresos)} />
+        <Stat label="Costo real" val={money(costoReal)} />
+        <Stat label="Utilidad real" val={money(utilReal)} />
+      </div>
+      <div className={`${CARD} overflow-x-auto`}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+              <th className="px-3 py-3 font-semibold">Rubro</th>
+              <th className="px-3 py-3 font-semibold text-right">Presupuestado</th>
+              <th className="px-3 py-3 font-semibold text-right">Real</th>
+              <th className="px-3 py-3 font-semibold text-right">Diferencia</th>
+            </tr>
+          </thead>
+          <tbody className="data-label">
+            {rows.map((row) => (
+              <tr key={row.label} className="border-b border-[#F5F2EC]">
+                <td className="px-3 py-2 text-[#2C2C2C]">{row.label}</td>
+                <td className="px-3 py-2 text-right text-[#7A7A7A]">{money(row.p)}</td>
+                <td className="px-3 py-2 text-right text-[#2C2C2C]">{money(row.r)}</td>
+                <td className="px-3 py-2 text-right">{dif(row.p, row.r)}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-[#1B2A5E] font-semibold text-[#1B2A5E]">
+              <td className="px-3 py-2">Costo total</td>
+              <td className="px-3 py-2 text-right">{money(cdPres + ciPres)}</td>
+              <td className="px-3 py-2 text-right">{money(costoReal)}</td>
+              <td className="px-3 py-2 text-right">{dif(cdPres + ciPres, costoReal)}</td>
+            </tr>
+            <tr className="font-semibold text-[#C9A84C]">
+              <td className="px-3 py-2">Utilidad</td>
+              <td className="px-3 py-2 text-right">{money(utilPres)}</td>
+              <td className="px-3 py-2 text-right">{money(utilReal)}</td>
+              <td className="px-3 py-2 text-right">{dif(utilReal, utilPres)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[#7A7A7A] mt-2">
+        Presupuestado: desglose de los conceptos de la cotización. Real: egresos de Administración (por categoría) + nómina del proyecto. Registra los gastos en Administración con la categoría del rubro para que el balance cuadre.
+      </p>
+    </div>
+  );
+}
+
 // ─── Cronograma (jornales → semanas) ─────────────────────────────────────────
 function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b: Budget) => void }) {
   const [personas, setPersonas] = useState(budget?.personas ?? 2);
@@ -477,7 +593,8 @@ function Stat({ label, val }: { label: string; val: string }) {
 }
 
 // ─── Administración (movimientos del proyecto) ───────────────────────────────
-const CATEGORIAS = ["anticipo", "finiquito", "pago", "egreso", "indirectos", "impuestos", "nómina", "otro"];
+// Categorías alineadas a los rubros del balance (presupuestado vs real).
+const CATEGORIAS = ["anticipo", "finiquito", "pago", "mano de obra", "material", "herramienta", "equipo", "viáticos", "indirectos", "impuestos", "otro"];
 
 function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[] }) {
   const [items, setItems] = useState<LedgerEntry[]>(inicial);

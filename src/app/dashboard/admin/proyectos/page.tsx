@@ -2,7 +2,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import ProyectosManager from "@/components/proyectos/ProyectosManager";
 import { requireAdmin } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
-import { buildCatalogs, conceptPU } from "@/lib/pu";
+import { buildCatalogs, conceptBreakdown } from "@/lib/pu";
 
 export const dynamic = "force-dynamic";
 
@@ -15,16 +15,20 @@ export default async function ProyectosAdmin() {
   await requireAdmin();
   const db = await getDB();
   const catalogs = buildCatalogs(db);
-  // Biblioteca de conceptos con su P.U. calculado, para armar presupuestos.
-  const conceptos = db.concepts.map((c) => ({
-    id: c.id,
-    clave: c.clave,
-    concepto: c.concepto,
-    descripcion: c.descripcion,
-    unidad: c.unidad,
-    pu: conceptPU(c, catalogs),
-    tiempoPU: c.tiempoPU ?? null,
-  }));
+  // Biblioteca de conceptos con su P.U. y desglose por tipo (para el balance).
+  const conceptos = db.concepts.map((c) => {
+    const b = conceptBreakdown(c, catalogs);
+    return {
+      id: c.id,
+      clave: c.clave,
+      concepto: c.concepto,
+      descripcion: c.descripcion,
+      unidad: c.unidad,
+      pu: b.pu,
+      tiempoPU: c.tiempoPU ?? null,
+      porTipo: b.porTipo,
+    };
+  });
   return (
     <DashboardShell role="admin" title="Proyectos">
       <ProyectosManager
