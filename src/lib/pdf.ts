@@ -54,6 +54,9 @@ class Painter {
   rtext(xRight: number, y: number, size: number, str: string, bold = false) {
     this.text(xRight - textWidth(str, size), y, size, str, bold);
   }
+  ctext(xCenter: number, y: number, size: number, str: string, bold = false) {
+    this.text(xCenter - textWidth(str, size) / 2, y, size, str, bold);
+  }
   line(x1: number, y1: number, x2: number, y2: number) {
     this.cur += `0.5 w ${x1} ${y1} m ${x2} ${y2} l S\n`;
   }
@@ -152,6 +155,49 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   p.rtext(556, y, 11, money(t.total), true);
   y -= 28;
   p.text(56, Math.max(y, 60), 8, "El presupuesto tiene una vigencia de 15 días. Precios en pesos mexicanos (MXN).");
+
+  return serialize(p.end());
+}
+
+/** Datos para una constancia de trabajo. */
+export interface ConstanciaData {
+  participante: string;
+  proyecto: string;
+  ubicacion: string;
+  periodo: string;
+  firmanteNombre: string;
+  firmanteCargo: string;
+  fecha?: string;
+}
+
+/** Construye el PDF de una constancia de trabajo (plantilla Cobalto Barroco). */
+export function buildConstanciaPdf(d: ConstanciaData): Buffer {
+  const p = new Painter();
+  p.newPage();
+  const cx = 306; // centro de la hoja carta (612)
+
+  p.ctext(cx, 724, 19, "C O N S T A N C I A   D E   T R A B A J O", true);
+  p.ctext(cx, 702, 11, "Restauración Artística & Arquitectónica");
+  p.line(176, 690, 436, 690);
+
+  p.ctext(cx, 646, 11, "Por medio de la presente, Cobalto Barroco hace constar que:");
+  p.ctext(cx, 614, 17, d.participante || "—", true);
+  p.ctext(cx, 584, 11, "Participó en los trabajos correspondientes al proyecto:");
+  p.ctext(cx, 556, 14, d.proyecto || "—", true);
+  if (d.ubicacion) p.ctext(cx, 532, 11, `Ubicación: ${d.ubicacion}`);
+  if (d.periodo) p.ctext(cx, 514, 11, `Periodo: ${d.periodo}`);
+  p.ctext(cx, 474, 11, "Se expide la presente constancia para los fines que a la persona interesada convengan.");
+  if (d.fecha) p.ctext(cx, 450, 10, `Ciudad de México, a ${d.fecha}.`);
+
+  // Firma
+  p.line(206, 300, 406, 300);
+  p.ctext(cx, 286, 12, d.firmanteNombre || "", true);
+  if (d.firmanteCargo) p.ctext(cx, 272, 10, d.firmanteCargo);
+
+  // Pie de contacto
+  p.ctext(cx, 120, 9, "cobaltobarroco@gmail.com");
+  p.ctext(cx, 108, 9, "55-27-51-44-39  //  55-14-88-25-09");
+  p.ctext(cx, 96, 9, "@cobaltobarroco");
 
   return serialize(p.end());
 }
