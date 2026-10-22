@@ -17,6 +17,7 @@ import type {
   CostMaterial,
   LaborRate,
   Recipe,
+  RecipeComponent,
   Concept,
   ConceptInput,
   CostInputKind,
@@ -101,7 +102,7 @@ export default function CatalogosManager({
 
       {tab === "materiales" && <Materiales initial={materiales} />}
       {tab === "salarios" && <Salarios initial={salarios} />}
-      {tab === "recetas" && <Recetas recetas={recetas} />}
+      {tab === "recetas" && <Recetas initial={recetas} materiales={materiales} />}
       {tab === "conceptos" && (
         <Conceptos
           initial={conceptos}
@@ -371,33 +372,201 @@ function Salarios({ initial }: { initial: LaborRate[] }) {
   );
 }
 
-// ─── Recetas (lectura, costo en vivo) ────────────────────────────────────────
-function Recetas({ recetas }: { recetas: Recipe[] }) {
-  if (recetas.length === 0)
-    return <Empty>No hay recetas aún. Impórtalas desde el Excel o créalas.</Empty>;
+// ─── Recetas (procesos de restauración; costo por cantidad a preparar) ───────
+/** Extrae la cantidad y la unidad del rendimiento ("950 ML" → 950, "ML"). */
+function parseRend(r: string): { qty: number; unit: string } {
+  const m = r.match(/([\d]+(?:[.,][\d]+)?)\s*(.*)$/);
+  const qty = m ? parseFloat(m[1].replace(",", ".")) : 0;
+  return { qty: qty > 0 ? qty : 1, unit: (m?.[2] || "").trim() };
+}
+
+function Recetas({ initial, materiales }: { initial: Recipe[]; materiales: CostMaterial[] }) {
+  const [items, setItems] = useState(initial);
+  const [editing, setEditing] = useState<Recipe | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  async function borrar(id: string) {
+    if (!confirm("¿Eliminar esta receta?")) return;
+    if ((await fetch(`/api/costos/recetas/${id}`, { method: "DELETE" })).ok)
+      setItems((xs) => xs.filter((r) => r.id !== id));
+  }
+  function onSaved(r: Recipe) {
+    setItems((xs) => (xs.some((x) => x.id === r.id) ? xs.map((x) => (x.id === r.id ? r : x)) : [...xs, r]));
+    setEditing(null); setCreating(false);
+  }
+
+  if (creating || editing)
+    return <RecetaEditor receta={editing} materiales={materiales} onCancel={() => { setEditing(null); setCreating(false); }} onSaved={onSaved} />;
+
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {recetas.map((r) => (
-        <div key={r.id} className="bg-white border border-[#EDE9E0] p-5">
-          <div className="flex items-baseline justify-between mb-1">
-            <h3 className="text-[#1B2A5E] font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>{r.nombre}</h3>
-            <span className="data-label text-[#C9A84C] font-semibold">{money(r.costo)}</span>
-          </div>
-          <p className="text-xs text-[#7A7A7A] mb-3">Rendimiento: {r.rendimiento || "—"}</p>
-          <table className="w-full text-xs">
-            <tbody>
-              {r.componentes.map((c, i) => (
-                <tr key={i} className="border-t border-[#F5F2EC]">
-                  <td className="py-1.5 text-[#2C2C2C]">{c.nombre}</td>
-                  <td className="py-1.5 text-right text-[#7A7A7A] data-label">{money(c.precio)}</td>
-                  <td className="py-1.5 text-right text-[#7A7A7A] data-label">×{c.cantidad}</td>
-                  <td className="py-1.5 text-right text-[#2C2C2C] data-label">{money(c.precio * c.cantidad)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div>
+      <div className="flex justify-between items-center gap-3 mb-4">
+        <p className="text-sm text-[#7A7A7A]">Procesos y soluciones de restauración (adhesivos, barnices, ceras, consolidantes…). El costo se calcula según la cantidad que vayas a preparar.</p>
+        <button onClick={() => setCreating(true)} className={BTN_PRIMARY}><Plus size={14} /> Nueva receta</button>
+      </div>
+      {items.length === 0 ? (
+        <Empty>No hay recetas aún. Crea la primera con “Nueva receta”.</Empty>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {items.map((r) => (
+            <RecetaCard key={r.id} receta={r} onEdit={() => setEditing(r)} onDelete={() => borrar(r.id)} />
+          ))}
         </div>
-      ))}
+      )}
+    </div>
+  );
+}
+
+function RecetaCard({ receta: r, onEdit, onDelete }: { receta: Recipe; onEdit: () => void; onDelete: () => void }) {
+  const { qty, unit } = parseRend(r.rendimiento || "");
+  const porUnidad = r.costo / qty;
+  const [prep, setPrep] = useState(String(qty));
+  const cant = Number(prep) || 0;
+  return (
+    <div className="bg-white border border-[#EDE9E0] p-5">
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <h3 className="text-[#1B2A5E] font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>{r.nombre}</h3>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={onEdit} className="text-[#7A7A7A] hover:text-[#1B2A5E]"><Pencil size={14} /></button>
+          <button onClick={onDelete} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button>
+        </div>
+      </div>
+      <p className="text-xs text-[#7A7A7A] mb-3 data-label">Lote {r.rendimiento || "—"} · {money(r.costo)} · {money(porUnidad)}/{unit || "u"}</p>
+      <table className="w-full text-xs">
+        <tbody>
+          {r.componentes.map((c, i) => (
+            <tr key={i} className="border-t border-[#F5F2EC]">
+              <td className="py-1.5 text-[#2C2C2C]">{c.nombre}</td>
+              <td className="py-1.5 text-right text-[#7A7A7A] data-label">{money(c.precio)}</td>
+              <td className="py-1.5 text-right text-[#7A7A7A] data-label">×{c.cantidad}</td>
+              <td className="py-1.5 text-right text-[#2C2C2C] data-label">{money(c.precio * c.cantidad)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {/* Calculadora: costo según cantidad a preparar */}
+      <div className="mt-3 pt-3 border-t border-[#EDE9E0] flex items-center gap-2 text-sm">
+        <span className="text-xs text-[#7A7A7A] uppercase tracking-wider">Preparar</span>
+        <input type="number" step="0.01" value={prep} onChange={(e) => setPrep(e.target.value)} className="w-20 border border-[#EDE9E0] px-2 py-1 text-right text-sm focus:outline-none focus:border-[#C9A84C] data-label" />
+        <span className="text-xs text-[#7A7A7A]">{unit || "u"} =</span>
+        <span className="data-label text-[#C9A84C] font-bold ml-auto">{money(cant * porUnidad)}</span>
+      </div>
+    </div>
+  );
+}
+
+function RecetaEditor({
+  receta, materiales, onCancel, onSaved,
+}: {
+  receta: Recipe | null;
+  materiales: CostMaterial[];
+  onCancel: () => void;
+  onSaved: (r: Recipe) => void;
+}) {
+  const parsed = parseRend(receta?.rendimiento || "1 L");
+  const [nombre, setNombre] = useState(receta?.nombre ?? "");
+  const [rendCant, setRendCant] = useState(String(parsed.qty));
+  const [rendUnit, setRendUnit] = useState(parsed.unit || "L");
+  const [comps, setComps] = useState<RecipeComponent[]>(receta?.componentes ?? []);
+  const [nuevo, setNuevo] = useState({ materialId: "", nombre: "", unidad: "", precio: "", cantidad: "1" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const costo = comps.reduce((a, c) => a + c.precio * c.cantidad, 0);
+
+  function pickMaterial(id: string) {
+    const m = materiales.find((x) => x.id === id);
+    setNuevo((n) => ({ ...n, materialId: id, nombre: m?.nombre ?? n.nombre, unidad: m?.unidad ?? n.unidad, precio: m ? String(m.precio) : n.precio }));
+  }
+  function addComp() {
+    if (!nuevo.nombre.trim()) return;
+    setComps((xs) => [...xs, {
+      materialId: nuevo.materialId || null, recipeId: null,
+      nombre: nuevo.nombre.trim(), unidad: nuevo.unidad.trim(),
+      precio: Number(nuevo.precio) || 0, cantidad: Number(nuevo.cantidad) || 0,
+    }]);
+    setNuevo({ materialId: "", nombre: "", unidad: "", precio: "", cantidad: "1" });
+  }
+
+  async function guardar() {
+    if (!nombre.trim()) { setError("Ponle nombre a la receta."); return; }
+    setBusy(true); setError("");
+    const payload = {
+      nombre, rendimiento: `${rendCant} ${rendUnit}`.trim(), unidad: rendUnit, componentes: comps,
+    };
+    const res = await fetch(receta ? `/api/costos/recetas/${receta.id}` : "/api/costos/recetas", {
+      method: receta ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    setBusy(false);
+    if (res.ok) onSaved((await res.json()).receta);
+    else setError("No se pudo guardar.");
+  }
+
+  return (
+    <div className="bg-white border border-[#EDE9E0] p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[#1B2A5E] text-lg" style={{ fontFamily: "var(--font-playfair)" }}>{receta ? "Editar receta" : "Nueva receta"}</h3>
+        <button onClick={onCancel} className="text-[#7A7A7A] hover:text-[#1B2A5E]"><X size={18} /></button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-4 mb-5">
+        <input className={INPUT + " sm:col-span-2"} placeholder="Nombre (p. ej. AGUA COLA 5%)" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+        <label className="text-xs text-[#7A7A7A]">Rinde (cantidad)<input className={INPUT} type="number" step="0.01" value={rendCant} onChange={(e) => setRendCant(e.target.value)} /></label>
+        <label className="text-xs text-[#7A7A7A]">Unidad<input className={INPUT} placeholder="L, ML, KG…" value={rendUnit} onChange={(e) => setRendUnit(e.target.value)} /></label>
+      </div>
+
+      <div className="border border-[#EDE9E0] overflow-x-auto mb-3">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0] bg-[#F5F2EC]/60">
+              <th className="px-3 py-2 font-semibold">Componente</th>
+              <th className="px-3 py-2 font-semibold text-right">Precio</th>
+              <th className="px-3 py-2 font-semibold text-right">Cantidad</th>
+              <th className="px-3 py-2 font-semibold text-right">Importe</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {comps.map((c, idx) => (
+              <tr key={idx} className="border-b border-[#F5F2EC]">
+                <td className="px-3 py-2 text-[#2C2C2C]">{c.nombre} {c.unidad && <span className="text-[#7A7A7A] text-xs">({c.unidad})</span>}</td>
+                <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{money(c.precio)}</td>
+                <td className="px-3 py-2 text-right data-label">
+                  <input type="number" step="0.0001" defaultValue={c.cantidad} onBlur={(e) => { const v = Number(e.target.value) || 0; setComps((xs) => xs.map((x, j) => (j === idx ? { ...x, cantidad: v } : x))); }} className="w-20 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]" />
+                </td>
+                <td className="px-3 py-2 text-right data-label text-[#2C2C2C]">{money(c.precio * c.cantidad)}</td>
+                <td className="px-3 py-2 text-right"><button onClick={() => setComps((xs) => xs.filter((_, j) => j !== idx))} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
+              </tr>
+            ))}
+            {comps.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-[#7A7A7A] text-sm">Agrega componentes abajo.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Agregar componente: del catálogo o manual */}
+      <div className="grid gap-2 sm:grid-cols-6 items-end mb-5">
+        <select value={nuevo.materialId} onChange={(e) => pickMaterial(e.target.value)} className={INPUT + " sm:col-span-2"}>
+          <option value="">Del catálogo (opcional)…</option>
+          {materiales.map((m) => <option key={m.id} value={m.id}>{m.nombre} · {money(m.precio)}</option>)}
+        </select>
+        <input className={INPUT} placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, materialId: "", nombre: e.target.value })} />
+        <input className={INPUT} placeholder="Unidad" value={nuevo.unidad} onChange={(e) => setNuevo({ ...nuevo, unidad: e.target.value })} />
+        <input className={INPUT} type="number" step="0.01" placeholder="Precio" value={nuevo.precio} onChange={(e) => setNuevo({ ...nuevo, precio: e.target.value })} />
+        <div className="flex gap-2">
+          <input className={INPUT + " w-20"} type="number" step="0.0001" placeholder="Cant." value={nuevo.cantidad} onChange={(e) => setNuevo({ ...nuevo, cantidad: e.target.value })} />
+          <button onClick={addComp} className={BTN_PRIMARY}><Plus size={14} /></button>
+        </div>
+      </div>
+
+      <div className="bg-[#1B2A5E] text-[#F5F2EC] p-4 flex items-center justify-between mb-5">
+        <span className="text-xs text-[#F5F2EC]/70 data-label">Costo del lote ({rendCant} {rendUnit})</span>
+        <span className="text-[#C9A84C] font-bold text-lg data-label">{money(costo)}</span>
+      </div>
+
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={guardar} disabled={busy} className={BTN_PRIMARY}><Save size={14} /> {receta ? "Guardar cambios" : "Crear receta"}</button>
+        <button onClick={onCancel} className="px-4 py-2.5 text-xs tracking-widest uppercase text-[#7A7A7A] hover:text-[#1B2A5E]">Cancelar</button>
+      </div>
     </div>
   );
 }
