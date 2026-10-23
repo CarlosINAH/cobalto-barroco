@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE, readSessionToken, type Session } from "@/lib/session";
+import { isShared } from "@/lib/shared-files";
 
 /**
  * Devuelve la sesión del usuario actual (con su credencial descifrada para
@@ -35,4 +36,37 @@ export function credsOf(session: Session): {
   password: string;
 } {
   return { username: session.username, password: session.pw };
+}
+
+/**
+ * Credenciales de la "cuenta de servicio" del área compartida (si están
+ * configuradas). Es una cuenta del NAS con acceso a `Archivos compartidos`,
+ * de modo que TODOS los empleados puedan usar lo compartido sin que el admin
+ * configure el NAS por persona: los permisos de quién ve/edita qué los decide
+ * la plataforma (modelo de carpetas), no el NAS.
+ *
+ * Si no está configurada (variables de entorno ausentes), devuelve null y todo
+ * sigue usando la credencial personal de cada usuario (comportamiento previo).
+ */
+export function sharedCreds(): { username: string; password: string } | null {
+  const username = process.env.SHARED_WEBDAV_USER;
+  const password = process.env.SHARED_WEBDAV_PASSWORD;
+  if (!username || !password) return null;
+  return { username, password };
+}
+
+/**
+ * Credenciales con las que la app debe entrar al NAS para una ruta dada:
+ * - rutas dentro de `Archivos compartidos` → cuenta de servicio (si existe);
+ * - cualquier otra (Nube personal de cada quien) → su credencial personal.
+ */
+export function credsForPath(
+  session: Session,
+  path: string,
+): { username: string; password: string } {
+  if (isShared(path)) {
+    const svc = sharedCreds();
+    if (svc) return svc;
+  }
+  return credsOf(session);
 }

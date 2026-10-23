@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Users,
   HardDrive,
-  Share2,
   Trash2,
   ChevronLeft,
   ChevronRight,
@@ -33,7 +32,6 @@ const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
   { icon: CalendarDays, label: "Calendario", href: "/dashboard/empleado/calendario" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/empleado/repositorio" },
-  { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/empleado/compartidos" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/empleado/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
 ];
@@ -46,7 +44,6 @@ const adminNav: NavItem[] = [
   { icon: Calculator, label: "Costos y P.U.", href: "/dashboard/admin/costos" },
   { icon: Award, label: "Constancias", href: "/dashboard/admin/constancias" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/admin/nas" },
-  { icon: Share2, label: "Archivos Compartidos", href: "/dashboard/admin/compartidos" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/admin/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/admin/configuracion" },
 ];

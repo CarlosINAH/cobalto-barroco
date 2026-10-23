@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getSession, credsOf } from "@/lib/auth-server";
-import { makeDirectory } from "@/lib/webdav";
+import { getSession, credsForPath } from "@/lib/auth-server";
+import { makeDirectoryDeep } from "@/lib/webdav";
 import { isShared, recordFolderCreated, canWriteSharedPath } from "@/lib/shared-files";
+import { canDoFileAction } from "@/lib/access";
 
 export const runtime = "nodejs";
 
@@ -10,13 +11,29 @@ export async function POST(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+
+  // Crear carpetas es una acción de escritura: se rige por "subir".
+  if (!(await canDoFileAction(session.username, session.role, "subir"))) {
+    return NextResponse.json(
+      { error: "No tienes permiso para crear carpetas." },
+      { status: 403 },
+    );
+  }
   let body: { path?: string; name?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
-  const name = (body.name || "").trim().replace(/[\\/]/g, "");
+  // Admite nombres anidados ("A/B/C"): se crea cada nivel. Se saneja cada
+  // segmento y se descartan vacíos y "." / "..".
+  const name = (body.name || "")
+    .trim()
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((s) => s.trim())
+    .filter((s) => s && s !== "." && s !== "..")
+    .join("/");
   if (!name) {
     return NextResponse.json(
       { error: "Nombre de carpeta inválido." },
@@ -37,7 +54,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const ok = await makeDirectory(credsOf(session), target);
+    const ok = await makeDirectoryDeep(credsForPath(session, target), target);
     if (!ok) throw new Error("mkcol");
     if (isShared(target)) {
       await recordFolderCreated(target, session.username);

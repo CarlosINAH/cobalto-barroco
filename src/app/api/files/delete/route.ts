@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getSession, credsOf } from "@/lib/auth-server";
+import { getSession, credsForPath } from "@/lib/auth-server";
 import { isShared, canWriteSharedPath } from "@/lib/shared-files";
 import { trashItem } from "@/lib/trash";
+import { canDoFileAction } from "@/lib/access";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Ruta inválida." }, { status: 400 });
   }
 
+  // Autorización global de acción (matriz del Excel): ¿puede borrar?
+  if (!(await canDoFileAction(session.username, session.role, "borrar"))) {
+    return NextResponse.json(
+      { error: "No tienes permiso para eliminar archivos." },
+      { status: 403 },
+    );
+  }
+
   // En el área compartida, enviar a la papelera requiere escritura.
   if (
     isShared(body.path) &&
@@ -38,7 +47,7 @@ export async function POST(req: Request) {
   }
 
   const res = await trashItem(
-    credsOf(session),
+    credsForPath(session, body.path),
     session.username,
     body.path,
     !!body.isDir,

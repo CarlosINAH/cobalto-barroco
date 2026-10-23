@@ -16,6 +16,8 @@ import {
   FolderOpen,
   Plus,
   Award,
+  Lock,
+  Check,
 } from "lucide-react";
 
 interface Project {
@@ -25,6 +27,11 @@ interface Project {
 interface Quality {
   nombre: string;
   nivel: number;
+}
+interface Acciones {
+  subir: boolean;
+  descargar: boolean;
+  borrar: boolean;
 }
 interface Employee {
   id: string;
@@ -37,8 +44,15 @@ interface Employee {
   habilidades: string[];
   cualidades?: Quality[];
   carpetasVisibles?: string[];
+  acciones?: Acciones;
   proyectoId: string | null;
 }
+
+const ACCIONES: { key: keyof Acciones; label: string }[] = [
+  { key: "subir", label: "Subir" },
+  { key: "descargar", label: "Descargar" },
+  { key: "borrar", label: "Borrar" },
+];
 
 const empty = {
   username: "",
@@ -440,6 +454,44 @@ function EmployeeModal({
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Autorización de acciones sobre archivos (matriz del Excel) */}
+          <div className="border-t border-[#EDE9E0] pt-4">
+            <label className="flex items-center gap-1.5 text-[#7A7A7A] text-xs tracking-widest uppercase mb-2">
+              <Lock size={12} className="text-[#C9A84C]" /> Acciones permitidas
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ACCIONES.map(({ key, label: lbl }) => {
+                const acc = (form.acciones as Partial<Acciones> | undefined) || {};
+                const on = acc[key] !== false;
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={() =>
+                      set("acciones", {
+                        subir: (acc.subir ?? true) !== false,
+                        descargar: (acc.descargar ?? true) !== false,
+                        borrar: (acc.borrar ?? true) !== false,
+                        [key]: !on,
+                      })
+                    }
+                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border transition-colors ${
+                      on
+                        ? "border-[#1B2A5E] bg-[#1B2A5E] text-[#F5F2EC]"
+                        : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"
+                    }`}
+                  >
+                    {on ? <Check size={12} /> : <X size={12} />} {lbl}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[#7A7A7A] text-[11px] mt-2">
+              Sin tocar nada, el empleado puede todo. El acceso por carpeta se
+              gestiona en «Permisos de carpetas».
+            </p>
           </div>
 
           {error && (

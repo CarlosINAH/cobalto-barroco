@@ -13,6 +13,19 @@ function sanitizeReminder(v: unknown): number | null {
   const n = v === null || v === undefined ? null : Number(v);
   return (RECORDATORIOS as readonly (number | null)[]).includes(n) ? n : null;
 }
+function canonIntegrantes(
+  raw: unknown,
+  employees: { username: string }[],
+): string[] {
+  if (!Array.isArray(raw)) return [];
+  const byLower = new Map(employees.map((e) => [e.username.toLowerCase(), e.username]));
+  const out = new Set<string>();
+  for (const u of raw) {
+    const canon = byLower.get(String(u).toLowerCase());
+    if (canon) out.add(canon);
+  }
+  return [...out];
+}
 
 /** Edita un evento. Cualquier empleado autenticado puede hacerlo (calendario compartido). */
 export async function PATCH(
@@ -44,6 +57,8 @@ export async function PATCH(
     if (b.lugar !== undefined) ev.lugar = b.lugar.trim();
     if (b.allDay !== undefined) ev.allDay = !!b.allDay;
     if (b.color !== undefined) ev.color = sanitizeColor(b.color);
+    if (b.integrantes !== undefined)
+      ev.integrantes = canonIntegrantes(b.integrantes, db.employees);
 
     // Si cambia el horario o el recordatorio, se rearma el aviso.
     let reset = false;

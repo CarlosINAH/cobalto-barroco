@@ -44,8 +44,20 @@ export interface Employee {
    * undefined = ve todas; array = ve solo esas (capa de visualización del app).
    */
   carpetasVisibles?: string[];
+  /**
+   * Acciones globales permitidas (matriz del Excel "USUARIOS SERVIDOR").
+   * undefined = todas permitidas (no restringido). Los admins siempre pueden.
+   */
+  acciones?: EmployeeAcciones;
   proyectoId: string | null;
   createdAt: number;
+}
+
+/** Autorización de acciones sobre archivos (del Excel). */
+export interface EmployeeAcciones {
+  subir: boolean;
+  descargar: boolean;
+  borrar: boolean;
 }
 
 /**
@@ -227,6 +239,8 @@ export interface CalendarEvent {
   allDay: boolean;
   /** Color/categoría (hex). */
   color: string;
+  /** Empleados señalados como integrantes del evento (usernames del NAS). */
+  integrantes: string[];
   /** Minutos antes del evento para el recordatorio por correo; null = sin recordatorio. */
   recordatorioMin: number | null;
   /** Ya se envió el recordatorio por correo (para no repetirlo). */

@@ -4,6 +4,29 @@ import { isAdmin } from "@/lib/session";
 
 export type AccessDecision = "allow" | "pending" | "rejected";
 
+export type FileAction = "subir" | "descargar" | "borrar";
+
+/**
+ * ¿El usuario puede ejecutar una acción global sobre archivos (subir/descargar/
+ * borrar), según la matriz del Excel? Los admins siempre pueden. Sin acciones
+ * configuradas (el caso por defecto), se permite todo: así nadie queda bloqueado
+ * hasta que un admin restrinja explícitamente. Esta autorización global es
+ * independiente (y previa) a los permisos por carpeta.
+ */
+export async function canDoFileAction(
+  username: string,
+  role: string,
+  action: FileAction,
+): Promise<boolean> {
+  if (role === "admin") return true;
+  const db = await getDB();
+  const u = norm(username);
+  const emp = db.employees.find((e) => norm(e.username) === u);
+  const a = emp?.acciones;
+  if (!a) return true; // sin restricción configurada
+  return a[action] !== false;
+}
+
 function norm(u: string): string {
   return u.trim().toLowerCase();
 }

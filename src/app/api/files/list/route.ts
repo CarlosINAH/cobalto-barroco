@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, credsOf } from "@/lib/auth-server";
+import { getSession, credsForPath } from "@/lib/auth-server";
 import { listDirectory, type WebDavEntry } from "@/lib/webdav";
 import {
   isShared,
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    let entries = await listDirectory(credsOf(session), relPath);
+    let entries = await listDirectory(credsForPath(session, relPath), relPath);
 
     // La carpeta de papelera no se muestra en el explorador compartido.
     if (inShared) entries = entries.filter((e) => !isInTrash(e.path));

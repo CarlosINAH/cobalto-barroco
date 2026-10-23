@@ -111,23 +111,70 @@ export async function downloadFile(
   });
 }
 
-/** Sube (crea/sobrescribe) un archivo. */
+/**
+ * Sube (crea/sobrescribe) un archivo.
+ *
+ * Acepta un `Blob`/`File` y lo pasa tal cual al `PUT`: `fetch` (undici) lo
+ * transmite como stream y calcula `Content-Length` solo, así el archivo NO se
+ * copia entero a un `Uint8Array` en memoria. Esto evita los fallos al subir
+ * archivos grandes (fotos/video) por presión de memoria.
+ *
+ * Sin timeout por defecto: un archivo grande o una conexión lenta al NAS no
+ * debe abortarse a mitad (antes se cortaba a los 120 s). Se puede acotar con
+ * WEBDAV_UPLOAD_TIMEOUT_MS si hiciera falta un tope.
+ *
+ * Devuelve el estado HTTP para poder dar un mensaje de error útil (507 sin
+ * espacio, 413 demasiado grande, 401/403 permisos).
+ */
 export async function uploadFile(
   creds: Credentials,
   filePath: string,
-  body: ArrayBuffer | Uint8Array,
-): Promise<boolean> {
+  body: Blob | ArrayBuffer | Uint8Array,
+): Promise<{ ok: boolean; status: number }> {
   const url = baseUrl() + "/" + encodePath(filePath);
-  const res = await fetch(url, {
+  const init: RequestInit = {
     method: "PUT",
     headers: { Authorization: authHeader(creds.username, creds.password) },
     body: body as BodyInit,
-    signal: AbortSignal.timeout(120000),
-  });
-  return res.ok;
+  };
+  const ms = Number(process.env.WEBDAV_UPLOAD_TIMEOUT_MS || 0);
+  if (ms > 0) init.signal = AbortSignal.timeout(ms);
+  const res = await fetch(url, init);
+  return { ok: res.ok, status: res.status };
 }
 
-/** Crea una carpeta (MKCOL). */
+/** ¿Existe la carpeta? (PROPFIND Depth 0). */
+export async function directoryExists(
+  creds: Credentials,
+  dir: string,
+): Promise<boolean> {
+  const url = baseUrl() + "/" + encodePath(dir) + "/";
+  try {
+    const res = await fetch(url, {
+      method: "PROPFIND",
+      headers: {
+        Authorization: authHeader(creds.username, creds.password),
+        Depth: "0",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.status === 207 || res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Crea una carpeta (MKCOL). Devuelve true solo si al terminar la carpeta
+ * existe de verdad.
+ *
+ * Ojo: un MKCOL puede devolver 405 porque la carpeta YA existe (idempotente,
+ * ok) o porque el NAS NO permite crear ahí (p. ej. en la raíz WebDAV del
+ * usuario). Antes se trataba cualquier 405 como éxito, así que una carpeta que
+ * nunca se creó se reportaba como creada y luego "no aparecía". Por eso, ante
+ * cualquier respuesta que no sea 2xx (405/403/409…), confirmamos con PROPFIND
+ * si la carpeta existe antes de dar éxito.
+ */
 export async function makeDirectory(
   creds: Credentials,
   dir: string,
@@ -138,7 +185,28 @@ export async function makeDirectory(
     headers: { Authorization: authHeader(creds.username, creds.password) },
     signal: AbortSignal.timeout(15000),
   });
-  return res.ok || res.status === 405; // 405 = ya existe
+  if (res.ok) return true; // 201 Created
+  // No se creó en este intento: solo es éxito si ya existía realmente.
+  return directoryExists(creds, dir);
+}
+
+/**
+ * Crea una carpeta y todas las intermedias que falten (como `mkdir -p`).
+ * WebDAV/MKCOL solo crea un nivel: si el padre no existe devuelve 409, así que
+ * para rutas anidadas (p. ej. "PROYECTOS/2025/EJECUTADO") hay que crear cada
+ * segmento en orden. Un 405 por segmento ya existente no es error.
+ */
+export async function makeDirectoryDeep(
+  creds: Credentials,
+  dir: string,
+): Promise<boolean> {
+  const parts = safePath(dir).split("/").filter(Boolean);
+  let acc = "";
+  for (const seg of parts) {
+    acc = acc ? `${acc}/${seg}` : seg;
+    if (!(await makeDirectory(creds, acc))) return false;
+  }
+  return parts.length > 0;
 }
 
 /**
