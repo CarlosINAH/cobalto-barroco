@@ -13,9 +13,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  // Empleados también pueden registrar proyectos, pero NO los montos de dinero.
+  const isAdmin = session.role === "admin";
   let b: Partial<Project>;
   try {
     b = await req.json();
@@ -38,10 +40,11 @@ export async function POST(req: Request) {
     createdAt: Date.now(),
     cliente: b.cliente?.trim() || undefined,
     tipo: b.tipo?.trim() || undefined,
-    montoTotal: num(b.montoTotal),
-    anticipo: num(b.anticipo),
-    egresos: num(b.egresos),
-    utilidad: num(b.utilidad),
+    // Montos de dinero: solo administración.
+    montoTotal: isAdmin ? num(b.montoTotal) : undefined,
+    anticipo: isAdmin ? num(b.anticipo) : undefined,
+    egresos: isAdmin ? num(b.egresos) : undefined,
+    utilidad: isAdmin ? num(b.utilidad) : undefined,
   };
   await mutate((db) => db.projects.unshift(project));
   return NextResponse.json({ ok: true, project });
