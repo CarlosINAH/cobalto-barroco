@@ -14,6 +14,9 @@ import {
   LogOut,
   Settings,
   CalendarDays,
+  Calculator,
+  FolderKanban,
+  Award,
 } from "lucide-react";
 
 type Role = "empleado" | "admin";
@@ -28,7 +31,7 @@ interface NavItem {
 const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
   { icon: CalendarDays, label: "Calendario", href: "/dashboard/empleado/calendario" },
-  { icon: HardDrive, label: "Nube", href: "/dashboard/empleado/repositorio" },
+  { icon: HardDrive, label: "Archivos", href: "/dashboard/empleado/repositorio" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/empleado/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
 ];
@@ -37,7 +40,10 @@ const adminNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/admin" },
   { icon: CalendarDays, label: "Calendario", href: "/dashboard/admin/calendario" },
   { icon: Users, label: "Personal y permisos", href: "/dashboard/admin/personal" },
-  { icon: HardDrive, label: "Nube", href: "/dashboard/admin/nas" },
+  { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
+  { icon: Calculator, label: "Costos y P.U.", href: "/dashboard/admin/costos" },
+  { icon: Award, label: "Constancias", href: "/dashboard/admin/constancias" },
+  { icon: HardDrive, label: "Archivos", href: "/dashboard/admin/nas" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/admin/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/admin/configuracion" },
 ];
