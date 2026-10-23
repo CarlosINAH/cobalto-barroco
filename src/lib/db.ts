@@ -425,7 +425,8 @@ export interface Budget {
 export type LedgerKind = "ingreso" | "egreso";
 export interface LedgerEntry {
   id: string;
-  projectId: string;
+  /** Proyecto, o null = gasto general de la empresa. */
+  projectId: string | null;
   fecha: string; // YYYY-MM-DD
   /** anticipo, finiquito, pago, egreso, indirectos, impuestos, nómina, otro. */
   categoria: string;
