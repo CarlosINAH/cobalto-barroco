@@ -18,6 +18,7 @@ import {
   FolderKanban,
   Award,
   Wallet,
+  Package,
 } from "lucide-react";
 
 type Role = "empleado" | "admin";
@@ -32,6 +33,8 @@ interface NavItem {
 const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
   { icon: CalendarDays, label: "Calendario", href: "/dashboard/empleado/calendario" },
+  { icon: FolderKanban, label: "Proyectos", href: "/dashboard/empleado/proyectos" },
+  { icon: Package, label: "Materiales y recetas", href: "/dashboard/empleado/catalogos" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/empleado/repositorio" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/empleado/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
