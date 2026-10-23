@@ -7,6 +7,7 @@ import {
   type LaborRate,
   type Project,
   type PayrollEntry,
+  type LedgerEntry,
 } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
     laborRates?: LaborRate[];
     projects?: Project[];
     payrollEntries?: PayrollEntry[];
+    ledgerEntries?: LedgerEntry[];
   };
   try {
     b = await req.json();
@@ -42,6 +44,7 @@ export async function POST(req: Request) {
       laborRates?: number;
       projects?: number;
       payrollEntries?: number;
+      ledgerEntries?: number;
     } = {};
     // Catálogos: se reemplazan (son la fuente canónica del Excel).
     if (Array.isArray(b.costMaterials)) {
@@ -73,6 +76,15 @@ export async function POST(req: Request) {
         else db.payrollEntries.push(n);
       }
       out.payrollEntries = b.payrollEntries.length;
+    }
+    // Gastos (ledger): UPSERT por id.
+    if (Array.isArray(b.ledgerEntries)) {
+      for (const g of b.ledgerEntries) {
+        const i = db.ledgerEntries.findIndex((x) => x.id === g.id);
+        if (i >= 0) db.ledgerEntries[i] = g;
+        else db.ledgerEntries.push(g);
+      }
+      out.ledgerEntries = b.ledgerEntries.length;
     }
     return out;
   });

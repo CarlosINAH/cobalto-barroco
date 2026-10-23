@@ -29,12 +29,8 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
-  const projectId = (b.projectId || "").trim();
-  if (!projectId)
-    return NextResponse.json(
-      { error: "El movimiento debe pertenecer a un proyecto." },
-      { status: 400 },
-    );
+  // projectId opcional: sin él es un gasto general de la empresa.
+  const projectId = (b.projectId || "").trim() || null;
   const entry: LedgerEntry = {
     id: newId("MOV"),
     projectId,
