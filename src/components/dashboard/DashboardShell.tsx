@@ -17,6 +17,7 @@ import {
   Calculator,
   FolderKanban,
   Award,
+  Wallet,
 } from "lucide-react";
 
 type Role = "empleado" | "admin";
@@ -41,6 +42,7 @@ const adminNav: NavItem[] = [
   { icon: CalendarDays, label: "Calendario", href: "/dashboard/admin/calendario" },
   { icon: Users, label: "Personal y permisos", href: "/dashboard/admin/personal" },
   { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
+  { icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" },
   { icon: Calculator, label: "Costos y P.U.", href: "/dashboard/admin/costos" },
   { icon: Award, label: "Constancias", href: "/dashboard/admin/constancias" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/admin/nas" },

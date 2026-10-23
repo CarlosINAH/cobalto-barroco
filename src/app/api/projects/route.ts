@@ -25,6 +25,7 @@ export async function POST(req: Request) {
   if (!b.nombre || !b.nombre.trim()) {
     return NextResponse.json({ error: "El nombre es obligatorio." }, { status: 400 });
   }
+  const num = (v: unknown) => (v == null || v === "" ? undefined : Number(v) || 0);
   const project: Project = {
     id: newId("PRY"),
     nombre: b.nombre.trim(),
@@ -35,6 +36,12 @@ export async function POST(req: Request) {
     estado: b.estado === "finalizado" || b.estado === "futuro" ? b.estado : "activo",
     desc: b.desc?.trim() || "",
     createdAt: Date.now(),
+    cliente: b.cliente?.trim() || undefined,
+    tipo: b.tipo?.trim() || undefined,
+    montoTotal: num(b.montoTotal),
+    anticipo: num(b.anticipo),
+    egresos: num(b.egresos),
+    utilidad: num(b.utilidad),
   };
   await mutate((db) => db.projects.unshift(project));
   return NextResponse.json({ ok: true, project });

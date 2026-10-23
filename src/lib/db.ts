@@ -19,6 +19,20 @@ export interface Project {
   estado: "activo" | "finalizado" | "futuro";
   desc: string;
   createdAt: number;
+  // ── Datos de obra / administración (hoja OBRAS del Excel). Opcionales y
+  //    solo-admin: son montos de dinero. ──
+  /** Cliente de la obra. */
+  cliente?: string;
+  /** Tipo de trabajo (mural, escultura, retablo, vitral…). */
+  tipo?: string;
+  /** Monto total contratado (MXN). */
+  montoTotal?: number;
+  /** Anticipo recibido. */
+  anticipo?: number;
+  /** Egresos reales de la obra. */
+  egresos?: number;
+  /** Utilidad real de la obra. */
+  utilidad?: number;
 }
 
 /** Cualidad evaluada de un empleado, con nivel 1–5 (solo visible para admins). */
