@@ -5,6 +5,7 @@ import {
   type CostMaterial,
   type Recipe,
   type LaborRate,
+  type Project,
 } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
     costMaterials?: CostMaterial[];
     recipes?: Recipe[];
     laborRates?: LaborRate[];
+    projects?: Project[];
   };
   try {
     b = await req.json();
@@ -32,7 +34,13 @@ export async function POST(req: Request) {
   }
 
   const importado = await mutate((db) => {
-    const out: { costMaterials?: number; recipes?: number; laborRates?: number } = {};
+    const out: {
+      costMaterials?: number;
+      recipes?: number;
+      laborRates?: number;
+      projects?: number;
+    } = {};
+    // Catálogos: se reemplazan (son la fuente canónica del Excel).
     if (Array.isArray(b.costMaterials)) {
       db.costMaterials = b.costMaterials;
       out.costMaterials = b.costMaterials.length;
@@ -44,6 +52,15 @@ export async function POST(req: Request) {
     if (Array.isArray(b.laborRates)) {
       db.laborRates = b.laborRates;
       out.laborRates = b.laborRates.length;
+    }
+    // Proyectos: UPSERT por id (no borra los que ya existen en la plataforma).
+    if (Array.isArray(b.projects)) {
+      for (const p of b.projects) {
+        const i = db.projects.findIndex((x) => x.id === p.id);
+        if (i >= 0) db.projects[i] = p;
+        else db.projects.push(p);
+      }
+      out.projects = b.projects.length;
     }
     return out;
   });

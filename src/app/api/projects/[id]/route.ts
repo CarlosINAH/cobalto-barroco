@@ -34,6 +34,13 @@ export async function PATCH(
     if (b.avance !== undefined) p.avance = Math.max(0, Math.min(100, Number(b.avance) || 0));
     if (b.estado !== undefined) p.estado = b.estado;
     if (b.desc !== undefined) p.desc = b.desc.trim();
+    if (b.cliente !== undefined) p.cliente = b.cliente.trim() || undefined;
+    if (b.tipo !== undefined) p.tipo = b.tipo.trim() || undefined;
+    const num = (v: unknown) => (v == null || v === "" ? undefined : Number(v) || 0);
+    if (b.montoTotal !== undefined) p.montoTotal = num(b.montoTotal);
+    if (b.anticipo !== undefined) p.anticipo = num(b.anticipo);
+    if (b.egresos !== undefined) p.egresos = num(b.egresos);
+    if (b.utilidad !== undefined) p.utilidad = num(b.utilidad);
     return p;
   });
   if (!updated) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
