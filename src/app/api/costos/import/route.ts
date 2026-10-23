@@ -6,6 +6,7 @@ import {
   type Recipe,
   type LaborRate,
   type Project,
+  type PayrollEntry,
 } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
     recipes?: Recipe[];
     laborRates?: LaborRate[];
     projects?: Project[];
+    payrollEntries?: PayrollEntry[];
   };
   try {
     b = await req.json();
@@ -39,6 +41,7 @@ export async function POST(req: Request) {
       recipes?: number;
       laborRates?: number;
       projects?: number;
+      payrollEntries?: number;
     } = {};
     // Catálogos: se reemplazan (son la fuente canónica del Excel).
     if (Array.isArray(b.costMaterials)) {
@@ -61,6 +64,15 @@ export async function POST(req: Request) {
         else db.projects.push(p);
       }
       out.projects = b.projects.length;
+    }
+    // Nómina: UPSERT por id (conserva lo que ya haya capturado el usuario).
+    if (Array.isArray(b.payrollEntries)) {
+      for (const n of b.payrollEntries) {
+        const i = db.payrollEntries.findIndex((x) => x.id === n.id);
+        if (i >= 0) db.payrollEntries[i] = n;
+        else db.payrollEntries.push(n);
+      }
+      out.payrollEntries = b.payrollEntries.length;
     }
     return out;
   });
