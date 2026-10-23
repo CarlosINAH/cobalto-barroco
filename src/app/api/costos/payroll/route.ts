@@ -29,12 +29,8 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
-  const projectId = (b.projectId || "").trim();
-  if (!projectId)
-    return NextResponse.json(
-      { error: "El pago debe pertenecer a un proyecto." },
-      { status: 400 },
-    );
+  // projectId opcional: sin él es nómina de la empresa (administrativa).
+  const projectId = (b.projectId || "").trim() || null;
   const persona = (b.persona || "").trim();
   if (!persona)
     return NextResponse.json({ error: "Falta la persona." }, { status: 400 });
@@ -44,6 +40,8 @@ export async function POST(req: Request) {
     persona,
     rol: (b.rol || "").trim() || undefined,
     periodo: (b.periodo || "").trim(),
+    fecha: (b.fecha || "").trim() || undefined,
+    categoria: (b.categoria || "").trim() || undefined,
     monto: Number(b.monto) || 0,
     pagado: b.pagado === true,
     nota: (b.nota || "").trim() || undefined,

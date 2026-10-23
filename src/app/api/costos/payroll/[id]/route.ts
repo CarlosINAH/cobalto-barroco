@@ -28,6 +28,8 @@ export async function PATCH(
     if (b.persona !== undefined) e.persona = b.persona.trim();
     if (b.rol !== undefined) e.rol = b.rol.trim() || undefined;
     if (b.periodo !== undefined) e.periodo = b.periodo.trim();
+    if (b.fecha !== undefined) e.fecha = b.fecha.trim() || undefined;
+    if (b.categoria !== undefined) e.categoria = b.categoria.trim() || undefined;
     if (b.monto !== undefined) e.monto = Number(b.monto) || 0;
     if (b.pagado !== undefined) e.pagado = b.pagado === true;
     if (b.nota !== undefined) e.nota = b.nota.trim() || undefined;

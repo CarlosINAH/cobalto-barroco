@@ -438,11 +438,16 @@ export interface LedgerEntry {
 /** Pago de nómina de un proyecto (hoja `NÓMINA`). */
 export interface PayrollEntry {
   id: string;
-  projectId: string;
+  /** Proyecto al que pertenece, o null = nómina de la empresa (administrativa). */
+  projectId: string | null;
   persona: string;
   rol?: string;
   /** Etiqueta de periodo (quincena/fecha), libre. */
   periodo: string;
+  /** Fecha del pago (YYYY-MM-DD) para los cálculos mensual/trimestral. */
+  fecha?: string;
+  /** Categoría: nómina, aguinaldo, nómina externo, etc. */
+  categoria?: string;
   monto: number;
   pagado: boolean;
   nota?: string;
