@@ -1,6 +1,7 @@
 import "server-only";
 import type { Budget, Project } from "@/lib/db";
 import { budgetTotals } from "@/lib/pu";
+import { LOGO_JPEG_B64, LOGO_W, LOGO_H } from "@/lib/constancia-logo";
 
 /**
  * Generador de PDF mínimo, sin dependencias (coherente con el stack: JS puro,
@@ -27,11 +28,18 @@ function textWidth(s: string, size: number): number {
 }
 
 /** Convierte a Latin-1 (1 char = 1 byte) y escapa para una cadena literal PDF. */
+// Puntuación Unicode común → su byte en WinAnsi (CP1252).
+const WINANSI: Record<number, number> = {
+  0x2013: 0x96, 0x2014: 0x97, 0x2018: 0x91, 0x2019: 0x92,
+  0x201c: 0x93, 0x201d: 0x94, 0x2022: 0x95, 0x2026: 0x85,
+  0x20ac: 0x80, 0x2122: 0x99, 0x00a0: 0x20,
+};
 function esc(s: string): string {
   let o = "";
   for (const ch of s) {
-    const c = ch.codePointAt(0)!;
-    o += c <= 255 ? String.fromCharCode(c) : "?";
+    let c = ch.codePointAt(0)!;
+    if (c > 255) c = WINANSI[c] ?? 0x3f; // 0x3f = "?"
+    o += String.fromCharCode(c);
   }
   return o.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
@@ -39,26 +47,64 @@ function trunc(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
+/** #RRGGBB → [r,g,b] en 0..1. */
+function rgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255];
+}
+const f3 = (n: number) => n.toFixed(3);
+
+/** Dimensiones de un JPEG baseline (lee el marcador SOF). */
+function parseJpegDims(buf: Buffer): { iw: number; ih: number } {
+  let i = 2;
+  while (i < buf.length - 8) {
+    if (buf[i] !== 0xff) { i++; continue; }
+    const m = buf[i + 1];
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+      return { ih: (buf[i + 5] << 8) | buf[i + 6], iw: (buf[i + 7] << 8) | buf[i + 8] };
+    }
+    i += 2 + ((buf[i + 2] << 8) | buf[i + 3]);
+  }
+  return { iw: 1, ih: 1 };
+}
+
+interface DocImage { name: string; b64: string; w: number; h: number }
+
 class Painter {
   pages: string[] = [];
+  images: DocImage[] = [];
   private cur = "";
+  private imgSeq = 0;
   y = 740;
   newPage() {
     if (this.cur) this.pages.push(this.cur);
     this.cur = "";
     this.y = 740;
   }
-  text(x: number, y: number, size: number, str: string, bold = false) {
-    this.cur += `BT /F${bold ? 2 : 1} ${size} Tf ${x} ${y} Td (${esc(str)}) Tj ET\n`;
+  text(x: number, y: number, size: number, str: string, bold = false, color = "#000000") {
+    const [r, g, b] = rgb(color);
+    this.cur += `${f3(r)} ${f3(g)} ${f3(b)} rg BT /F${bold ? 2 : 1} ${size} Tf ${x} ${y} Td (${esc(str)}) Tj ET\n`;
   }
-  rtext(xRight: number, y: number, size: number, str: string, bold = false) {
-    this.text(xRight - textWidth(str, size), y, size, str, bold);
+  rtext(xRight: number, y: number, size: number, str: string, bold = false, color = "#000000") {
+    this.text(xRight - textWidth(str, size), y, size, str, bold, color);
   }
-  ctext(xCenter: number, y: number, size: number, str: string, bold = false) {
-    this.text(xCenter - textWidth(str, size) / 2, y, size, str, bold);
+  ctext(xCenter: number, y: number, size: number, str: string, bold = false, color = "#000000") {
+    this.text(xCenter - textWidth(str, size) / 2, y, size, str, bold, color);
   }
-  line(x1: number, y1: number, x2: number, y2: number) {
-    this.cur += `0.5 w ${x1} ${y1} m ${x2} ${y2} l S\n`;
+  line(x1: number, y1: number, x2: number, y2: number, color = "#000000", w = 0.5) {
+    const [r, g, b] = rgb(color);
+    this.cur += `${f3(r)} ${f3(g)} ${f3(b)} RG ${w} w ${x1} ${y1} m ${x2} ${y2} l S\n`;
+  }
+  rect(x: number, y: number, w: number, h: number, color: string) {
+    const [r, g, b] = rgb(color);
+    this.cur += `${f3(r)} ${f3(g)} ${f3(b)} rg ${x} ${y} ${w} ${h} re f\n`;
+  }
+  /** Dibuja un JPEG (base64) escalado a w×h con esquina inferior-izq en (x,y). */
+  image(b64: string, x: number, y: number, w: number, h: number) {
+    const { iw, ih } = parseJpegDims(Buffer.from(b64, "base64"));
+    const name = `Im${++this.imgSeq}`;
+    this.images.push({ name, b64, w: iw, h: ih });
+    this.cur += `q ${w} 0 0 ${h} ${x} ${y} cm /${name} Do Q\n`;
   }
   end(): string[] {
     if (this.cur) this.pages.push(this.cur);
@@ -66,11 +112,26 @@ class Painter {
   }
 }
 
-function serialize(pagesContent: string[]): Buffer {
+function serialize(pagesContent: string[], images: DocImage[] = []): Buffer {
+  const bodies: Record<number, string> = {
+    1: `<< /Type /Catalog /Pages 2 0 R >>`,
+    3: `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`,
+    4: `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`,
+  };
+  // Objetos de imagen (JPEG / DCTDecode).
+  let n = 5;
+  const imgRes: string[] = [];
+  for (const im of images) {
+    const jpeg = Buffer.from(im.b64, "base64").toString("latin1");
+    bodies[n] = `<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${Buffer.byteLength(jpeg, "latin1")} >>\nstream\n${jpeg}\nendstream`;
+    imgRes.push(`/${im.name} ${n} 0 R`);
+    n++;
+  }
+  const xobj = imgRes.length ? ` /XObject << ${imgRes.join(" ")} >>` : "";
+
   const pageObjNums: number[] = [];
   const contentObjs: { num: number; content: string }[] = [];
   const pageObjs: { num: number; contentNum: number }[] = [];
-  let n = 5; // 1 catálogo, 2 pages, 3 Helvetica, 4 Helvetica-Bold
   for (const c of pagesContent) {
     const contentNum = n++;
     const pageNum = n++;
@@ -79,14 +140,9 @@ function serialize(pagesContent: string[]): Buffer {
     pageObjNums.push(pageNum);
   }
   const total = n - 1;
-  const bodies: Record<number, string> = {
-    1: `<< /Type /Catalog /Pages 2 0 R >>`,
-    2: `<< /Type /Pages /Kids [${pageObjNums.map((p) => `${p} 0 R`).join(" ")}] /Count ${pageObjNums.length} >>`,
-    3: `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`,
-    4: `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`,
-  };
+  bodies[2] = `<< /Type /Pages /Kids [${pageObjNums.map((p) => `${p} 0 R`).join(" ")}] /Count ${pageObjNums.length} >>`;
   for (const p of pageObjs)
-    bodies[p.num] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${p.contentNum} 0 R >>`;
+    bodies[p.num] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xobj} >> /Contents ${p.contentNum} 0 R >>`;
   for (const c of contentObjs)
     bodies[c.num] = `<< /Length ${Buffer.byteLength(c.content, "latin1")} >>\nstream\n${c.content}\nendstream`;
 
@@ -156,7 +212,7 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   y -= 28;
   p.text(56, Math.max(y, 60), 8, "El presupuesto tiene una vigencia de 15 días. Precios en pesos mexicanos (MXN).");
 
-  return serialize(p.end());
+  return serialize(p.end(), p.images);
 }
 
 /** Datos para una constancia de trabajo. */
@@ -168,36 +224,49 @@ export interface ConstanciaData {
   firmanteNombre: string;
   firmanteCargo: string;
   fecha?: string;
+  /** Firma dibujada (JPEG base64, lienzo 600×200). */
+  firmaJpegB64?: string;
 }
 
-/** Construye el PDF de una constancia de trabajo (plantilla Cobalto Barroco). */
+const NAVY = "#1B2A5E";
+const GRAY = "#6E7480";
+
+/** Construye el PDF de una constancia de trabajo (formato Cobalto Barroco). */
 export function buildConstanciaPdf(d: ConstanciaData): Buffer {
   const p = new Painter();
   p.newPage();
-  const cx = 306; // centro de la hoja carta (612)
+  // Barra lateral azul (guiño a la franja del machote).
+  p.rect(0, 0, 34, 792, NAVY);
+  const cx = 323; // centro del área de contenido (34..612)
 
-  p.ctext(cx, 724, 19, "C O N S T A N C I A   D E   T R A B A J O", true);
-  p.ctext(cx, 702, 11, "Restauración Artística & Arquitectónica");
-  p.line(176, 690, 436, 690);
+  // Logo (arriba, sobre el título)
+  const logoW = 176, logoH = (logoW * LOGO_H) / LOGO_W;
+  p.image(LOGO_JPEG_B64, cx - logoW / 2, 702, logoW, logoH);
 
-  p.ctext(cx, 646, 11, "Por medio de la presente, Cobalto Barroco hace constar que:");
-  p.ctext(cx, 614, 17, d.participante || "—", true);
-  p.ctext(cx, 584, 11, "Participó en los trabajos correspondientes al proyecto:");
-  p.ctext(cx, 556, 14, d.proyecto || "—", true);
-  if (d.ubicacion) p.ctext(cx, 532, 11, `Ubicación: ${d.ubicacion}`);
-  if (d.periodo) p.ctext(cx, 514, 11, `Periodo: ${d.periodo}`);
-  p.ctext(cx, 474, 11, "Se expide la presente constancia para los fines que a la persona interesada convengan.");
-  if (d.fecha) p.ctext(cx, 450, 10, `Ciudad de México, a ${d.fecha}.`);
+  p.ctext(cx, 672, 17, "C O N S T A N C I A   D E   T R A B A J O", true, NAVY);
+  p.ctext(cx, 654, 11, "RESTAURACIÓN ARTÍSTICA & ARQUITECTÓNICA.", false, NAVY);
+  p.line(cx - 150, 642, cx + 150, 642, NAVY, 0.7);
 
-  // Firma
-  p.line(206, 300, 406, 300);
-  p.ctext(cx, 286, 12, d.firmanteNombre || "", true);
-  if (d.firmanteCargo) p.ctext(cx, 272, 10, d.firmanteCargo);
+  p.ctext(cx, 600, 11, "Por medio de la presente, Cobalto Barroco hace constar que:", false, NAVY);
+  p.ctext(cx, 578, 16, d.participante || "—", true, NAVY);
+  p.ctext(cx, 548, 11, "Participó en los trabajos correspondientes al proyecto:", false, NAVY);
+  p.ctext(cx, 526, 14, d.proyecto || "—", true, NAVY);
+  if (d.ubicacion) p.ctext(cx, 498, 11, `Ubicación: ${d.ubicacion}`, false, NAVY);
+  if (d.periodo) p.ctext(cx, 482, 11, `Periodo: ${d.periodo}`, false, NAVY);
+  p.ctext(cx, 446, 11, "Se expide la presente constancia para los fines que a", false, NAVY);
+  p.ctext(cx, 430, 11, "la persona interesada convengan.", false, NAVY);
+  if (d.fecha) p.ctext(cx, 404, 10, `Ciudad de México, a ${d.fecha}.`, false, GRAY);
+
+  // Firma dibujada (si existe), sobre la línea.
+  if (d.firmaJpegB64) p.image(d.firmaJpegB64, cx - 90, 262, 180, 60);
+  p.line(cx - 110, 258, cx + 110, 258, NAVY, 0.7);
+  p.ctext(cx, 242, 12, d.firmanteNombre || "", true, NAVY);
+  if (d.firmanteCargo) p.ctext(cx, 228, 10, d.firmanteCargo, false, GRAY);
 
   // Pie de contacto
-  p.ctext(cx, 120, 9, "cobaltobarroco@gmail.com");
-  p.ctext(cx, 108, 9, "55-27-51-44-39  //  55-14-88-25-09");
-  p.ctext(cx, 96, 9, "@cobaltobarroco");
+  p.text(70, 150, 9, "cobaltobarroco@gmail.com", false, NAVY);
+  p.text(70, 136, 9, "55-27-51-44-39  //  55-14-88-25-09", false, NAVY);
+  p.text(70, 122, 9, "@cobaltobarroco", false, NAVY);
 
-  return serialize(p.end());
+  return serialize(p.end(), p.images);
 }
