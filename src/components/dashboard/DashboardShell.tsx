@@ -21,6 +21,7 @@ import {
   Package,
   Banknote,
   Receipt,
+  Boxes,
 } from "lucide-react";
 
 type Role = "empleado" | "admin";
@@ -36,6 +37,7 @@ const empleadoNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/empleado" },
   { icon: CalendarDays, label: "Calendario", href: "/dashboard/empleado/calendario" },
   { icon: FolderKanban, label: "Proyectos", href: "/dashboard/empleado/proyectos" },
+  { icon: Boxes, label: "Fichas de piezas", href: "/dashboard/empleado/fichas" },
   { icon: Package, label: "Materiales y recetas", href: "/dashboard/empleado/catalogos" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/empleado/repositorio" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/empleado/papelera" },
@@ -47,6 +49,7 @@ const adminNav: NavItem[] = [
   { icon: CalendarDays, label: "Calendario", href: "/dashboard/admin/calendario" },
   { icon: Users, label: "Personal y permisos", href: "/dashboard/admin/personal" },
   { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
+  { icon: Boxes, label: "Fichas de piezas", href: "/dashboard/admin/fichas" },
   { icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" },
   { icon: Banknote, label: "Nómina", href: "/dashboard/admin/nomina" },
   { icon: Receipt, label: "Gastos", href: "/dashboard/admin/gastos" },
