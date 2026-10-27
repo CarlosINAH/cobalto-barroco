@@ -14,7 +14,11 @@ export default async function AdministracionAdmin() {
   const db = await getDB();
   return (
     <DashboardShell role="admin" title="Administración">
-      <AdministracionManager initial={db.projects} />
+      <AdministracionManager
+        projects={db.projects}
+        ledger={db.ledgerEntries}
+        payroll={db.payrollEntries}
+      />
     </DashboardShell>
   );
 }
