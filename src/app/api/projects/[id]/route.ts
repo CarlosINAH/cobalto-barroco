@@ -34,6 +34,7 @@ export async function PATCH(
     if (b.desc !== undefined) p.desc = b.desc.trim();
     if (b.cliente !== undefined) p.cliente = b.cliente.trim() || undefined;
     if (b.tipo !== undefined) p.tipo = b.tipo.trim() || undefined;
+    if (b.carpetaInformes !== undefined) p.carpetaInformes = b.carpetaInformes.trim() || undefined;
     const num = (v: unknown) => (v == null || v === "" ? undefined : Number(v) || 0);
     if (b.montoTotal !== undefined) p.montoTotal = num(b.montoTotal);
     if (b.anticipo !== undefined) p.anticipo = num(b.anticipo);

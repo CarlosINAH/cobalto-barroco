@@ -225,13 +225,23 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
 export function buildCVPdf(entries: CVEntry[]): Buffer {
   const p = new Painter();
   p.newPage();
-  const L = 56, R = 556, W = R - L;
+  const L = 56, R = 556, W = R - L, BOT = 56;
 
-  // Envuelve un texto en líneas que caben en `maxW`.
+  // Envuelve un texto en líneas que caben en `maxW` (parte también palabras
+  // más largas que el ancho para no desbordar el margen derecho).
   function wrap(s: string, size: number, maxW: number): string[] {
     const out: string[] = [];
     let cur = "";
-    for (const w of s.split(/\s+/)) {
+    for (const word of s.split(/\s+/)) {
+      let w = word;
+      // Palabra sola más ancha que la línea: córtala por caracteres.
+      while (textWidth(w, size) > maxW && w.length > 1) {
+        let i = 1;
+        while (i < w.length && textWidth(w.slice(0, i + 1), size) <= maxW) i++;
+        if (cur) { out.push(cur); cur = ""; }
+        out.push(w.slice(0, i));
+        w = w.slice(i);
+      }
       const t = cur ? `${cur} ${w}` : w;
       if (textWidth(t, size) > maxW && cur) { out.push(cur); cur = w; } else cur = t;
     }
@@ -239,45 +249,45 @@ export function buildCVPdf(entries: CVEntry[]): Buffer {
     return out;
   }
 
-  // Encabezado con logo.
-  const logoW = 150, logoH = (logoW * LOGO_H) / LOGO_W;
-  p.image(LOGO_JPEG_B64, L, 760 - logoH, logoW, logoH);
-  p.text(R - textWidth("CURRÍCULUM", 20), 748, 20, "CURRÍCULUM", true, NAVY);
-  p.rtext(R, 732, 9, "Cobalto Barroco · Restauración artística y arquitectónica", false, GRAY);
-  p.rtext(R, 720, 9, `Participación en proyectos · ${entries.length} intervenciones`, false, GRAY);
-  p.line(L, 712, R, 712, NAVY, 0.7);
-
-  let y = 760 - logoH - 14;
-  if (y > 696) y = 696;
-
-  const ensure = (need: number) => {
-    if (y - need < 60) { p.newPage(); y = 756; }
+  let y = 700;
+  // Salta de página cuando no cabe la siguiente línea de alto `h`.
+  const nl = (h: number) => { if (y - h < BOT) { p.newPage(); y = 752; } };
+  // Dibuja un párrafo (puede ocupar varias líneas), verificando página en cada una.
+  const para = (txt: string, size: number, indent: number, color: string, bold: boolean, lead: number) => {
+    for (const ln of wrap(txt, size, W - indent)) { nl(lead); p.text(L + indent, y, size, ln, bold, color); y -= lead; }
   };
+
+  // Encabezado con logo (compacto, arriba a la izquierda).
+  const logoH = 48, logoW = (logoH * LOGO_W) / LOGO_H;
+  p.image(LOGO_JPEG_B64, L, 724, logoW, logoH);
+  const tx = L + logoW + 16;
+  p.text(tx, 760, 20, "CURRÍCULUM", true, NAVY);
+  p.text(tx, 744, 9, "Cobalto Barroco · Restauración artística y arquitectónica", false, GRAY);
+  p.text(tx, 732, 9, `Participación en proyectos · ${entries.length} intervenciones`, false, GRAY);
+  p.line(L, 716, R, 716, NAVY, 0.7);
 
   // Agrupa por año (desc).
   const years = [...new Set(entries.map((e) => e.anio))].sort((a, b) => b - a);
   for (const year of years) {
-    ensure(26);
+    nl(24);
     p.rect(L, y - 4, W, 18, "#F2EEE4");
     p.text(L + 6, y, 12, String(year), true, NAVY);
-    y -= 26;
+    y -= 24;
 
     for (const e of entries.filter((x) => x.anio === year)) {
-      // Altura estimada del bloque.
-      const desc = e.descripcion ? wrap(e.descripcion, 8.5, W - 10) : [];
-      const need = 16 + (desc.length * 11) + (e.colaboracion ? 12 : 0) + 8;
-      ensure(need);
-
       const titulo = `${e.clave ? e.clave + " · " : ""}${e.titulo}`;
-      for (const [i, ln] of wrap(titulo, 10, W).entries()) {
+      const fechaW = e.fecha ? textWidth(e.fecha, 9) + 12 : 0;
+      const tLines = wrap(titulo, 10, W - fechaW);
+      for (const [i, ln] of tLines.entries()) {
+        nl(13);
         p.text(L, y, 10, ln, true, "#2C2C2C");
         if (i === 0 && e.fecha) p.rtext(R, y, 9, e.fecha, false, GRAY);
         y -= 13;
       }
       const meta = [e.sitio, e.lugar, e.tipoBien, e.clasificacion].filter(Boolean).join(" · ");
-      if (meta) { for (const ln of wrap(meta, 8.5, W)) { p.text(L, y, 8.5, ln, false, NAVY); y -= 11; } }
-      for (const ln of desc) { p.text(L + 10, y, 8.5, ln, false, "#555555"); y -= 11; }
-      if (e.colaboracion) { p.text(L + 10, y, 8, e.colaboracion, false, GRAY); y -= 12; }
+      if (meta) para(meta, 8.5, 0, NAVY, false, 11);
+      if (e.descripcion) para(e.descripcion, 8.5, 10, "#555555", false, 11);
+      if (e.colaboracion) para(e.colaboracion, 8, 10, GRAY, false, 12);
       y -= 8;
     }
   }
