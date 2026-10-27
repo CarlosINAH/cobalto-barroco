@@ -12,7 +12,6 @@ import {
   Coins,
   Layers,
   X,
-  Upload,
 } from "lucide-react";
 import type {
   CostMaterial,
@@ -67,41 +66,9 @@ export default function CatalogosManager({
   conceptos: ConceptoView[];
 }) {
   const [tab, setTab] = useState<Tab>("materiales");
-  const [importing, setImporting] = useState(false);
-
-  async function onImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (!confirm("Importará los catálogos del archivo y REEMPLAZARÁ los materiales, recetas y salarios actuales. ¿Continuar?")) return;
-    setImporting(true);
-    try {
-      const json = JSON.parse(await file.text());
-      const res = await fetch("/api/costos/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(json),
-      });
-      if (!res.ok) { alert("No se pudo importar (¿sesión de admin?)."); return; }
-      const d = await res.json();
-      alert(`Importado: ${JSON.stringify(d.importado)}`);
-      location.reload();
-    } catch {
-      alert("El archivo no es un JSON válido de catálogos.");
-    } finally {
-      setImporting(false);
-    }
-  }
 
   return (
     <div>
-      <div className="flex justify-end mb-3">
-        <label className={`flex items-center gap-2 border border-[#EDE9E0] px-3 py-2 text-xs tracking-wider uppercase font-semibold cursor-pointer hover:border-[#C9A84C] ${importing ? "opacity-60 pointer-events-none" : "text-[#1B2A5E]"}`}>
-          <Upload size={14} /> {importing ? "Importando…" : "Importar catálogos (JSON)"}
-          <input type="file" accept="application/json,.json" className="hidden" onChange={onImport} />
-        </label>
-      </div>
-
       {/* Sub-pestañas */}
       <div className="flex gap-1 border-b border-[#EDE9E0] mb-6 overflow-x-auto">
         {TABS.map((t) => {
