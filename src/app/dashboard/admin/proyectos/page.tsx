@@ -1,6 +1,6 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ProyectosYPresupuesto from "@/components/proyectos/ProyectosYPresupuesto";
-import { requireAdmin } from "@/lib/auth-server";
+import { requireSectionView } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
 import { buildCatalogs, recipeCost, conceptBreakdown } from "@/lib/pu";
 
@@ -13,10 +13,11 @@ export const dynamic = "force-dynamic";
  * - Presupuesto: armador de cotizaciones + catálogos (materiales, salarios,
  *   recetas, conceptos/costos unitarios). Al aprobar, el presupuesto se vuelve
  *   proyecto activo.
- * Solo admin (maneja costos y márgenes).
+ * Acceso: admin, o quien tenga la sección "proyectos" habilitada (lectura/total)
+ * en Configuración.
  */
 export default async function ProyectosAdmin() {
-  await requireAdmin();
+  const session = await requireSectionView("proyectos");
   const db = await getDB();
   const catalogs = buildCatalogs(db);
 
@@ -37,7 +38,7 @@ export default async function ProyectosAdmin() {
   const recetas = db.recipes.map((r) => ({ ...r, costo: recipeCost(r, catalogs) }));
 
   return (
-    <DashboardShell role="admin" title="Proyectos">
+    <DashboardShell role={session.role} title="Proyectos">
       <ProyectosYPresupuesto
         proyectos={{
           proyectos: db.projects,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, credsForPath } from "@/lib/auth-server";
+import { getDB } from "@/lib/db";
 import {
   listTrash,
   restoreItem,
@@ -42,6 +43,18 @@ export async function POST(req: Request) {
   const creds = credsForPath(session, TRASH_ROOT);
   let res: { ok: boolean; error?: string };
 
+  // Quién puede borrar/vaciar: admin, o un empleado con el permiso de papelera
+  // habilitado en Configuración. Internamente las funciones comprueban "admin",
+  // así que a quien tenga el permiso le pasamos un rol efectivo "admin" solo
+  // para borrar/vaciar (restaurar conserva su lógica de dueño).
+  async function puedeBorrar(): Promise<boolean> {
+    if (session!.role === "admin") return true;
+    const db = await getDB();
+    const u = session!.username.trim().toLowerCase();
+    const emp = db.employees.find((e) => e.username.trim().toLowerCase() === u);
+    return emp?.papeleraBorrar === true;
+  }
+
   if (b.action === "restore") {
     if (!b.id)
       return NextResponse.json({ error: "Falta el elemento." }, { status: 400 });
@@ -49,9 +62,11 @@ export async function POST(req: Request) {
   } else if (b.action === "delete") {
     if (!b.id)
       return NextResponse.json({ error: "Falta el elemento." }, { status: 400 });
-    res = await deleteTrashEntry(creds, session.role, b.id);
+    const rol = (await puedeBorrar()) ? "admin" : session.role;
+    res = await deleteTrashEntry(creds, rol, b.id);
   } else if (b.action === "empty") {
-    res = await emptyTrash(creds, session.role);
+    const rol = (await puedeBorrar()) ? "admin" : session.role;
+    res = await emptyTrash(creds, rol);
   } else {
     return NextResponse.json({ error: "Acción inválida." }, { status: 400 });
   }

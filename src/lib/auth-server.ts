@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE, readSessionToken, type Session } from "@/lib/session";
 import { isShared } from "@/lib/shared-files";
+import { getDB, type SeccionSistema, type AccesoNivel } from "@/lib/db";
 
 /**
  * Devuelve la sesión del usuario actual (con su credencial descifrada para
@@ -27,6 +28,44 @@ export async function requireSession(): Promise<Session> {
 export async function requireAdmin(): Promise<Session> {
   const session = await requireSession();
   if (session.role !== "admin") redirect("/dashboard/empleado");
+  return session;
+}
+
+/**
+ * Nivel de acceso del usuario a una sección sensible. Los admins siempre tienen
+ * "total". Para el resto, se lee del empleado (`acceso[seccion]`); sin entrada
+ * configurada, "oculto" (no accede hasta que un admin lo habilite).
+ */
+export async function sectionLevel(
+  session: Session,
+  seccion: SeccionSistema,
+): Promise<AccesoNivel> {
+  if (session.role === "admin") return "total";
+  const db = await getDB();
+  const u = session.username.trim().toLowerCase();
+  const emp = db.employees.find((e) => e.username.trim().toLowerCase() === u);
+  return emp?.acceso?.[seccion] ?? "oculto";
+}
+
+/** ¿Puede escribir (editar) en la sección? admin o nivel "total". */
+export async function canWriteSection(
+  session: Session,
+  seccion: SeccionSistema,
+): Promise<boolean> {
+  return (await sectionLevel(session, seccion)) === "total";
+}
+
+/**
+ * Exige al menos ver la sección (nivel "lectura" o "total"). Si no, redirige al
+ * panel que sí puede ver. Permite que un residente/superintendente entre a las
+ * páginas de Administración/Proyectos sin ser admin.
+ */
+export async function requireSectionView(
+  seccion: SeccionSistema,
+): Promise<Session> {
+  const session = await requireSession();
+  const level = await sectionLevel(session, seccion);
+  if (level === "oculto") redirect("/dashboard/empleado");
   return session;
 }
 

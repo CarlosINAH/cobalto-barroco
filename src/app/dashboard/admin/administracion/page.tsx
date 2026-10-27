@@ -1,19 +1,19 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import AdministracionManager from "@/components/administracion/AdministracionManager";
-import { requireAdmin } from "@/lib/auth-server";
+import { requireSectionView } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Administración de obras (hoja OBRAS del Excel). SOLO ADMIN: maneja montos de
- * dinero (contratado, anticipo, egresos, utilidad).
+ * Administración de obras (hoja OBRAS del Excel). Acceso: admin, o quien tenga
+ * la sección "administración" habilitada (lectura/total) en Configuración.
  */
 export default async function AdministracionAdmin() {
-  await requireAdmin();
+  const session = await requireSectionView("administracion");
   const db = await getDB();
   return (
-    <DashboardShell role="admin" title="Administración">
+    <DashboardShell role={session.role} title="Administración">
       <AdministracionManager
         projects={db.projects}
         ledger={db.ledgerEntries}

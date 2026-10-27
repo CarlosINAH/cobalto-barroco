@@ -63,6 +63,23 @@ export async function PATCH(
             }
           : undefined;
     }
+    // Perfil del sistema y acceso por sección (Configuración → Accesos).
+    const PERFILES = ["administracion", "superintendente", "residente", "restaurador"];
+    if (b.perfil !== undefined) {
+      e.perfil = PERFILES.includes(b.perfil as string)
+        ? (b.perfil as typeof e.perfil)
+        : undefined;
+    }
+    if (b.acceso !== undefined) {
+      const src = (b.acceso ?? {}) as Record<string, string>;
+      const next: NonNullable<typeof e.acceso> = {};
+      for (const sec of ["administracion", "proyectos"] as const) {
+        const v = src[sec];
+        if (v === "oculto" || v === "lectura" || v === "total") next[sec] = v;
+      }
+      e.acceso = next;
+    }
+    if (b.papeleraBorrar !== undefined) e.papeleraBorrar = b.papeleraBorrar === true;
     return e;
   });
   if (!updated)
