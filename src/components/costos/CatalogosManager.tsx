@@ -116,12 +116,23 @@ export default function CatalogosManager({
 }
 
 // ─── Materiales (CRUD) ───────────────────────────────────────────────────────
+/** Campos editables de un material (todo menos los de sistema). */
+type MatDraft = {
+  nombre: string;
+  kind: CostMaterial["kind"];
+  categoria: string;
+  precio: string;
+  unidad: string;
+  url: string;
+  nota: string;
+};
+
 function Materiales({ initial }: { initial: CostMaterial[] }) {
   const [items, setItems] = useState(initial);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState<MatDraft | null>(null);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [nuevo, setNuevo] = useState({
@@ -146,20 +157,41 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
     );
   }, [items, q, cat]);
 
-  async function savePrecio(id: string) {
-    const precio = Number(draft);
-    if (!Number.isFinite(precio)) return;
+  function startEdit(m: CostMaterial) {
+    setEditing(m.id);
+    setDraft({
+      nombre: m.nombre,
+      kind: m.kind,
+      categoria: m.categoria || "",
+      precio: String(m.precio),
+      unidad: m.unidad || "",
+      url: m.url || "",
+      nota: m.nota || "",
+    });
+  }
+
+  async function saveEdit(id: string) {
+    if (!draft || !draft.nombre.trim()) return;
     setBusy(true);
     const res = await fetch(`/api/costos/materiales/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ precio }),
+      body: JSON.stringify({
+        nombre: draft.nombre,
+        kind: draft.kind,
+        categoria: draft.categoria,
+        precio: Number(draft.precio) || 0,
+        unidad: draft.unidad,
+        url: draft.url,
+        nota: draft.nota,
+      }),
     });
     setBusy(false);
     if (res.ok) {
       const { material } = await res.json();
       setItems((xs) => xs.map((m) => (m.id === id ? material : m)));
       setEditing(null);
+      setDraft(null);
     }
   }
 
@@ -241,42 +273,70 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((m) => (
-              <tr key={m.id} className="border-b border-[#F5F2EC] hover:bg-[#F5F2EC]/50">
-                <td className="px-4 py-2.5 text-[#2C2C2C]">
-                  {m.url ? (
-                    <a href={m.url} target="_blank" rel="noopener noreferrer" className="hover:text-[#C9A84C] hover:underline">{m.nombre}</a>
-                  ) : (
-                    m.nombre
-                  )}
-                </td>
-                <td className="px-4 py-2.5 text-[#7A7A7A]">{KIND_LABEL[m.kind]}</td>
-                <td className="px-4 py-2.5 text-[#7A7A7A]">{m.categoria || "—"}</td>
-                <td className="px-4 py-2.5 text-right">
-                  {editing === m.id ? (
-                    <div className="flex items-center justify-end gap-1">
-                      <input autoFocus type="number" step="0.01" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && savePrecio(m.id)} className="w-24 border border-[#C9A84C] px-2 py-1 text-right text-sm focus:outline-none" />
-                      <button onClick={() => savePrecio(m.id)} disabled={busy} className="text-[#1B2A5E] hover:text-[#C9A84C]"><Save size={15} /></button>
-                      <button onClick={() => setEditing(null)} className="text-[#7A7A7A] hover:text-red-500"><X size={15} /></button>
+            {filtered.map((m) =>
+              editing === m.id && draft ? (
+                <tr key={m.id} className="border-b border-[#F5F2EC] bg-[#F5F2EC]/40">
+                  <td colSpan={5} className="px-4 py-4">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <label className="text-xs text-[#7A7A7A]">Nombre
+                        <input className={INPUT} value={draft.nombre} onChange={(e) => setDraft({ ...draft, nombre: e.target.value })} />
+                      </label>
+                      <label className="text-xs text-[#7A7A7A]">Tipo
+                        <select className={INPUT} value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value as CostMaterial["kind"] })}>
+                          <option value="material">Material</option>
+                          <option value="herramienta">Herramienta</option>
+                          <option value="equipo">Equipo</option>
+                        </select>
+                      </label>
+                      <label className="text-xs text-[#7A7A7A]">Categoría
+                        <input className={INPUT} value={draft.categoria} onChange={(e) => setDraft({ ...draft, categoria: e.target.value })} list="cats" />
+                      </label>
+                      <label className="text-xs text-[#7A7A7A]">Precio (MXN)
+                        <input className={INPUT} type="number" step="0.01" value={draft.precio} onChange={(e) => setDraft({ ...draft, precio: e.target.value })} />
+                      </label>
+                      <label className="text-xs text-[#7A7A7A]">Unidad
+                        <input className={INPUT} placeholder="p. ej. 1 L" value={draft.unidad} onChange={(e) => setDraft({ ...draft, unidad: e.target.value })} />
+                      </label>
+                      <label className="text-xs text-[#7A7A7A]">URL de compra
+                        <input className={INPUT} type="url" placeholder="https://…" value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
+                      </label>
+                      <label className="text-xs text-[#7A7A7A] sm:col-span-2 lg:col-span-3">Nota
+                        <input className={INPUT} placeholder="Observaciones (p. ej. enlace caducado, proveedor alterno…)" value={draft.nota} onChange={(e) => setDraft({ ...draft, nota: e.target.value })} />
+                      </label>
                     </div>
-                  ) : (
-                    <button onClick={() => { setEditing(m.id); setDraft(String(m.precio)); }} className="inline-flex items-center gap-1.5 font-medium text-[#1B2A5E] hover:text-[#C9A84C] data-label">
-                      {money(m.precio)} <Pencil size={12} className="opacity-40" />
-                    </button>
-                  )}
-                </td>
-                <td className="px-4 py-2.5 text-right">
-                  <button onClick={() => borrar(m.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={15} /></button>
-                </td>
-              </tr>
-            ))}
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => saveEdit(m.id)} disabled={busy} className={BTN_PRIMARY}><Save size={14} /> Guardar</button>
+                      <button onClick={() => { setEditing(null); setDraft(null); }} className="px-4 py-2.5 text-xs tracking-widest uppercase text-[#7A7A7A] hover:text-[#1B2A5E]">Cancelar</button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={m.id} className="border-b border-[#F5F2EC] hover:bg-[#F5F2EC]/50">
+                  <td className="px-4 py-2.5 text-[#2C2C2C]">
+                    {m.url ? (
+                      <a href={m.url} target="_blank" rel="noopener noreferrer" className="hover:text-[#C9A84C] hover:underline">{m.nombre}</a>
+                    ) : (
+                      m.nombre
+                    )}
+                    {m.nota && <span className="block text-xs text-[#7A7A7A] mt-0.5">{m.nota}</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-[#7A7A7A]">{KIND_LABEL[m.kind]}</td>
+                  <td className="px-4 py-2.5 text-[#7A7A7A]">{m.categoria || "—"}</td>
+                  <td className="px-4 py-2.5 text-right font-medium text-[#1B2A5E] data-label">{money(m.precio)}</td>
+                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                    <button onClick={() => startEdit(m)} className="text-[#7A7A7A] hover:text-[#1B2A5E] mr-3" title="Editar material"><Pencil size={15} /></button>
+                    <button onClick={() => borrar(m.id)} className="text-[#7A7A7A] hover:text-red-500" title="Eliminar"><Trash2 size={15} /></button>
+                  </td>
+                </tr>
+              ),
+            )}
             {filtered.length === 0 && (
               <tr><td colSpan={5} className="px-4 py-12 text-center text-[#7A7A7A]">Sin resultados.</td></tr>
             )}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-[#7A7A7A] mt-2">{filtered.length} de {items.length} materiales. Editar un precio recalcula recetas y conceptos que lo usan.</p>
+      <p className="text-xs text-[#7A7A7A] mt-2">{filtered.length} de {items.length} materiales. El lapicito edita todos los datos (nombre, tipo, categoría, precio, unidad, enlace y nota). Cambiar el precio recalcula recetas y conceptos que lo usan.</p>
     </div>
   );
 }
