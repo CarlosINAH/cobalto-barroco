@@ -1,5 +1,5 @@
 import "server-only";
-import type { Budget, Project } from "@/lib/db";
+import type { Budget, Project, CVEntry } from "@/lib/db";
 import { LOGO_JPEG_B64, LOGO_W, LOGO_H } from "@/lib/constancia-logo";
 
 /**
@@ -218,6 +218,71 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   y -= 28;
   p.text(56, Math.max(y, 60), 8, "El presupuesto tiene una vigencia de 15 días. Precios en pesos mexicanos (MXN).");
 
+  return serialize(p.end(), p.images);
+}
+
+/** Construye el PDF del currículum de la empresa (participación en proyectos). */
+export function buildCVPdf(entries: CVEntry[]): Buffer {
+  const p = new Painter();
+  p.newPage();
+  const L = 56, R = 556, W = R - L;
+
+  // Envuelve un texto en líneas que caben en `maxW`.
+  function wrap(s: string, size: number, maxW: number): string[] {
+    const out: string[] = [];
+    let cur = "";
+    for (const w of s.split(/\s+/)) {
+      const t = cur ? `${cur} ${w}` : w;
+      if (textWidth(t, size) > maxW && cur) { out.push(cur); cur = w; } else cur = t;
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+
+  // Encabezado con logo.
+  const logoW = 150, logoH = (logoW * LOGO_H) / LOGO_W;
+  p.image(LOGO_JPEG_B64, L, 760 - logoH, logoW, logoH);
+  p.text(R - textWidth("CURRÍCULUM", 20), 748, 20, "CURRÍCULUM", true, NAVY);
+  p.rtext(R, 732, 9, "Cobalto Barroco · Restauración artística y arquitectónica", false, GRAY);
+  p.rtext(R, 720, 9, `Participación en proyectos · ${entries.length} intervenciones`, false, GRAY);
+  p.line(L, 712, R, 712, NAVY, 0.7);
+
+  let y = 760 - logoH - 14;
+  if (y > 696) y = 696;
+
+  const ensure = (need: number) => {
+    if (y - need < 60) { p.newPage(); y = 756; }
+  };
+
+  // Agrupa por año (desc).
+  const years = [...new Set(entries.map((e) => e.anio))].sort((a, b) => b - a);
+  for (const year of years) {
+    ensure(26);
+    p.rect(L, y - 4, W, 18, "#F2EEE4");
+    p.text(L + 6, y, 12, String(year), true, NAVY);
+    y -= 26;
+
+    for (const e of entries.filter((x) => x.anio === year)) {
+      // Altura estimada del bloque.
+      const desc = e.descripcion ? wrap(e.descripcion, 8.5, W - 10) : [];
+      const need = 16 + (desc.length * 11) + (e.colaboracion ? 12 : 0) + 8;
+      ensure(need);
+
+      const titulo = `${e.clave ? e.clave + " · " : ""}${e.titulo}`;
+      for (const [i, ln] of wrap(titulo, 10, W).entries()) {
+        p.text(L, y, 10, ln, true, "#2C2C2C");
+        if (i === 0 && e.fecha) p.rtext(R, y, 9, e.fecha, false, GRAY);
+        y -= 13;
+      }
+      const meta = [e.sitio, e.lugar, e.tipoBien, e.clasificacion].filter(Boolean).join(" · ");
+      if (meta) { for (const ln of wrap(meta, 8.5, W)) { p.text(L, y, 8.5, ln, false, NAVY); y -= 11; } }
+      for (const ln of desc) { p.text(L + 10, y, 8.5, ln, false, "#555555"); y -= 11; }
+      if (e.colaboracion) { p.text(L + 10, y, 8, e.colaboracion, false, GRAY); y -= 12; }
+      y -= 8;
+    }
+  }
+
+  if (entries.length === 0) p.text(L, y, 10, "Sin intervenciones registradas todavía.", false, GRAY);
   return serialize(p.end(), p.images);
 }
 

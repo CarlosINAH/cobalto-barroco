@@ -19,6 +19,7 @@ const NIVELES: { id: AccesoNivel; label: string }[] = [
 const SECCIONES: { id: SeccionSistema; label: string }[] = [
   { id: "administracion", label: "Administración" },
   { id: "proyectos", label: "Proyectos / Presupuesto" },
+  { id: "cv", label: "Currículum" },
 ];
 
 // Niveles de carpeta (mismo modelo que Permisos de carpetas).
