@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import Logo from "@/components/brand/Logo";
 import {
   LayoutDashboard,
-  Users,
   HardDrive,
   Trash2,
   ChevronLeft,
@@ -45,7 +44,6 @@ const empleadoNav: NavItem[] = [
 const adminNav: NavItem[] = [
   { icon: LayoutDashboard, label: "Panel general", href: "/dashboard/admin" },
   { icon: CalendarDays, label: "Calendario", href: "/dashboard/admin/calendario" },
-  { icon: Users, label: "Personal y permisos", href: "/dashboard/admin/personal" },
   { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
   { icon: Boxes, label: "Fichas de piezas", href: "/dashboard/admin/fichas" },
   { icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" },
