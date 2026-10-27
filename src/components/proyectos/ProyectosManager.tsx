@@ -8,6 +8,7 @@ import {
   CalendarRange,
   Wallet,
   Users,
+  UserPlus,
   ChevronLeft,
   MapPin,
   ArrowRight,
@@ -26,6 +27,14 @@ import type {
 } from "@/lib/db";
 import { budgetTotals } from "@/lib/pu";
 import { Builder as PresupuestoCarrito, type CatalogProps } from "@/components/presupuesto/PresupuestoManager";
+
+/** Empleado (lista para Participantes). */
+export interface EmpleadoLite {
+  id: string;
+  nombre: string;
+  rol: string;
+  proyectoIds: string[];
+}
 
 /** Concepto de la biblioteca, con su P.U. y desglose por tipo ya calculados. */
 export interface ConceptoLite {
@@ -55,6 +64,7 @@ type SubTab =
   | "cronograma"
   | "balance"
   | "administracion"
+  | "participantes"
   | "nomina";
 
 const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
@@ -63,6 +73,7 @@ const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: "cronograma", label: "Cronograma", icon: CalendarRange },
   { id: "balance", label: "Balance", icon: Scale },
   { id: "administracion", label: "Administración", icon: Wallet },
+  { id: "participantes", label: "Participantes", icon: UserPlus },
   { id: "nomina", label: "Nómina", icon: Users },
 ];
 
@@ -85,6 +96,7 @@ export default function ProyectosManager({
   conceptos,
   ledger,
   payroll,
+  empleados,
   catalog,
 }: {
   proyectos: Project[];
@@ -92,6 +104,7 @@ export default function ProyectosManager({
   conceptos: ConceptoLite[];
   ledger: LedgerEntry[];
   payroll: PayrollEntry[];
+  empleados: EmpleadoLite[];
   catalog: CatalogProps;
 }) {
   const [selId, setSelId] = useState<string | null>(null);
@@ -105,6 +118,7 @@ export default function ProyectosManager({
         budgetInicial={budgets.find((b) => b.projectId === sel.id) || null}
         conceptos={conceptos}
         catalog={catalog}
+        empleados={empleados}
         ledgerInicial={ledger.filter((e) => e.projectId === sel.id)}
         payrollInicial={payroll.filter((e) => e.projectId === sel.id)}
         onBack={() => setSelId(null)}
@@ -165,6 +179,7 @@ function ProyectoDetalle({
   budgetInicial,
   conceptos,
   catalog,
+  empleados,
   ledgerInicial,
   payrollInicial,
   onBack,
@@ -173,6 +188,7 @@ function ProyectoDetalle({
   budgetInicial: Budget | null;
   conceptos: ConceptoLite[];
   catalog: CatalogProps;
+  empleados: EmpleadoLite[];
   ledgerInicial: LedgerEntry[];
   payrollInicial: PayrollEntry[];
   onBack: () => void;
@@ -216,7 +232,8 @@ function ProyectoDetalle({
       {tab === "cronograma" && <Cronograma budget={budget} onChange={setBudget} />}
       {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} />}
       {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} catalog={catalog} />}
-      {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} catalog={catalog} />}
+      {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} />}
+      {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} empleados={empleados} catalog={catalog} />}
     </div>
   );
 }
@@ -474,6 +491,21 @@ function diaLaborable(start: Date, descanso: Set<number>, n: number): Date {
 
 const fmtDia = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
 
+/** A partir de una fecha, deriva la quincena: periodo "YYYY-MM Q1|Q2", días de
+ *  la quincena (calendario) y la fecha representativa (fin de quincena). */
+function quincenaDe(fechaISO: string): { periodo: string; diasQuincena: number; fecha: string } {
+  const d = new Date(fechaISO + "T00:00:00");
+  const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+  const diasMes = new Date(y, m + 1, 0).getDate();
+  const q = day <= 15 ? 1 : 2;
+  const ym = `${y}-${String(m + 1).padStart(2, "0")}`;
+  return {
+    periodo: `${ym} Q${q}`,
+    diasQuincena: q === 1 ? 15 : diasMes - 15,
+    fecha: q === 1 ? `${ym}-15` : `${ym}-${String(diasMes).padStart(2, "0")}`,
+  };
+}
+
 function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b: Budget) => void }) {
   const [personas, setPersonas] = useState(budget?.personas ?? 2);
   const [inicioStr, setInicioStr] = useState(budget?.cronoInicio || new Date().toISOString().slice(0, 10));
@@ -717,14 +749,97 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
   );
 }
 
+// ─── Participantes del proyecto ──────────────────────────────────────────────
+// Selecciona empleados de la lista; quedan ligados al proyecto (aparece en su
+// panel general) y su rol define la tarifa diaria para la nómina quincenal.
+function tarifaDiaria(rol: string, salarios: CatalogProps["salarios"]): number | null {
+  const s = salarios.find((x) => x.rol.trim().toLowerCase() === (rol || "").trim().toLowerCase());
+  return s ? s.jornada : null;
+}
+
+function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; empleados: EmpleadoLite[]; catalog: CatalogProps }) {
+  const [emps, setEmps] = useState<EmpleadoLite[]>(empleados);
+  const [sel, setSel] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const participa = (e: EmpleadoLite) => e.proyectoIds.includes(proyecto.id);
+  const participantes = emps.filter(participa);
+  const disponibles = emps.filter((e) => !participa(e));
+
+  async function guardarIds(emp: EmpleadoLite, ids: string[]) {
+    setBusy(true);
+    const res = await fetch(`/api/employees/${emp.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proyectoIds: ids }),
+    });
+    setBusy(false);
+    if (res.ok) setEmps((xs) => xs.map((x) => (x.id === emp.id ? { ...x, proyectoIds: ids } : x)));
+  }
+  function agregar() {
+    const emp = emps.find((e) => e.id === sel);
+    if (!emp || participa(emp)) return;
+    guardarIds(emp, [...emp.proyectoIds, proyecto.id]);
+    setSel("");
+  }
+  function quitar(emp: EmpleadoLite) {
+    if (!confirm(`¿Quitar a ${emp.nombre} de este proyecto?`)) return;
+    guardarIds(emp, emp.proyectoIds.filter((id) => id !== proyecto.id));
+  }
+
+  return (
+    <div>
+      <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
+        <label className="text-xs text-[#7A7A7A] flex flex-col gap-1 flex-1 min-w-[220px]">Agregar participante
+          <select value={sel} onChange={(e) => setSel(e.target.value)} className={INPUT}>
+            <option value="">Elegir empleado…</option>
+            {disponibles.map((e) => <option key={e.id} value={e.id}>{e.nombre}{e.rol ? ` · ${e.rol}` : ""}</option>)}
+          </select>
+        </label>
+        <button onClick={agregar} disabled={busy || !sel} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
+      </div>
+
+      <div className={`${CARD} overflow-x-auto`}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+              <th className="px-3 py-3 font-semibold">Participante</th>
+              <th className="px-3 py-3 font-semibold">Rol</th>
+              <th className="px-3 py-3 font-semibold text-right">Tarifa diaria</th>
+              <th className="px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {participantes.map((e) => {
+              const diaria = tarifaDiaria(e.rol, catalog.salarios);
+              return (
+                <tr key={e.id} className="border-b border-[#F5F2EC]">
+                  <td className="px-3 py-2 text-[#2C2C2C]">{e.nombre}</td>
+                  <td className="px-3 py-2 text-[#7A7A7A]">{e.rol || "—"}</td>
+                  <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{diaria != null ? money(diaria) : "—"}</td>
+                  <td className="px-3 py-2 text-right"><button onClick={() => quitar(e)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
+                </tr>
+              );
+            })}
+            {participantes.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-[#7A7A7A]">Sin participantes. Agrega empleados para que vean este proyecto y entren a la nómina quincenal.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[#7A7A7A] mt-2">La tarifa diaria viene del catálogo de salarios según el rol. En Nómina usa «Generar quincena» para crear los pagos de los participantes.</p>
+    </div>
+  );
+}
+
 // ─── Nómina del proyecto ─────────────────────────────────────────────────────
-function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: PayrollEntry[]; catalog: CatalogProps }) {
+function Nomina({ proyecto, inicial, empleados, catalog }: { proyecto: Project; inicial: PayrollEntry[]; empleados: EmpleadoLite[]; catalog: CatalogProps }) {
   const [items, setItems] = useState<PayrollEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ persona: "", rol: "", periodo: "", monto: "" });
   const [verRol, setVerRol] = useState("");
   const [verPeriodo, setVerPeriodo] = useState("");
   const [verPagado, setVerPagado] = useState<"" | "si" | "no">("");
+  const [genFecha, setGenFecha] = useState(new Date().toISOString().slice(0, 10));
+
+  const participantes = empleados.filter((e) => e.proyectoIds.includes(proyecto.id));
 
   // Enlace con el catálogo de salarios: elegir un rol prellena rol y monto
   // (jornada de 8 h). El usuario puede ajustar el monto según el periodo.
@@ -732,6 +847,39 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
     const s = catalog.salarios.find((x) => x.id === id);
     if (!s) return;
     setF((prev) => ({ ...prev, rol: s.rol, monto: String(s.jornada) }));
+  }
+
+  // Genera los pagos de la quincena para los participantes que aún no la tienen.
+  async function generarQuincena() {
+    const { periodo, diasQuincena, fecha } = quincenaDe(genFecha);
+    if (participantes.length === 0) { alert("Agrega participantes al proyecto primero (pestaña Participantes)."); return; }
+    setBusy(true);
+    const nuevos: PayrollEntry[] = [];
+    for (const emp of participantes) {
+      const yaExiste = items.some((e) => e.periodo === periodo && (e.employeeId === emp.id || e.persona === emp.nombre));
+      if (yaExiste) continue;
+      const diaria = tarifaDiaria(emp.rol, catalog.salarios) ?? 0;
+      const res = await fetch("/api/costos/payroll", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: proyecto.id, persona: emp.nombre, rol: emp.rol, periodo, fecha,
+          categoria: "nómina", employeeId: emp.id, diaria, diasQuincena, diasTrabajados: diasQuincena, descuento: 0, pagado: false,
+        }),
+      });
+      if (res.ok) nuevos.push((await res.json()).entry);
+    }
+    setBusy(false);
+    if (nuevos.length) setItems((xs) => [...xs, ...nuevos]);
+    else alert(`La quincena ${periodo} ya estaba generada para todos los participantes.`);
+  }
+
+  // Edita un campo quincenal; el servidor recalcula el monto y devuelve la fila.
+  async function patchCampo(e: PayrollEntry, campo: keyof PayrollEntry, valor: number) {
+    const res = await fetch(`/api/costos/payroll/${e.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [campo]: valor }),
+    });
+    if (res.ok) { const { entry } = await res.json(); setItems((xs) => xs.map((x) => (x.id === e.id ? entry : x))); }
   }
 
   async function crear() {
@@ -773,6 +921,16 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
         <Stat label="Pagado" val={money(pagado)} />
         <Stat label="Por pagar" val={money(total - pagado)} />
       </div>
+
+      {/* Generar la quincena para los participantes del proyecto */}
+      <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-3`}>
+        <label className="text-xs text-[#7A7A7A] flex flex-col gap-1">Quincena (por fecha)
+          <input type="date" value={genFecha} onChange={(e) => setGenFecha(e.target.value)} className={INPUT + " w-44"} />
+        </label>
+        <span className="text-xs text-[#7A7A7A] pb-2">→ {quincenaDe(genFecha).periodo} · {quincenaDe(genFecha).diasQuincena} días · {participantes.length} participante(s)</span>
+        <button onClick={generarQuincena} disabled={busy} className={BTN_PRIMARY}><Users size={14} /> Generar quincena</button>
+      </div>
+
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
         <input placeholder="Persona" value={f.persona} onChange={(e) => setF({ ...f, persona: e.target.value })} className={INPUT + " flex-1 min-w-[160px]"} />
         {catalog.salarios.length > 0 && (
@@ -821,25 +979,55 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
               <th className="px-3 py-3 font-semibold">Persona</th>
               <th className="px-3 py-3 font-semibold">Rol</th>
               <th className="px-3 py-3 font-semibold">Periodo</th>
+              <th className="px-3 py-3 font-semibold text-right">Diaria</th>
+              <th className="px-3 py-3 font-semibold text-right">Días</th>
+              <th className="px-3 py-3 font-semibold text-right">Descuento</th>
               <th className="px-3 py-3 font-semibold text-right">Monto</th>
               <th className="px-3 py-3 font-semibold text-center">Pagado</th>
               <th className="px-3 py-3" />
             </tr>
           </thead>
           <tbody>
-            {visibles.map((e) => (
+            {visibles.map((e) => {
+              const quincenal = e.diaria != null;
+              return (
               <tr key={e.id} className="border-b border-[#F5F2EC]">
                 <td className="px-3 py-2 text-[#2C2C2C]">{e.persona}</td>
                 <td className="px-3 py-2 text-[#7A7A7A]">{e.rol || "—"}</td>
                 <td className="px-3 py-2 text-[#7A7A7A] data-label">{e.periodo || "—"}</td>
-                <td className="px-3 py-2 text-right data-label">{money(e.monto)}</td>
+                <td className="px-3 py-2 text-right data-label">
+                  {quincenal ? (
+                    <input key={`d-${e.id}-${e.diaria}`} type="number" step="0.01" defaultValue={e.diaria}
+                      onBlur={(ev) => { const v = Number(ev.target.value) || 0; if (v !== e.diaria) patchCampo(e, "diaria", v); }}
+                      className="w-20 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]" />
+                  ) : <span className="text-[#C0BDB8]">—</span>}
+                </td>
+                <td className="px-3 py-2 text-right data-label whitespace-nowrap">
+                  {quincenal ? (
+                    <span className="inline-flex items-center gap-1">
+                      <input key={`dt-${e.id}-${e.diasTrabajados}`} type="number" step="1" min="0" defaultValue={e.diasTrabajados ?? e.diasQuincena ?? 0}
+                        onBlur={(ev) => { const v = Number(ev.target.value) || 0; if (v !== (e.diasTrabajados ?? e.diasQuincena)) patchCampo(e, "diasTrabajados", v); }}
+                        className="w-14 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]" title="Días trabajados" />
+                      <span className="text-[#7A7A7A] text-xs">/{e.diasQuincena ?? "—"}</span>
+                    </span>
+                  ) : <span className="text-[#C0BDB8]">—</span>}
+                </td>
+                <td className="px-3 py-2 text-right data-label">
+                  {quincenal ? (
+                    <input key={`ds-${e.id}-${e.descuento}`} type="number" step="0.01" min="0" defaultValue={e.descuento ?? 0}
+                      onBlur={(ev) => { const v = Number(ev.target.value) || 0; if (v !== (e.descuento ?? 0)) patchCampo(e, "descuento", v); }}
+                      className="w-20 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]" />
+                  ) : <span className="text-[#C0BDB8]">—</span>}
+                </td>
+                <td className="px-3 py-2 text-right data-label font-medium text-[#1B2A5E]">{money(e.monto)}</td>
                 <td className="px-3 py-2 text-center">
                   <button onClick={() => togglePagado(e)} className={`text-xs px-2 py-0.5 border ${e.pagado ? "bg-green-50 text-green-700 border-green-200" : "bg-[#F5F2EC] text-[#7A7A7A] border-[#EDE9E0]"}`}>{e.pagado ? "Sí" : "No"}</button>
                 </td>
                 <td className="px-3 py-2 text-right"><button onClick={() => borrar(e.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
               </tr>
-            ))}
-            {visibles.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-[#7A7A7A]">{items.length === 0 ? "Sin pagos registrados." : "Sin resultados para el filtro."}</td></tr>}
+              );
+            })}
+            {visibles.length === 0 && <tr><td colSpan={9} className="px-3 py-8 text-center text-[#7A7A7A]">{items.length === 0 ? "Sin pagos registrados." : "Sin resultados para el filtro."}</td></tr>}
           </tbody>
         </table>
       </div>

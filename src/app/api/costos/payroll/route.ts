@@ -33,6 +33,14 @@ export async function POST(req: Request) {
   const persona = (b.persona || "").trim();
   if (!persona)
     return NextResponse.json({ error: "Falta la persona." }, { status: 400 });
+  const diaria = b.diaria != null ? Number(b.diaria) || 0 : undefined;
+  const diasQuincena = b.diasQuincena != null ? Number(b.diasQuincena) || 0 : undefined;
+  const diasTrabajados = b.diasTrabajados != null ? Number(b.diasTrabajados) || 0 : undefined;
+  const descuento = b.descuento != null ? Number(b.descuento) || 0 : undefined;
+  // Si viene la tarifa diaria, el monto se calcula (diaria × días − descuento).
+  const monto = diaria != null
+    ? diaria * (diasTrabajados ?? diasQuincena ?? 0) - (descuento ?? 0)
+    : Number(b.monto) || 0;
   const entry: PayrollEntry = {
     id: newId("NOM"),
     projectId,
@@ -41,9 +49,14 @@ export async function POST(req: Request) {
     periodo: (b.periodo || "").trim(),
     fecha: (b.fecha || "").trim() || undefined,
     categoria: (b.categoria || "").trim() || undefined,
-    monto: Number(b.monto) || 0,
+    monto,
     pagado: b.pagado === true,
     nota: (b.nota || "").trim() || undefined,
+    employeeId: b.employeeId ? String(b.employeeId) : undefined,
+    diaria,
+    diasQuincena,
+    diasTrabajados,
+    descuento,
     createdAt: Date.now(),
   };
   await mutate((db) => db.payrollEntries.push(entry));
