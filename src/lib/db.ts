@@ -523,6 +523,17 @@ export interface PayrollEntry {
   pagado: boolean;
   nota?: string;
   createdAt: number;
+  // ── Nómina quincenal por proyecto (edición por día + descuentos) ──
+  /** Empleado ligado (participante del proyecto), si viene de Participantes. */
+  employeeId?: string | null;
+  /** Tarifa diaria (jornada). */
+  diaria?: number;
+  /** Días hábiles de la quincena. */
+  diasQuincena?: number;
+  /** Días efectivamente trabajados. */
+  diasTrabajados?: number;
+  /** Descuentos aplicados (MXN). */
+  descuento?: number;
 }
 
 export interface DBShape {

@@ -46,6 +46,10 @@ export default async function ProyectosAdmin() {
           conceptos,
           ledger: db.ledgerEntries,
           payroll: db.payrollEntries,
+          empleados: db.employees.map((e) => ({
+            id: e.id, nombre: e.nombre, rol: e.rol,
+            proyectoIds: e.proyectoIds?.length ? e.proyectoIds : (e.proyectoId ? [e.proyectoId] : []),
+          })),
           catalog: {
             materiales: db.costMaterials,
             recetas,

@@ -2,7 +2,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
-import { HardDrive, Share2, Settings, ArrowRight, FolderKanban } from "lucide-react";
+import { HardDrive, Share2, Settings, ArrowRight, FolderKanban, MapPin } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -51,18 +51,23 @@ export default async function PanelGeneralEmpleado() {
         </h3>
         {misProyectos.length === 0 ? (
           <div className="bg-white border border-[#EDE9E0] p-5 text-sm text-[#7A7A7A]">
-            Aún no tienes proyectos asignados. Cuando administración te asigne a una
-            obra, aparecerá aquí.
+            Aún no tienes proyectos asignados. Cuando administración te agregue como
+            participante de una obra, aparecerá aquí.
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {misProyectos.map((p) => (
-              <div key={p.id} className="bg-white border border-[#EDE9E0] p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-[#2C2C2C] font-medium text-sm">{p.nombre}</p>
-                  <span className={`text-[11px] px-2 py-0.5 border ${ESTADO_CLS[p.estado] || ""}`}>{p.estado}</span>
+              <div key={p.id} className="bg-white border border-[#EDE9E0] p-4 flex flex-col">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="text-[#1B2A5E] font-semibold text-sm leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>{p.nombre}</p>
+                  <span className={`text-[11px] px-2 py-0.5 border shrink-0 ${ESTADO_CLS[p.estado] || ""}`}>{p.estado}</span>
                 </div>
-                {p.ubicacion && <p className="text-[#7A7A7A] text-xs mt-1">{p.ubicacion}</p>}
+                {p.ubicacion && <p className="flex items-center gap-1 text-[#7A7A7A] text-xs"><MapPin size={11} /> {p.ubicacion}</p>}
+                {emp?.rol && <p className="text-[#7A7A7A] text-xs mt-1">Tu rol: <span className="text-[#2C2C2C]">{emp.rol}</span></p>}
+                <div className="mt-3 h-1.5 bg-[#F5F2EC] overflow-hidden">
+                  <div className="h-full bg-[#C9A84C]" style={{ width: `${Math.min(100, Math.max(0, p.avance))}%` }} />
+                </div>
+                <p className="text-[11px] text-[#7A7A7A] mt-1 data-label">{p.avance}% avance</p>
               </div>
             ))}
           </div>
