@@ -21,6 +21,10 @@ export async function GET() {
     rol: emp?.rol || "",
     email: emp?.email || "",
     telefono: emp?.telefono || "",
+    tipoSangre: emp?.tipoSangre || "",
+    enfermedades: emp?.enfermedades || "",
+    emergenciaNombre: emp?.emergenciaNombre || "",
+    emergenciaTel: emp?.emergenciaTel || "",
   });
 }
 
@@ -30,7 +34,10 @@ export async function PATCH(req: Request) {
   if (!session)
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
-  let b: { email?: string; telefono?: string };
+  let b: {
+    email?: string; telefono?: string;
+    tipoSangre?: string; enfermedades?: string; emergenciaNombre?: string; emergenciaTel?: string;
+  };
   try {
     b = await req.json();
   } catch {
@@ -38,6 +45,12 @@ export async function PATCH(req: Request) {
   }
   const email = (b.email || "").trim();
   const telefono = (b.telefono || "").trim();
+  const seg = {
+    tipoSangre: (b.tipoSangre || "").trim() || undefined,
+    enfermedades: (b.enfermedades || "").trim() || undefined,
+    emergenciaNombre: (b.emergenciaNombre || "").trim() || undefined,
+    emergenciaTel: (b.emergenciaTel || "").trim() || undefined,
+  };
   if (email && !EMAIL_RE.test(email)) {
     return NextResponse.json(
       { error: "El correo electrónico no es válido." },
@@ -52,6 +65,10 @@ export async function PATCH(req: Request) {
     if (emp) {
       emp.email = email;
       emp.telefono = telefono;
+      emp.tipoSangre = seg.tipoSangre;
+      emp.enfermedades = seg.enfermedades;
+      emp.emergenciaNombre = seg.emergenciaNombre;
+      emp.emergenciaTel = seg.emergenciaTel;
       return emp;
     }
     // El usuario aún no tiene ficha (p. ej. admin): la creamos con sus datos.
@@ -65,6 +82,7 @@ export async function PATCH(req: Request) {
       ranking: 0,
       habilidades: [],
       proyectoId: null,
+      ...seg,
       createdAt: Date.now(),
     };
     db.employees.push(nuevo);

@@ -28,6 +28,10 @@ export async function PATCH(
     if (b.nombre !== undefined) e.nombre = b.nombre.trim();
     if (b.email !== undefined) e.email = b.email.trim();
     if (b.telefono !== undefined) e.telefono = b.telefono.trim();
+    if (b.tipoSangre !== undefined) e.tipoSangre = b.tipoSangre.trim() || undefined;
+    if (b.enfermedades !== undefined) e.enfermedades = b.enfermedades.trim() || undefined;
+    if (b.emergenciaNombre !== undefined) e.emergenciaNombre = b.emergenciaNombre.trim() || undefined;
+    if (b.emergenciaTel !== undefined) e.emergenciaTel = b.emergenciaTel.trim() || undefined;
     if (b.rol !== undefined) e.rol = b.rol.trim();
     if (b.ranking !== undefined)
       e.ranking = Math.max(0, Math.min(100, Number(b.ranking) || 0));

@@ -18,6 +18,7 @@ import {
   Award,
   Lock,
   Check,
+  HeartPulse,
 } from "lucide-react";
 
 interface Project {
@@ -39,6 +40,10 @@ interface Employee {
   nombre: string;
   email: string;
   telefono?: string;
+  tipoSangre?: string;
+  enfermedades?: string;
+  emergenciaNombre?: string;
+  emergenciaTel?: string;
   rol: string;
   ranking: number;
   habilidades: string[];
@@ -242,6 +247,27 @@ export default function PersonalManager({
                   </div>
                 </div>
               )}
+              {(e.tipoSangre || e.emergenciaNombre || e.emergenciaTel || e.enfermedades) && (
+                <div className="mt-3 pt-3 border-t border-[#EDE9E0]">
+                  <p className="flex items-center gap-1.5 text-[#7A7A7A] text-xs uppercase tracking-wider mb-2">
+                    <HeartPulse size={11} className="text-[#C9A84C]" /> Hoja de seguridad
+                  </p>
+                  <div className="space-y-1 text-xs text-[#2C2C2C]">
+                    {e.tipoSangre && (
+                      <p><span className="text-[#7A7A7A]">Sangre:</span> {e.tipoSangre}</p>
+                    )}
+                    {(e.emergenciaNombre || e.emergenciaTel) && (
+                      <p>
+                        <span className="text-[#7A7A7A]">Emergencia:</span>{" "}
+                        {[e.emergenciaNombre, e.emergenciaTel].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                    {e.enfermedades && (
+                      <p><span className="text-[#7A7A7A]">Padecimientos:</span> {e.enfermedades}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -368,6 +394,53 @@ function EmployeeModal({
               onChange={(e) => set("rol", e.target.value)}
               placeholder="Restaurador — Especialista en dorado"
             />
+          </div>
+
+          {/* Hoja de seguridad */}
+          <div className="pt-4 mt-2 border-t border-[#EDE9E0]">
+            <p className="flex items-center gap-1.5 text-[#1B2A5E] text-xs font-semibold uppercase tracking-wider mb-3">
+              <HeartPulse size={13} className="text-[#C9A84C]" /> Hoja de seguridad
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={label}>Tipo de sangre</label>
+                <input
+                  className={field}
+                  value={(form.tipoSangre as string) || ""}
+                  onChange={(e) => set("tipoSangre", e.target.value)}
+                  placeholder="O+, A-, …"
+                />
+              </div>
+              <div>
+                <label className={label}>Teléfono de emergencia</label>
+                <input
+                  type="tel"
+                  className={field}
+                  value={(form.emergenciaTel as string) || ""}
+                  onChange={(e) => set("emergenciaTel", e.target.value)}
+                  placeholder="+52 55 0000 0000"
+                />
+              </div>
+            </div>
+            <div className="mt-4">
+              <label className={label}>Contacto de emergencia</label>
+              <input
+                className={field}
+                value={(form.emergenciaNombre as string) || ""}
+                onChange={(e) => set("emergenciaNombre", e.target.value)}
+                placeholder="Nombre y parentesco"
+              />
+            </div>
+            <div className="mt-4">
+              <label className={label}>Enfermedades, alergias o padecimientos</label>
+              <textarea
+                className={`${field} resize-y`}
+                rows={2}
+                value={(form.enfermedades as string) || ""}
+                onChange={(e) => set("enfermedades", e.target.value)}
+                placeholder="Diabetes, alergia a penicilina, etc. (opcional)"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

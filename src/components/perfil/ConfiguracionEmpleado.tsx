@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, Phone, User, Loader2, Check, AlertCircle, KeyRound } from "lucide-react";
+import { Mail, Phone, User, Loader2, Check, AlertCircle, KeyRound, HeartPulse } from "lucide-react";
 
 export default function ConfiguracionEmpleado() {
   const [nombre, setNombre] = useState("");
   const [rol, setRol] = useState("");
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [tipoSangre, setTipoSangre] = useState("");
+  const [enfermedades, setEnfermedades] = useState("");
+  const [emergenciaNombre, setEmergenciaNombre] = useState("");
+  const [emergenciaTel, setEmergenciaTel] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -22,6 +26,10 @@ export default function ConfiguracionEmpleado() {
           setRol(d.rol || "");
           setEmail(d.email || "");
           setTelefono(d.telefono || "");
+          setTipoSangre(d.tipoSangre || "");
+          setEnfermedades(d.enfermedades || "");
+          setEmergenciaNombre(d.emergenciaNombre || "");
+          setEmergenciaTel(d.emergenciaTel || "");
         }
       })
       .catch(() => {})
@@ -37,7 +45,7 @@ export default function ConfiguracionEmpleado() {
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, telefono }),
+        body: JSON.stringify({ email, telefono, tipoSangre, enfermedades, emergenciaNombre, emergenciaTel }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -115,6 +123,78 @@ export default function ConfiguracionEmpleado() {
               onChange={(e) => setTelefono(e.target.value)}
               placeholder="+52 55 0000 0000"
               className={field}
+            />
+          </div>
+        </div>
+
+        {/* Hoja de seguridad */}
+        <div className="pt-4 mt-2 border-t border-[#EDE9E0]">
+          <div className="flex items-center gap-2 mb-1">
+            <HeartPulse size={16} className="text-[#C9A84C]" />
+            <h4 className="text-[#1B2A5E] text-base" style={{ fontFamily: "var(--font-playfair)" }}>
+              Hoja de seguridad
+            </h4>
+          </div>
+          <p className="text-[#7A7A7A] text-xs mb-4">
+            Datos de emergencia. Solo se usan si ocurre un incidente en obra.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={label} htmlFor="cfg-sangre">Tipo de sangre</label>
+              <div className="relative">
+                <HeartPulse size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+                <input
+                  id="cfg-sangre"
+                  type="text"
+                  value={tipoSangre}
+                  onChange={(e) => setTipoSangre(e.target.value)}
+                  placeholder="O+, A-, …"
+                  className={field}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={label} htmlFor="cfg-emg-tel">Teléfono de emergencia</label>
+              <div className="relative">
+                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+                <input
+                  id="cfg-emg-tel"
+                  type="tel"
+                  value={emergenciaTel}
+                  onChange={(e) => setEmergenciaTel(e.target.value)}
+                  placeholder="+52 55 0000 0000"
+                  className={field}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className={label} htmlFor="cfg-emg-nombre">Contacto de emergencia</label>
+            <div className="relative">
+              <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+              <input
+                id="cfg-emg-nombre"
+                type="text"
+                value={emergenciaNombre}
+                onChange={(e) => setEmergenciaNombre(e.target.value)}
+                placeholder="Nombre y parentesco"
+                className={field}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className={label} htmlFor="cfg-enf">Enfermedades, alergias o padecimientos</label>
+            <textarea
+              id="cfg-enf"
+              value={enfermedades}
+              onChange={(e) => setEnfermedades(e.target.value)}
+              placeholder="Diabetes, alergia a penicilina, etc. (opcional)"
+              rows={3}
+              className="w-full border border-[#EDE9E0] bg-white px-4 py-2.5 text-sm text-[#2C2C2C] focus:outline-none focus:border-[#C9A84C] resize-y"
             />
           </div>
         </div>
