@@ -63,9 +63,35 @@ export interface Employee {
    * undefined = todas permitidas (no restringido). Los admins siempre pueden.
    */
   acciones?: EmployeeAcciones;
+  /**
+   * Perfil del sistema. Determina el acceso sugerido; el acceso real por sección
+   * vive en `acceso`. undefined = restaurador (empleado base).
+   */
+  perfil?: PerfilSistema;
+  /**
+   * Acceso por sección sensible (administración, proyectos/presupuesto), estilo
+   * carpetas: "oculto" | "lectura" | "total". Lo configura el admin en
+   * Configuración. undefined / sin entrada = oculto (no ve la sección).
+   */
+  acceso?: Partial<Record<SeccionSistema, AccesoNivel>>;
+  /** ¿Puede borrar/vaciar elementos de la papelera? (admins siempre pueden). */
+  papeleraBorrar?: boolean;
   proyectoId: string | null;
   createdAt: number;
 }
+
+/** Perfiles del sistema, de mayor a menor alcance. */
+export type PerfilSistema =
+  | "administracion"
+  | "superintendente"
+  | "residente"
+  | "restaurador";
+
+/** Secciones sensibles con control de acceso por persona. */
+export type SeccionSistema = "administracion" | "proyectos";
+
+/** Nivel de acceso a una sección (igual que las carpetas compartidas). */
+export type AccesoNivel = "oculto" | "lectura" | "total";
 
 /** Autorización de acciones sobre archivos (del Excel). */
 export interface EmployeeAcciones {

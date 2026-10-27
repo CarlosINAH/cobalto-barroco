@@ -1,4 +1,5 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import AccesosManager from "@/components/configuracion/AccesosManager";
 import { requireAdmin } from "@/lib/auth-server";
 import { mailConfigured } from "@/lib/mailer";
 import { getDB } from "@/lib/db";
@@ -124,6 +125,10 @@ export default async function ConfiguracionAdmin() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <AccesosManager initial={db.employees} />
       </div>
     </DashboardShell>
   );

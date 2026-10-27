@@ -23,5 +23,12 @@ export async function GET() {
     nombre: emp?.nombre || session.username,
     rol: emp?.rol || (session.role === "admin" ? "Administrador" : "Empleado"),
     unread,
+    perfil: emp?.perfil,
+    // Acceso efectivo por sección (admin siempre total).
+    acceso:
+      session.role === "admin"
+        ? { administracion: "total", proyectos: "total" }
+        : emp?.acceso ?? {},
+    papeleraBorrar: session.role === "admin" || emp?.papeleraBorrar === true,
   });
 }

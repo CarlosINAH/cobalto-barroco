@@ -1,18 +1,17 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ProyectosManager from "@/components/proyectos/ProyectosManager";
-import { requireAdmin } from "@/lib/auth-server";
+import { requireSectionView } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
 import { buildCatalogs, conceptBreakdown } from "@/lib/pu";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Pestaña central del flujo de presupuestos: se elige un proyecto y se trabaja
- * cada "hoja" del Excel (presupuesto, cotización, cronograma, administración,
- * nómina) como sub-pestaña. Solo admin (maneja costos y márgenes).
+ * Pestaña central del flujo de presupuestos. Acceso: admin, o quien tenga la
+ * sección "proyectos" habilitada (lectura/total) en Configuración.
  */
 export default async function ProyectosAdmin() {
-  await requireAdmin();
+  const session = await requireSectionView("proyectos");
   const db = await getDB();
   const catalogs = buildCatalogs(db);
   // Biblioteca de conceptos con su P.U. y desglose por tipo (para el balance).
@@ -30,7 +29,7 @@ export default async function ProyectosAdmin() {
     };
   });
   return (
-    <DashboardShell role="admin" title="Proyectos">
+    <DashboardShell role={session.role} title="Proyectos">
       <ProyectosManager
         proyectos={db.projects}
         budgets={db.budgets}

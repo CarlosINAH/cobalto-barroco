@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "@/components/brand/Logo";
@@ -66,10 +66,25 @@ export default function DashboardShell({
   title: string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [me, setMe] = useState<{ nombre: string; rol: string; unread: number } | null>(null);
+  const [me, setMe] = useState<{
+    nombre: string; rol: string; unread: number;
+    acceso?: Record<string, string>;
+  } | null>(null);
   const pathname = usePathname();
-  const nav = role === "empleado" ? empleadoNav : adminNav;
   const roleLabel = role === "empleado" ? "Empleado" : "Administrador";
+
+  // Menú: el admin ve todo; un empleado con secciones habilitadas (residente,
+  // superintendente) ve además Administración y/o Proyectos (empresa).
+  const nav = useMemo<NavItem[]>(() => {
+    if (role === "admin") return adminNav;
+    const acc = me?.acceso || {};
+    const extra: NavItem[] = [];
+    if (acc.administracion && acc.administracion !== "oculto")
+      extra.push({ icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" });
+    if (acc.proyectos && acc.proyectos !== "oculto")
+      extra.push({ icon: Calculator, label: "Proyectos (empresa)", href: "/dashboard/admin/proyectos" });
+    return extra.length ? [...empleadoNav, ...extra] : empleadoNav;
+  }, [role, me]);
 
   useEffect(() => {
     fetch("/api/me")
@@ -81,6 +96,7 @@ export default function DashboardShell({
             nombre: d.nombre,
             rol: d.rol,
             unread: d.unread,
+            acceso: d.acceso,
           }),
       )
       .catch(() => {});
