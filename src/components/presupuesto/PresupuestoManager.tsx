@@ -3,9 +3,12 @@
 import { useMemo, useState } from "react";
 import {
   Plus, Trash2, Save, FileText, Download, Send, Check, Ban,
-  ClipboardList, Layers, ArrowLeft,
+  ClipboardList, Layers, ArrowLeft, Search, ShoppingCart, Package, FlaskConical, Coins,
 } from "lucide-react";
-import type { Budget, BudgetLine, BudgetEstado, Project } from "@/lib/db";
+import type {
+  Budget, BudgetLine, BudgetEstado, Project,
+  CostMaterial, Recipe, LaborRate,
+} from "@/lib/db";
 import CatalogosManager from "@/components/costos/CatalogosManager";
 
 const mxn = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 });
@@ -60,13 +63,13 @@ export default function PresupuestoManager({
       </div>
 
       {tab === "presupuestos"
-        ? <Presupuestos budgets={budgets} conceptos={conceptos} projects={projects} />
+        ? <Presupuestos budgets={budgets} conceptos={conceptos} projects={projects} catalog={catalog} />
         : <CatalogosManager {...catalog} />}
     </div>
   );
 }
 
-function Presupuestos({ budgets, conceptos, projects }: { budgets: Budget[]; conceptos: ConceptoPick[]; projects: Project[] }) {
+function Presupuestos({ budgets, conceptos, projects, catalog }: { budgets: Budget[]; conceptos: ConceptoPick[]; projects: Project[]; catalog: CatalogProps }) {
   const [items, setItems] = useState<Budget[]>(budgets);
   const [selId, setSelId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<"" | BudgetEstado>("");
@@ -120,6 +123,7 @@ function Presupuestos({ budgets, conceptos, projects }: { budgets: Budget[]; con
       <Builder
         budget={sel}
         conceptos={conceptos}
+        catalog={catalog}
         onBack={() => setSelId(null)}
         onChange={patchLocal}
       />
@@ -205,31 +209,44 @@ function Presupuestos({ budgets, conceptos, projects }: { budgets: Budget[]; con
   );
 }
 
-const LINE_EMPTY = (): BudgetLine => ({ conceptId: null, clave: "", concepto: "", descripcion: "", unidad: "", pu: 0, cantidad: 1, tiempoPU: null });
+type CatTab = "conceptos" | "materiales" | "recetas" | "personal";
+const CAT_TABS: { id: CatTab; label: string; icon: React.ElementType }[] = [
+  { id: "conceptos", label: "Conceptos", icon: Layers },
+  { id: "materiales", label: "Materiales", icon: Package },
+  { id: "recetas", label: "Recetas", icon: FlaskConical },
+  { id: "personal", label: "Personal", icon: Coins },
+];
 
-function Builder({ budget, conceptos, onBack, onChange }: {
-  budget: Budget; conceptos: ConceptoPick[]; onBack: () => void; onChange: (b: Budget) => void;
+/** Clave de una línea para detectar duplicados (y sumar cantidades). */
+function lineKey(l: BudgetLine): string {
+  return l.conceptId || `${l.clave}|${l.concepto}|${l.pu}`;
+}
+
+function Builder({ budget, conceptos, catalog, onBack, onChange }: {
+  budget: Budget; conceptos: ConceptoPick[]; catalog: CatalogProps;
+  onBack: () => void; onChange: (b: Budget) => void;
 }) {
   const [lineas, setLineas] = useState<BudgetLine[]>(budget.lineas);
   const [cliente, setCliente] = useState(budget.cliente);
   const [obra, setObra] = useState(budget.obra || "");
-  const [nueva, setNueva] = useState<BudgetLine>(LINE_EMPTY());
   const [busy, setBusy] = useState(false);
   const [guardado, setGuardado] = useState(true);
+  const [catTab, setCatTab] = useState<CatTab>("conceptos");
+  const [q, setQ] = useState("");
 
   const iva = budget.factorIva ?? 0.16;
   const subtotal = lineas.reduce((a, l) => a + l.pu * l.cantidad, 0);
   const total = subtotal * (1 + iva);
 
-  function pickConcepto(id: string) {
-    const c = conceptos.find((x) => x.id === id);
-    if (!c) { setNueva({ ...nueva, conceptId: null }); return; }
-    setNueva({ conceptId: c.id, clave: c.clave, concepto: c.concepto, descripcion: c.descripcion, unidad: c.unidad, pu: c.pu, cantidad: nueva.cantidad || 1, tiempoPU: c.tiempoPU ?? null });
-  }
-  function agregar() {
-    if (!nueva.concepto.trim() && !nueva.clave.trim()) return;
-    setLineas((xs) => [...xs, { ...nueva }]);
-    setNueva(LINE_EMPTY()); setGuardado(false);
+  /** Agrega una partida; si ya existe la misma, suma 1 a su cantidad. */
+  function addLine(line: BudgetLine) {
+    setLineas((xs) => {
+      const k = lineKey(line);
+      const i = xs.findIndex((l) => lineKey(l) === k);
+      if (i >= 0) return xs.map((l, j) => (j === i ? { ...l, cantidad: l.cantidad + 1 } : l));
+      return [...xs, line];
+    });
+    setGuardado(false);
   }
   function quitar(i: number) { setLineas((xs) => xs.filter((_, j) => j !== i)); setGuardado(false); }
   function editCant(i: number, v: number) { setLineas((xs) => xs.map((l, j) => (j === i ? { ...l, cantidad: v } : l))); setGuardado(false); }
@@ -246,6 +263,30 @@ function Builder({ budget, conceptos, onBack, onChange }: {
     onChange(nb); setGuardado(true);
   }
 
+  // ── Catálogo filtrado por búsqueda ──
+  const nq = q.trim().toLowerCase();
+  const fConceptos = useMemo(
+    () => conceptos.filter((c) => !nq || `${c.clave} ${c.concepto} ${c.descripcion}`.toLowerCase().includes(nq)),
+    [conceptos, nq],
+  );
+  const fMateriales = useMemo(
+    () => catalog.materiales.filter((m) => !nq || `${m.nombre} ${m.categoria}`.toLowerCase().includes(nq)),
+    [catalog.materiales, nq],
+  );
+  const fRecetas = useMemo(
+    () => catalog.recetas.filter((r) => !nq || r.nombre.toLowerCase().includes(nq)),
+    [catalog.recetas, nq],
+  );
+  const fSalarios = useMemo(
+    () => catalog.salarios.filter((s) => !nq || s.rol.toLowerCase().includes(nq)),
+    [catalog.salarios, nq],
+  );
+
+  const addConcepto = (c: ConceptoPick) => addLine({ conceptId: c.id, clave: c.clave, concepto: c.concepto, descripcion: c.descripcion, unidad: c.unidad, pu: c.pu, cantidad: 1, tiempoPU: c.tiempoPU ?? null });
+  const addMaterial = (m: CostMaterial) => addLine({ conceptId: null, clave: "MAT", concepto: m.nombre, descripcion: m.categoria || "", unidad: m.unidad, pu: m.precio, cantidad: 1, tiempoPU: null });
+  const addReceta = (r: Recipe) => addLine({ conceptId: null, clave: "REC", concepto: r.nombre, descripcion: "", unidad: r.unidad, pu: r.costo, cantidad: 1, tiempoPU: null });
+  const addSalario = (s: LaborRate) => addLine({ conceptId: null, clave: "M.O.", concepto: s.rol, descripcion: "Mano de obra", unidad: "jornada", pu: s.jornada, cantidad: 1, tiempoPU: null });
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -261,61 +302,92 @@ function Builder({ budget, conceptos, onBack, onChange }: {
         <div><label className={LABEL}>Cliente</label><input className={INPUT} value={cliente} onChange={(e) => { setCliente(e.target.value); setGuardado(false); }} /></div>
       </div>
 
-      <div className={`${CARD} p-5 mb-4`}>
-        <p className="text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold mb-3">Agregar partida</p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="lg:col-span-2">
-            <label className={LABEL}>Concepto del catálogo</label>
-            <select className={INPUT} value={nueva.conceptId || ""} onChange={(e) => pickConcepto(e.target.value)}>
-              <option value="">— manual —</option>
-              {conceptos.map((c) => <option key={c.id} value={c.id}>{c.clave ? `${c.clave} · ` : ""}{c.concepto}</option>)}
-            </select>
+      <div className="grid gap-4 lg:grid-cols-5">
+        {/* Catálogo (tienda) */}
+        <div className={`${CARD} p-4 lg:col-span-3`}>
+          <div className="flex items-center gap-2 mb-3">
+            <ShoppingCart size={15} className="text-[#C9A84C]" />
+            <span className="text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold">Catálogo — agrega al presupuesto</span>
           </div>
-          <div><label className={LABEL}>Clave</label><input className={INPUT} value={nueva.clave} onChange={(e) => setNueva({ ...nueva, clave: e.target.value })} /></div>
-          <div className="lg:col-span-2"><label className={LABEL}>Concepto</label><input className={INPUT} value={nueva.concepto} onChange={(e) => setNueva({ ...nueva, concepto: e.target.value })} /></div>
-          <div><label className={LABEL}>Unidad</label><input className={INPUT} value={nueva.unidad} onChange={(e) => setNueva({ ...nueva, unidad: e.target.value })} /></div>
-          <div><label className={LABEL}>P.U.</label><input type="number" step="0.01" className={INPUT} value={nueva.pu || ""} onChange={(e) => setNueva({ ...nueva, pu: Number(e.target.value) || 0 })} /></div>
-          <div><label className={LABEL}>Cantidad</label><input type="number" step="0.01" className={INPUT} value={nueva.cantidad || ""} onChange={(e) => setNueva({ ...nueva, cantidad: Number(e.target.value) || 0 })} /></div>
-          <div className="flex items-end"><button onClick={agregar} className={BTN + " w-full justify-center"}><Plus size={14} /> Agregar</button></div>
+          <div className="flex gap-1 border-b border-[#EDE9E0] mb-3 overflow-x-auto">
+            {CAT_TABS.map((t) => {
+              const Icon = t.icon; const on = catTab === t.id;
+              return (
+                <button key={t.id} onClick={() => setCatTab(t.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-[11px] tracking-wider uppercase font-semibold whitespace-nowrap border-b-2 -mb-px ${on ? "border-[#C9A84C] text-[#1B2A5E]" : "border-transparent text-[#7A7A7A] hover:text-[#1B2A5E]"}`}>
+                  <Icon size={13} /> {t.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="relative mb-3">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className={INPUT + " pl-9"} />
+          </div>
+          <div className="max-h-[22rem] overflow-y-auto divide-y divide-[#F5F2EC]">
+            {catTab === "conceptos" && fConceptos.map((c) => (
+              <ItemRow key={c.id} titulo={`${c.clave ? c.clave + " · " : ""}${c.concepto}`} sub={c.unidad} pu={c.pu} onAdd={() => addConcepto(c)} />
+            ))}
+            {catTab === "materiales" && fMateriales.map((m) => (
+              <ItemRow key={m.id} titulo={m.nombre} sub={`${m.categoria || ""}${m.unidad ? " · " + m.unidad : ""}`} pu={m.precio} onAdd={() => addMaterial(m)} />
+            ))}
+            {catTab === "recetas" && fRecetas.map((r) => (
+              <ItemRow key={r.id} titulo={r.nombre} sub={r.unidad} pu={r.costo} onAdd={() => addReceta(r)} />
+            ))}
+            {catTab === "personal" && fSalarios.map((s) => (
+              <ItemRow key={s.id} titulo={s.rol} sub="jornada" pu={s.jornada} onAdd={() => addSalario(s)} />
+            ))}
+            {((catTab === "conceptos" && fConceptos.length === 0) ||
+              (catTab === "materiales" && fMateriales.length === 0) ||
+              (catTab === "recetas" && fRecetas.length === 0) ||
+              (catTab === "personal" && fSalarios.length === 0)) && (
+              <p className="py-8 text-center text-sm text-[#7A7A7A]">Sin resultados.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Carrito (presupuesto) */}
+        <div className={`${CARD} p-4 lg:col-span-2`}>
+          <p className="text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold mb-3">Presupuesto ({lineas.length})</p>
+          {lineas.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[#7A7A7A]">Agrega partidas desde el catálogo.</p>
+          ) : (
+            <div className="space-y-2 max-h-[20rem] overflow-y-auto pr-1">
+              {lineas.map((l, i) => (
+                <div key={i} className="flex items-center gap-2 border border-[#EDE9E0] p-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#2C2C2C] truncate">{l.concepto}</p>
+                    <p className="text-[11px] text-[#7A7A7A]">{money(l.pu)}{l.unidad ? ` / ${l.unidad}` : ""}</p>
+                  </div>
+                  <input type="number" step="0.01" value={l.cantidad} onChange={(e) => editCant(i, Number(e.target.value) || 0)} className="w-16 border border-[#EDE9E0] px-2 py-1 text-sm text-right" />
+                  <span className="w-24 text-right data-label text-sm">{money(l.pu * l.cantidad)}</span>
+                  <button onClick={() => quitar(i)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="border-t border-[#EDE9E0] mt-3 pt-3 space-y-1 text-sm">
+            <div className="flex justify-between text-[#7A7A7A]"><span>Subtotal</span><span className="data-label">{money(subtotal)}</span></div>
+            <div className="flex justify-between text-[#7A7A7A]"><span>IVA {Math.round(iva * 100)}%</span><span className="data-label">{money(subtotal * iva)}</span></div>
+            <div className="flex justify-between text-[#1B2A5E] font-semibold"><span>Total</span><span className="data-label">{money(total)}</span></div>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className={`${CARD} overflow-x-auto`}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
-              <th className="px-3 py-3 font-semibold">Clave</th>
-              <th className="px-3 py-3 font-semibold">Concepto</th>
-              <th className="px-3 py-3 font-semibold">Unidad</th>
-              <th className="px-3 py-3 font-semibold text-right">P.U.</th>
-              <th className="px-3 py-3 font-semibold text-right">Cant.</th>
-              <th className="px-3 py-3 font-semibold text-right">Subtotal</th>
-              <th className="px-3 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {lineas.map((l, i) => (
-              <tr key={i} className="border-b border-[#F5F2EC]">
-                <td className="px-3 py-2 text-[#7A7A7A] whitespace-nowrap">{l.clave || "—"}</td>
-                <td className="px-3 py-2 text-[#2C2C2C]">{l.concepto || "—"}</td>
-                <td className="px-3 py-2 text-[#7A7A7A]">{l.unidad || "—"}</td>
-                <td className="px-3 py-2 text-right data-label whitespace-nowrap">{money(l.pu)}</td>
-                <td className="px-3 py-2 text-right w-24"><input type="number" step="0.01" value={l.cantidad} onChange={(e) => editCant(i, Number(e.target.value) || 0)} className={INPUT + " text-right py-1"} /></td>
-                <td className="px-3 py-2 text-right data-label whitespace-nowrap">{money(l.pu * l.cantidad)}</td>
-                <td className="px-3 py-2 text-right"><button onClick={() => quitar(i)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
-              </tr>
-            ))}
-            {lineas.length === 0 && <tr><td colSpan={7} className="px-3 py-10 text-center text-[#7A7A7A]">Sin partidas. Agrega la primera arriba.</td></tr>}
-          </tbody>
-          {lineas.length > 0 && (
-            <tfoot>
-              <tr className="border-t border-[#EDE9E0]"><td colSpan={5} className="px-3 py-2 text-right text-[#7A7A7A]">Subtotal</td><td className="px-3 py-2 text-right data-label">{money(subtotal)}</td><td /></tr>
-              <tr><td colSpan={5} className="px-3 py-2 text-right text-[#7A7A7A]">IVA {Math.round(iva * 100)}%</td><td className="px-3 py-2 text-right data-label">{money(subtotal * iva)}</td><td /></tr>
-              <tr><td colSpan={5} className="px-3 py-2 text-right text-[#1B2A5E] font-semibold">Total</td><td className="px-3 py-2 text-right data-label text-[#1B2A5E] font-semibold">{money(total)}</td><td /></tr>
-            </tfoot>
-          )}
-        </table>
+function ItemRow({ titulo, sub, pu, onAdd }: { titulo: string; sub?: string; pu: number; onAdd: () => void }) {
+  return (
+    <div className="flex items-center gap-3 py-2">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-[#2C2C2C] truncate">{titulo}</p>
+        {sub && <p className="text-[11px] text-[#7A7A7A] truncate">{sub}</p>}
       </div>
+      <span className="text-sm data-label text-[#1B2A5E] whitespace-nowrap">{money(pu)}</span>
+      <button onClick={onAdd} className="flex items-center gap-1 bg-[#1B2A5E] text-[#F5F2EC] px-2.5 py-1.5 text-xs font-semibold hover:bg-[#243470]" title="Agregar al presupuesto">
+        <Plus size={13} />
+      </button>
     </div>
   );
 }
