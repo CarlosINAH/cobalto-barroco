@@ -24,7 +24,7 @@ export default function ProyectosYPresupuesto({
   return (
     <div>
       <div className="flex gap-1 border-b border-[#EDE9E0] mb-6">
-        {([["activos", "Proyectos activos", FolderKanban], ["presupuesto", "Presupuesto", ClipboardList]] as const).map(([id, label, Icon]) => {
+        {([["activos", "Proyectos", FolderKanban], ["presupuesto", "Presupuesto", ClipboardList]] as const).map(([id, label, Icon]) => {
           const on = tab === id;
           return (
             <button key={id} onClick={() => setTab(id)}
