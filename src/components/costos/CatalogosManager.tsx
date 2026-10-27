@@ -348,11 +348,11 @@ function Salarios({ initial }: { initial: LaborRate[] }) {
   const [busy, setBusy] = useState(false);
   const [nuevo, setNuevo] = useState({ rol: "", jornada: "" });
 
-  async function patch(id: string, campo: keyof LaborRate, valor: number) {
+  async function patch(id: string, campos: Partial<LaborRate>) {
     const res = await fetch(`/api/costos/salarios/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [campo]: valor }),
+      body: JSON.stringify(campos),
     });
     if (res.ok) {
       const { salario } = await res.json();
@@ -386,7 +386,7 @@ function Salarios({ initial }: { initial: LaborRate[] }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <p className="text-sm text-[#7A7A7A]">Tarifa de mano de obra por rol (MXN). La jornada es la base del costo de mano de obra en los conceptos.</p>
+        <p className="text-sm text-[#7A7A7A]">Tarifa de mano de obra por rol (MXN). Edita rol, jornada, hora, semana y mes; la jornada es la base del costo de mano de obra en los conceptos.</p>
         <button onClick={() => setAdding((v) => !v)} className={BTN_PRIMARY}><Plus size={14} /> Nuevo rol</button>
       </div>
       {adding && (
@@ -412,13 +412,21 @@ function Salarios({ initial }: { initial: LaborRate[] }) {
           <tbody>
             {items.map((s) => (
               <tr key={s.id} className="border-b border-[#F5F2EC] hover:bg-[#F5F2EC]/50">
-                <td className="px-4 py-2.5 text-[#2C2C2C] font-medium">{s.rol}</td>
-                <td className="px-4 py-2.5 text-right">
-                  <input defaultValue={s.jornada} type="number" onBlur={(e) => { const v = Number(e.target.value); if (v !== s.jornada) patch(s.id, "jornada", v); }} className="w-24 border border-[#EDE9E0] px-2 py-1 text-right text-sm focus:outline-none focus:border-[#C9A84C] data-label" />
+                <td className="px-4 py-2.5">
+                  <input key={`rol-${s.id}-${s.rol}`} defaultValue={s.rol} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.rol) patch(s.id, { rol: v }); }} className="w-full min-w-[160px] border border-[#EDE9E0] px-2 py-1 text-sm text-[#2C2C2C] font-medium focus:outline-none focus:border-[#C9A84C]" />
                 </td>
-                <td className="px-4 py-2.5 text-right text-[#7A7A7A] data-label">{money(s.hora)}</td>
-                <td className="px-4 py-2.5 text-right text-[#7A7A7A] data-label">{money(s.semana)}</td>
-                <td className="px-4 py-2.5 text-right text-[#7A7A7A] data-label">{money(s.mes)}</td>
+                <td className="px-4 py-2.5 text-right">
+                  <input key={`j-${s.id}-${s.jornada}`} defaultValue={s.jornada} type="number" step="0.01" onBlur={(e) => { const v = Number(e.target.value); if (v !== s.jornada) patch(s.id, { jornada: v }); }} className="w-24 border border-[#EDE9E0] px-2 py-1 text-right text-sm focus:outline-none focus:border-[#C9A84C] data-label" />
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <input key={`h-${s.id}-${s.hora}`} defaultValue={s.hora} type="number" step="0.01" onBlur={(e) => { const v = Number(e.target.value); if (v !== s.hora) patch(s.id, { hora: v }); }} className="w-24 border border-[#EDE9E0] px-2 py-1 text-right text-sm focus:outline-none focus:border-[#C9A84C] data-label" />
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <input key={`sem-${s.id}-${s.semana}`} defaultValue={s.semana} type="number" step="0.01" onBlur={(e) => { const v = Number(e.target.value); if (v !== s.semana) patch(s.id, { semana: v }); }} className="w-24 border border-[#EDE9E0] px-2 py-1 text-right text-sm focus:outline-none focus:border-[#C9A84C] data-label" />
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <input key={`mes-${s.id}-${s.mes}`} defaultValue={s.mes} type="number" step="0.01" onBlur={(e) => { const v = Number(e.target.value); if (v !== s.mes) patch(s.id, { mes: v }); }} className="w-24 border border-[#EDE9E0] px-2 py-1 text-right text-sm focus:outline-none focus:border-[#C9A84C] data-label" />
+                </td>
                 <td className="px-4 py-2.5 text-right"><button onClick={() => borrar(s.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={15} /></button></td>
               </tr>
             ))}
@@ -761,6 +769,7 @@ function ConceptoEditor({
   const [kind, setKind] = useState<CostInputKind>("material");
   const [refId, setRefId] = useState("");
   const [cant, setCant] = useState("1");
+  const [depr, setDepr] = useState("100"); // % de depreciación para equipo/herramienta/material
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -809,9 +818,13 @@ function ConceptoEditor({
       const m = materiales.find((x) => x.id === refId);
       if (m) { nombre = m.nombre; unidad = m.unidad; precio = m.precio; }
     }
-    setInsumos((xs) => [...xs, { kind, refId, nombre, unidad, precio, cantidad }]);
+    // La depreciación solo aplica a equipo/herramienta/material (fracción 0..1).
+    const esDepreciable = kind === "material" || kind === "herramienta" || kind === "equipo";
+    const depreciacion = esDepreciable ? Math.min(1, Math.max(0, (Number(depr) || 0) / 100)) : undefined;
+    setInsumos((xs) => [...xs, { kind, refId, nombre, unidad, precio, cantidad, depreciacion }]);
     setRefId("");
     setCant("1");
+    setDepr("100");
   }
 
   async function guardar() {
@@ -877,12 +890,16 @@ function ConceptoEditor({
               <th className="px-3 py-2 font-semibold">Insumo</th>
               <th className="px-3 py-2 font-semibold text-right">P.U.</th>
               <th className="px-3 py-2 font-semibold text-right">Cantidad</th>
+              <th className="px-3 py-2 font-semibold text-right">Depr. %</th>
               <th className="px-3 py-2 font-semibold text-right">Importe</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
           <tbody>
-            {insumos.map((i, idx) => (
+            {insumos.map((i, idx) => {
+              const esDepr = i.kind === "material" || i.kind === "herramienta" || i.kind === "equipo";
+              const factor = i.depreciacion == null ? 1 : i.depreciacion;
+              return (
               <tr key={idx} className="border-b border-[#F5F2EC]">
                 <td className="px-3 py-2 text-[#7A7A7A]">{KIND_OPTS.find((k) => k.value === i.kind)?.label}</td>
                 <td className="px-3 py-2 text-[#2C2C2C]">{i.nombre}</td>
@@ -894,12 +911,24 @@ function ConceptoEditor({
                     className="w-20 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]"
                   />
                 </td>
-                <td className="px-3 py-2 text-right text-[#2C2C2C] data-label">{money(i.precio * i.cantidad)}</td>
+                <td className="px-3 py-2 text-right data-label">
+                  {esDepr ? (
+                    <input
+                      type="number" step="1" min="0" max="100" defaultValue={Math.round(factor * 100)}
+                      onBlur={(e) => { const v = Math.min(1, Math.max(0, (Number(e.target.value) || 0) / 100)); setInsumos((xs) => xs.map((x, j) => (j === idx ? { ...x, depreciacion: v } : x))); }}
+                      className="w-16 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]"
+                    />
+                  ) : (
+                    <span className="text-[#C0BDB8]">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right text-[#2C2C2C] data-label">{money(i.precio * i.cantidad * factor)}</td>
                 <td className="px-3 py-2 text-right"><button onClick={() => setInsumos((xs) => xs.filter((_, j) => j !== idx))} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
               </tr>
-            ))}
+              );
+            })}
             {insumos.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-[#7A7A7A] text-sm">Agrega insumos abajo.</td></tr>
+              <tr><td colSpan={7} className="px-3 py-6 text-center text-[#7A7A7A] text-sm">Agrega insumos abajo.</td></tr>
             )}
           </tbody>
         </table>
@@ -915,6 +944,11 @@ function ConceptoEditor({
           {opciones.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </select>
         <input type="number" step="0.0001" value={cant} onChange={(e) => setCant(e.target.value)} placeholder="Cant." className={INPUT + " w-24"} />
+        {(kind === "material" || kind === "herramienta" || kind === "equipo") && (
+          <label className="text-xs text-[#7A7A7A] flex flex-col">Depr. %
+            <input type="number" step="1" min="0" max="100" value={depr} onChange={(e) => setDepr(e.target.value)} title="% del costo que se carga al concepto (depreciación)" className={INPUT + " w-24"} />
+          </label>
+        )}
         <button onClick={addInsumo} disabled={!refId} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
       </div>
 

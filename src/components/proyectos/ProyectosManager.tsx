@@ -657,7 +657,8 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
       {items.length > 0 && (() => {
         const catsMov = [...new Set(items.map((e) => e.categoria).filter(Boolean))].sort();
         return (
-          <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className={`${CARD} px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2`}>
+            <span className="text-[11px] uppercase tracking-wider text-[#7A7A7A] mr-1">Categoría</span>
             {[{ id: "", label: "Todas" }, ...catsMov.map((c) => ({ id: c, label: c }))].map((c) => {
               const on = verCat === c.id;
               const n = c.id === "" ? items.length : items.filter((e) => e.categoria === c.id).length;
@@ -787,29 +788,31 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
         <button onClick={crear} disabled={busy} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
       </div>
       {items.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className={`${CARD} px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2`}>
           {roles.length > 0 && (
-            <select value={verRol} onChange={(e) => setVerRol(e.target.value)} className={INPUT} title="Filtrar por rol">
+            <select value={verRol} onChange={(e) => setVerRol(e.target.value)} className={INPUT + " w-auto"} title="Filtrar por rol">
               <option value="">Todos los roles</option>
               {roles.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
           {periodos.length > 0 && (
-            <select value={verPeriodo} onChange={(e) => setVerPeriodo(e.target.value)} className={INPUT} title="Filtrar por periodo">
+            <select value={verPeriodo} onChange={(e) => setVerPeriodo(e.target.value)} className={INPUT + " w-auto"} title="Filtrar por periodo">
               <option value="">Todos los periodos</option>
               {periodos.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           )}
-          {([["", "Todos"], ["si", "Pagado"], ["no", "Por pagar"]] as const).map(([id, label]) => {
-            const on = verPagado === id;
-            return (
-              <button key={id || "todos"} onClick={() => setVerPagado(id)}
-                className={`px-3 py-1.5 text-xs tracking-wider uppercase font-semibold border transition-colors ${on ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"}`}>
-                {label}
-              </button>
-            );
-          })}
-          <span className="text-xs text-[#7A7A7A]">{visibles.length} de {items.length}</span>
+          <span className="flex items-center gap-2">
+            {([["", "Todos"], ["si", "Pagado"], ["no", "Por pagar"]] as const).map(([id, label]) => {
+              const on = verPagado === id;
+              return (
+                <button key={id || "todos"} onClick={() => setVerPagado(id)}
+                  className={`px-3 py-1.5 text-xs tracking-wider uppercase font-semibold border transition-colors ${on ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"}`}>
+                  {label}
+                </button>
+              );
+            })}
+          </span>
+          <span className="text-xs text-[#7A7A7A] ml-auto">{visibles.length} de {items.length}</span>
         </div>
       )}
       <div className={`${CARD} overflow-x-auto`}>
