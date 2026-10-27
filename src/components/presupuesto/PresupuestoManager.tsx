@@ -36,7 +36,7 @@ export type ConceptoPick = {
   unidad: string; pu: number; tiempoPU?: number | null;
 };
 
-type CatalogProps = React.ComponentProps<typeof CatalogosManager>;
+export type CatalogProps = React.ComponentProps<typeof CatalogosManager>;
 
 export default function PresupuestoManager({
   budgets, conceptos, projects, catalog,
@@ -222,9 +222,9 @@ function lineKey(l: BudgetLine): string {
   return l.conceptId || `${l.clave}|${l.concepto}|${l.pu}`;
 }
 
-function Builder({ budget, conceptos, catalog, onBack, onChange }: {
+export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
   budget: Budget; conceptos: ConceptoPick[]; catalog: CatalogProps;
-  onBack: () => void; onChange: (b: Budget) => void;
+  onBack?: () => void; onChange: (b: Budget) => void;
 }) {
   const [lineas, setLineas] = useState<BudgetLine[]>(budget.lineas);
   const [cliente, setCliente] = useState(budget.cliente);
@@ -290,7 +290,9 @@ function Builder({ budget, conceptos, catalog, onBack, onChange }: {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm text-[#7A7A7A] hover:text-[#1B2A5E]"><ArrowLeft size={16} /> Presupuestos</button>
+        {onBack
+          ? <button onClick={onBack} className="flex items-center gap-2 text-sm text-[#7A7A7A] hover:text-[#1B2A5E]"><ArrowLeft size={16} /> Presupuestos</button>
+          : <span />}
         <div className="flex items-center gap-2">
           <a href={`/api/costos/budgets/${budget.id}/pdf`} target="_blank" rel="noopener noreferrer" className={BTN_GHOST}><Download size={14} /> PDF</a>
           <button onClick={guardar} disabled={busy} className={BTN}><Save size={14} /> {guardado ? "Guardado" : "Guardar"}</button>

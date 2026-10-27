@@ -21,12 +21,12 @@ import {
 import type {
   Project,
   Budget,
-  BudgetLine,
   LedgerEntry,
   PayrollEntry,
   CostInputKind,
 } from "@/lib/db";
 import { budgetTotals } from "@/lib/pu";
+import { Builder as PresupuestoCarrito, type CatalogProps } from "@/components/presupuesto/PresupuestoManager";
 
 /** Concepto de la biblioteca, con su P.U. y desglose por tipo ya calculados. */
 export interface ConceptoLite {
@@ -73,20 +73,30 @@ const ESTADO: Record<Project["estado"], { label: string; cls: string }> = {
   futuro: { label: "Futuro", cls: "bg-[#1B2A5E]/5 text-[#1B2A5E] border-[#1B2A5E]/20" },
 };
 
+const ESTADO_FILTROS: { id: "todos" | Project["estado"]; label: string }[] = [
+  { id: "todos", label: "Todos" },
+  { id: "activo", label: "Activos" },
+  { id: "futuro", label: "En proceso" },
+  { id: "finalizado", label: "Finalizados" },
+];
+
 export default function ProyectosManager({
   proyectos,
   budgets,
   conceptos,
   ledger,
   payroll,
+  catalog,
 }: {
   proyectos: Project[];
   budgets: Budget[];
   conceptos: ConceptoLite[];
   ledger: LedgerEntry[];
   payroll: PayrollEntry[];
+  catalog: CatalogProps;
 }) {
   const [selId, setSelId] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<"todos" | Project["estado"]>("todos");
   const sel = proyectos.find((p) => p.id === selId) || null;
 
   if (sel) {
@@ -95,6 +105,7 @@ export default function ProyectosManager({
         proyecto={sel}
         budgetInicial={budgets.find((b) => b.projectId === sel.id) || null}
         conceptos={conceptos}
+        catalog={catalog}
         ledgerInicial={ledger.filter((e) => e.projectId === sel.id)}
         payrollInicial={payroll.filter((e) => e.projectId === sel.id)}
         onBack={() => setSelId(null)}
@@ -102,13 +113,22 @@ export default function ProyectosManager({
     );
   }
 
+  const visibles = filtro === "todos" ? proyectos : proyectos.filter((p) => p.estado === filtro);
+
   return (
     <div>
-      <p className="text-sm text-[#7A7A7A] mb-5">
-        Elige un proyecto para analizar, cotizar o editar. Los P.U. salen de los{" "}
-        <Link href="/dashboard/admin/costos" className="text-[#1B2A5E] underline hover:text-[#C9A84C]">catálogos de costos</Link>
-        {" "}({conceptos.length} conceptos en biblioteca).
-      </p>
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        {ESTADO_FILTROS.map((f) => {
+          const on = filtro === f.id;
+          const n = f.id === "todos" ? proyectos.length : proyectos.filter((p) => p.estado === f.id).length;
+          return (
+            <button key={f.id} onClick={() => setFiltro(f.id)}
+              className={`px-3 py-1.5 text-xs tracking-wider uppercase font-semibold border transition-colors ${on ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"}`}>
+              {f.label} <span className={on ? "text-[#C9A84C]" : "text-[#C9A84C]"}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
       {proyectos.length === 0 ? (
         <div className={`${CARD} py-16 px-6 text-center text-sm text-[#7A7A7A]`}>
           No hay proyectos todavía. Crea uno en{" "}
@@ -117,7 +137,7 @@ export default function ProyectosManager({
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {proyectos.map((p) => {
+          {visibles.map((p) => {
             const est = ESTADO[p.estado] ?? ESTADO.activo;
             const tiene = budgets.some((b) => b.projectId === p.id);
             return (
@@ -145,6 +165,7 @@ function ProyectoDetalle({
   proyecto,
   budgetInicial,
   conceptos,
+  catalog,
   ledgerInicial,
   payrollInicial,
   onBack,
@@ -152,6 +173,7 @@ function ProyectoDetalle({
   proyecto: Project;
   budgetInicial: Budget | null;
   conceptos: ConceptoLite[];
+  catalog: CatalogProps;
   ledgerInicial: LedgerEntry[];
   payrollInicial: PayrollEntry[];
   onBack: () => void;
@@ -189,7 +211,7 @@ function ProyectoDetalle({
       </div>
 
       {tab === "presupuesto" && (
-        <Presupuesto proyecto={proyecto} budget={budget} conceptos={conceptos} onChange={setBudget} />
+        <PresupuestoProyecto proyecto={proyecto} budget={budget} conceptos={conceptos} catalog={catalog} onChange={setBudget} />
       )}
       {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} />}
       {tab === "cronograma" && <Cronograma budget={budget} onChange={setBudget} />}
@@ -200,153 +222,55 @@ function ProyectoDetalle({
   );
 }
 
-// ─── Presupuesto (editor de líneas) ──────────────────────────────────────────
-function Presupuesto({
+// ─── Presupuesto del proyecto (tienda/carrito) ───────────────────────────────
+// Reutiliza el armador de la sección Presupuesto: catálogo (materiales, recetas,
+// salarios, conceptos) → agregar al presupuesto de ESTE proyecto.
+function PresupuestoProyecto({
   proyecto,
   budget,
   conceptos,
+  catalog,
   onChange,
 }: {
   proyecto: Project;
   budget: Budget | null;
   conceptos: ConceptoLite[];
+  catalog: CatalogProps;
   onChange: (b: Budget) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [pick, setPick] = useState("");
-  const [cant, setCant] = useState("1");
-  const [cliente, setCliente] = useState(budget?.cliente ?? "");
 
   async function crear() {
     setBusy(true);
     const res = await fetch("/api/costos/budgets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: proyecto.id, nombre: `Presupuesto ${proyecto.nombre}`, cliente, lineas: [] }),
+      body: JSON.stringify({
+        projectId: proyecto.id,
+        nombre: `Presupuesto ${proyecto.nombre}`,
+        obra: proyecto.nombre,
+        cliente: proyecto.cliente || "",
+        lineas: [],
+      }),
     });
     setBusy(false);
     if (res.ok) onChange((await res.json()).budget);
   }
 
-  async function persist(next: Budget) {
-    onChange(next); // optimista
-    await fetch(`/api/costos/budgets/${next.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cliente: next.cliente, lineas: next.lineas }),
-    });
-  }
-
   if (!budget) {
-    if (conceptos.length === 0)
-      return (
-        <div className={`${CARD} py-14 px-6 text-center text-sm text-[#7A7A7A]`}>
-          Primero crea conceptos en{" "}
-          <Link href="/dashboard/admin/costos" className="text-[#1B2A5E] underline hover:text-[#C9A84C]">Costos y P.U. → Conceptos</Link>,
-          luego arma el presupuesto aquí.
-        </div>
-      );
     return (
       <div className={`${CARD} py-14 px-6 text-center`}>
-        <p className="text-sm text-[#7A7A7A] mb-4">Este proyecto aún no tiene presupuesto.</p>
+        <p className="text-sm text-[#7A7A7A] mb-4">
+          Este proyecto aún no tiene presupuesto. Créalo y agrégale materiales,
+          recetas, salarios y conceptos del catálogo.
+        </p>
         <button onClick={crear} disabled={busy} className={BTN_PRIMARY + " mx-auto"}><Plus size={14} /> Crear presupuesto</button>
       </div>
     );
   }
 
-  const b = budget; // ya no es null tras el guard; alias para las closures
-  const totals = budgetTotals(b);
-
-  function addLinea() {
-    const c = conceptos.find((x) => x.id === pick);
-    if (!c) return;
-    const linea: BudgetLine = {
-      conceptId: c.id, clave: c.clave, concepto: c.concepto, descripcion: c.descripcion,
-      unidad: c.unidad, pu: c.pu, cantidad: Number(cant) || 0, tiempoPU: c.tiempoPU,
-    };
-    persist({ ...b, lineas: [...b.lineas, linea] });
-    setPick(""); setCant("1");
-  }
-  function setCantidad(idx: number, v: number) {
-    persist({ ...b, lineas: b.lineas.map((l, j) => (j === idx ? { ...l, cantidad: v } : l)) });
-  }
-  function quitar(idx: number) {
-    persist({ ...b, lineas: b.lineas.filter((_, j) => j !== idx) });
-  }
-
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <label className="text-xs text-[#7A7A7A] flex items-center gap-2">Cliente
-          <input value={cliente} onChange={(e) => setCliente(e.target.value)} onBlur={() => persist({ ...b, cliente })} className={INPUT + " w-56"} placeholder="Nombre del cliente" />
-        </label>
-        <span className="text-xs text-[#7A7A7A] data-label ml-auto">Guardado automáticamente</span>
-      </div>
-
-      <div className={`${CARD} overflow-x-auto`}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
-              <th className="px-3 py-3 font-semibold">Clave</th>
-              <th className="px-3 py-3 font-semibold">Concepto</th>
-              <th className="px-3 py-3 font-semibold">Unidad</th>
-              <th className="px-3 py-3 font-semibold text-right">P.U.</th>
-              <th className="px-3 py-3 font-semibold text-right">Cantidad</th>
-              <th className="px-3 py-3 font-semibold text-right">Importe</th>
-              <th className="px-3 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {budget.lineas.map((l, idx) => (
-              <tr key={idx} className="border-b border-[#F5F2EC]">
-                <td className="px-3 py-2 data-label text-[#7A7A7A]">{l.clave || "—"}</td>
-                <td className="px-3 py-2 text-[#2C2C2C]">{l.concepto || l.descripcion}</td>
-                <td className="px-3 py-2 text-[#7A7A7A]">{l.unidad}</td>
-                <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{money(l.pu)}</td>
-                <td className="px-3 py-2 text-right">
-                  <input type="number" step="0.01" defaultValue={l.cantidad} onBlur={(e) => setCantidad(idx, Number(e.target.value) || 0)} className="w-20 border border-[#EDE9E0] px-2 py-1 text-right text-sm focus:outline-none focus:border-[#C9A84C] data-label" />
-                </td>
-                <td className="px-3 py-2 text-right data-label text-[#2C2C2C] font-medium">{money(l.pu * l.cantidad)}</td>
-                <td className="px-3 py-2 text-right"><button onClick={() => quitar(idx)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
-              </tr>
-            ))}
-            {budget.lineas.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-6 text-center text-[#7A7A7A]">Agrega conceptos abajo.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Agregar línea */}
-      <div className="flex flex-wrap items-end gap-2 mt-3 mb-5">
-        <select value={pick} onChange={(e) => setPick(e.target.value)} className={INPUT + " flex-1 min-w-[260px]"}>
-          <option value="">Elegir concepto de la biblioteca…</option>
-          {conceptos.map((c) => <option key={c.id} value={c.id}>{(c.clave ? c.clave + " · " : "") + (c.concepto || c.descripcion)} · {money(c.pu)}/{c.unidad || "u"}</option>)}
-        </select>
-        <input type="number" step="0.01" value={cant} onChange={(e) => setCant(e.target.value)} className={INPUT + " w-24"} placeholder="Cant." />
-        <button onClick={addLinea} disabled={!pick} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
-      </div>
-
-      {/* Totales */}
-      <div className="flex justify-end">
-        <div className={`${CARD} p-4 w-full sm:w-80 space-y-1.5 text-sm data-label`}>
-          <Row label="Subtotal" val={money(totals.subtotal)} />
-          <Row label={`IVA ${pct(budget.factorIva)}`} val={money(totals.iva)} />
-          <div className="border-t border-[#EDE9E0] pt-1.5">
-            <Row label="Total" val={money(totals.total)} bold />
-          </div>
-          <Row label="Jornadas" val={totals.jornadas.toFixed(2)} muted />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, val, bold, muted }: { label: string; val: string; bold?: boolean; muted?: boolean }) {
-  return (
-    <div className={`flex justify-between ${bold ? "text-[#1B2A5E] font-bold text-base" : muted ? "text-[#7A7A7A] text-xs" : "text-[#2C2C2C]"}`}>
-      <span>{label}</span><span>{val}</span>
-    </div>
+    <PresupuestoCarrito budget={budget} conceptos={conceptos} catalog={catalog} onChange={onChange} />
   );
 }
 

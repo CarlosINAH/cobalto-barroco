@@ -46,6 +46,12 @@ export default async function ProyectosAdmin() {
           conceptos,
           ledger: db.ledgerEntries,
           payroll: db.payrollEntries,
+          catalog: {
+            materiales: db.costMaterials,
+            recetas,
+            salarios: db.laborRates,
+            conceptos: conceptosFull,
+          },
         }}
         presupuesto={{
           budgets: db.budgets,
