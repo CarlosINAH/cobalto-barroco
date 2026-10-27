@@ -277,7 +277,14 @@ function PresupuestoProyecto({
 function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | null }) {
   if (!budget || budget.lineas.length === 0)
     return <div className={`${CARD} py-14 px-6 text-center text-sm text-[#7A7A7A]`}>Arma primero el presupuesto en la pestaña Presupuesto.</div>;
-  const totals = budgetTotals(budget);
+  // La cotización al contratista es un listado de CONCEPTOS (los materiales,
+  // recetas y personal son el armado interno del presupuesto). Si aún no hay
+  // conceptos, se muestran todas las partidas como respaldo.
+  const soloConceptos = budget.lineas.filter((l) => l.conceptId);
+  const lineas = soloConceptos.length ? soloConceptos : budget.lineas;
+  const subtotal = lineas.reduce((a, l) => a + l.pu * l.cantidad, 0);
+  const iva = subtotal * budget.factorIva;
+  const totals = { subtotal, iva, total: subtotal + iva };
   return (
     <div>
       <style>{`@media print { [data-no-print]{display:none!important} body{background:#fff} .cotiz-print{border:none!important} }`}</style>
@@ -309,7 +316,7 @@ function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | 
             </tr>
           </thead>
           <tbody>
-            {budget.lineas.map((l, i) => (
+            {lineas.map((l, i) => (
               <tr key={i} className="border-b border-[#EDE9E0]">
                 <td className="py-2 data-label text-[#7A7A7A]">{l.clave || "—"}</td>
                 <td className="py-2 text-[#2C2C2C]">{l.concepto || l.descripcion}</td>
@@ -589,19 +596,16 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ fecha: new Date().toISOString().slice(0, 10), categoria: "anticipo", tipo: "ingreso" as LedgerEntry["tipo"], concepto: "", monto: "" });
-  const [catSel, setCatSel] = useState(""); // categoría del catálogo a listar en el selector
   const [verCat, setVerCat] = useState(""); // filtro de la tabla por categoría
 
-  // Categorías (etapa/proceso) presentes en el catálogo de materiales.
-  const catsCatalogo = [...new Set(catalog.materiales.map((m) => m.categoria).filter(Boolean))].sort();
-  const materialesCat = catSel ? catalog.materiales.filter((m) => m.categoria === catSel) : catalog.materiales;
-
-  // Enlace con el catálogo: elegir un material/herramienta/equipo prellena
-  // concepto, categoría (= su tipo) y monto (= su precio) como egreso.
-  function pickMaterial(id: string) {
-    const m = catalog.materiales.find((x) => x.id === id);
-    if (!m) return;
-    setF((prev) => ({ ...prev, tipo: "egreso", categoria: m.kind, concepto: m.nombre, monto: String(m.precio) }));
+  // Enlace con el catálogo: en Administración solo se jalan CONCEPTOS (los
+  // materiales/recetas/personal se arman en Presupuesto). Elegir un concepto
+  // prellena nombre y monto (su P.U., que ya incluye indirectos y utilidad).
+  function pickConcepto(id: string) {
+    const c = catalog.conceptos.find((x) => x.id === id);
+    if (!c) return;
+    const nombre = [c.clave, c.concepto || c.descripcion].filter(Boolean).join(" · ");
+    setF((prev) => ({ ...prev, tipo: "egreso", concepto: nombre, monto: String(c.pu) }));
   }
 
   async function crear() {
@@ -632,19 +636,11 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
       </div>
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
         <input type="date" value={f.fecha} onChange={(e) => setF({ ...f, fecha: e.target.value })} className={INPUT} />
-        {catalog.materiales.length > 0 && (
-          <>
-            {catsCatalogo.length > 0 && (
-              <select value={catSel} onChange={(e) => setCatSel(e.target.value)} className={INPUT + " max-w-[180px]"} title="Categoría del catálogo">
-                <option value="">Todas las categorías</option>
-                {catsCatalogo.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            )}
-            <select defaultValue="" onChange={(e) => { pickMaterial(e.target.value); e.target.value = ""; }} className={INPUT + " max-w-[220px]"} title="Traer del catálogo de materiales">
-              <option value="">Del catálogo…</option>
-              {materialesCat.map((m) => <option key={m.id} value={m.id}>{m.nombre} · {money(m.precio)}</option>)}
-            </select>
-          </>
+        {catalog.conceptos.length > 0 && (
+          <select defaultValue="" onChange={(e) => { pickConcepto(e.target.value); e.target.value = ""; }} className={INPUT + " max-w-[260px]"} title="Traer un concepto del catálogo">
+            <option value="">Concepto del catálogo…</option>
+            {catalog.conceptos.map((c) => <option key={c.id} value={c.id}>{[c.clave, c.concepto || c.descripcion].filter(Boolean).join(" · ")} · {money(c.pu)}</option>)}
+          </select>
         )}
         <select value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} className={INPUT}>
           {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
