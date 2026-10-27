@@ -1,6 +1,6 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ProyectosYPresupuesto from "@/components/proyectos/ProyectosYPresupuesto";
-import { requireSectionView } from "@/lib/auth-server";
+import { requireSectionView, sectionLevel, canWriteSection } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
 import { buildCatalogs, recipeCost, conceptBreakdown } from "@/lib/pu";
 
@@ -20,6 +20,15 @@ export default async function ProyectosAdmin() {
   const session = await requireSectionView("proyectos");
   const db = await getDB();
   const catalogs = buildCatalogs(db);
+
+  // Currículum concatenado a Proyectos: solo si el usuario tiene la sección "cv".
+  const cvLevel = await sectionLevel(session, "cv");
+  const cv = cvLevel === "oculto"
+    ? null
+    : {
+        initial: [...db.cvEntries].sort((a, b) => b.anio - a.anio),
+        canWrite: await canWriteSection(session, "cv"),
+      };
 
   const conceptosFull = db.concepts.map((c) => {
     const b = conceptBreakdown(c, catalogs);
@@ -68,6 +77,7 @@ export default async function ProyectosAdmin() {
             conceptos: conceptosFull,
           },
         }}
+        cv={cv}
       />
     </DashboardShell>
   );
