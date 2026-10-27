@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   Plus, Trash2, Save, Pencil, X, Building2,
-  Banknote, Receipt, Package, PiggyBank, Landmark,
+  Banknote, Receipt, Package, PiggyBank, Landmark, Upload,
 } from "lucide-react";
 import type { Project, LedgerEntry, PayrollEntry } from "@/lib/db";
 
@@ -43,12 +43,42 @@ export default function AdministracionManager({
   payroll: PayrollEntry[];
 }) {
   const [tab, setTab] = useState<Tab>("obras");
+  const [importing, setImporting] = useState(false);
   // Solo movimientos de empresa (sin obra) viven en estas pestañas.
   const ledgerEmpresa = useMemo(() => ledger.filter((e) => e.projectId === null), [ledger]);
   const payrollEmpresa = useMemo(() => payroll.filter((e) => e.projectId === null), [payroll]);
 
+  async function onImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!confirm("Importará obras, gastos y nómina de empresa del archivo. Reemplaza lo de empresa (no toca materiales/recetas/salarios ni lo ligado a proyectos). ¿Continuar?")) return;
+    setImporting(true);
+    try {
+      const json = JSON.parse(await file.text());
+      const res = await fetch("/api/costos/import", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...json, mode: "admin" }),
+      });
+      if (!res.ok) { alert("No se pudo importar (¿sesión de admin?)."); return; }
+      const d = await res.json();
+      alert(`Importado: ${JSON.stringify(d.importado)}`);
+      location.reload();
+    } catch {
+      alert("El archivo no es un JSON válido.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div>
+      <div className="flex justify-end mb-3">
+        <label className={`flex items-center gap-2 border border-[#EDE9E0] px-3 py-2 text-xs tracking-wider uppercase font-semibold cursor-pointer hover:border-[#C9A84C] ${importing ? "opacity-60 pointer-events-none" : "text-[#1B2A5E]"}`}>
+          <Upload size={14} /> {importing ? "Importando…" : "Importar (JSON)"}
+          <input type="file" accept="application/json,.json" className="hidden" onChange={onImport} />
+        </label>
+      </div>
       <div className="flex gap-1 border-b border-[#EDE9E0] mb-6 overflow-x-auto">
         {TABS.map((t) => {
           const Icon = t.icon;
