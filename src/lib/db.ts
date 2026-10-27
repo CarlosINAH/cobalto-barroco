@@ -467,6 +467,10 @@ export interface Budget {
   factorUtilidad: number;
   /** Tamaño de cuadrilla para el cronograma (personas trabajando en paralelo). */
   personas?: number;
+  /** Fecha de inicio del cronograma (YYYY-MM-DD). */
+  cronoInicio?: string;
+  /** Días de descanso del cronograma (0=domingo … 6=sábado). */
+  cronoDescanso?: number[];
   /** Fecha de envío al cliente (epoch ms). */
   enviadoEn?: number;
   /** Fecha en que se aprobó o rechazó (epoch ms). */

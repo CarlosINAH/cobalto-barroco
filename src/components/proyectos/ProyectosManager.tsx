@@ -469,8 +469,8 @@ const fmtDia = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", mont
 
 function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b: Budget) => void }) {
   const [personas, setPersonas] = useState(budget?.personas ?? 2);
-  const [inicioStr, setInicioStr] = useState(() => new Date().toISOString().slice(0, 10));
-  const [descanso, setDescanso] = useState<number[]>([0]); // domingo por defecto
+  const [inicioStr, setInicioStr] = useState(budget?.cronoInicio || new Date().toISOString().slice(0, 10));
+  const [descanso, setDescanso] = useState<number[]>(budget?.cronoDescanso ?? [0]); // domingo por defecto
   if (!budget || budget.lineas.length === 0)
     return <div className={`${CARD} py-14 px-6 text-center text-sm text-[#7A7A7A]`}>Arma primero el presupuesto para calcular el cronograma.</div>;
 
@@ -500,27 +500,31 @@ function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b:
     return { l, dur, jornales, ini, fin, left, width };
   });
 
-  async function guardarPersonas(v: number) {
-    const next = { ...b, personas: v };
-    onChange(next);
+  // Guarda los parámetros del cronograma en el presupuesto del proyecto, para
+  // que cada obra conserve el suyo y pueda consultarse (y, más adelante,
+  // mostrarse en el panel del empleado y de los involucrados).
+  async function guardarCrono(patch: Partial<Budget>) {
+    onChange({ ...b, ...patch });
     await fetch(`/api/costos/budgets/${b.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ personas: v }),
+      body: JSON.stringify(patch),
     });
   }
 
   function toggleDescanso(d: number) {
-    setDescanso((xs) => (xs.includes(d) ? xs.filter((x) => x !== d) : [...xs, d]));
+    const next = descanso.includes(d) ? descanso.filter((x) => x !== d) : [...descanso, d];
+    setDescanso(next);
+    guardarCrono({ cronoDescanso: next });
   }
 
   return (
     <div>
       <div className={`${CARD} p-4 mb-5 flex flex-wrap items-end gap-5`}>
         <label className="text-xs text-[#7A7A7A] flex flex-col gap-1">Fecha de inicio
-          <input type="date" value={inicioStr} onChange={(e) => setInicioStr(e.target.value)} className={INPUT + " w-44"} />
+          <input type="date" value={inicioStr} onChange={(e) => { setInicioStr(e.target.value); guardarCrono({ cronoInicio: e.target.value }); }} className={INPUT + " w-44"} />
         </label>
         <label className="text-xs text-[#7A7A7A] flex flex-col gap-1">Cuadrilla (personas)
-          <input type="number" min={1} value={personas} onChange={(e) => setPersonas(Number(e.target.value) || 1)} onBlur={(e) => guardarPersonas(Number(e.target.value) || 1)} className={INPUT + " w-24"} />
+          <input type="number" min={1} value={personas} onChange={(e) => setPersonas(Number(e.target.value) || 1)} onBlur={(e) => guardarCrono({ personas: Number(e.target.value) || 1 })} className={INPUT + " w-24"} />
         </label>
         <div className="text-xs text-[#7A7A7A] flex flex-col gap-1">Días de descanso
           <div className="flex gap-1">
@@ -563,7 +567,7 @@ function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b:
           ))}
         </div>
       </div>
-      <p className="text-xs text-[#7A7A7A] mt-2">Jornales = tiempo por unidad × cantidad. Duración = jornales ÷ cuadrilla, repartidos en {diasLaborSem} día(s) laborable(s) por semana desde la fecha de inicio. La fecha de inicio y los días de descanso son para generar el gráfico (no se guardan).</p>
+      <p className="text-xs text-[#7A7A7A] mt-2">Jornales = tiempo por unidad × cantidad. Duración = jornales ÷ cuadrilla, repartidos en {diasLaborSem} día(s) laborable(s) por semana desde la fecha de inicio. La fecha de inicio, la cuadrilla y los días de descanso se guardan en el proyecto.</p>
     </div>
   );
 }
