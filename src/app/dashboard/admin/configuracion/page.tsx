@@ -67,7 +67,8 @@ export default async function ConfiguracionAdmin() {
           initial: db.employees,
           projects: db.projects.map((p) => ({ id: p.id, nombre: p.nombre })),
         }}
-        permisos={{ folders, employees, initial: initialPerms }}
+        folders={folders}
+        folderPerms={initialPerms}
       />
     </DashboardShell>
   );
