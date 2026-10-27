@@ -1,6 +1,13 @@
 import "server-only";
 import type { Budget, Project, CVEntry } from "@/lib/db";
 import { LOGO_JPEG_B64, LOGO_W, LOGO_H } from "@/lib/constancia-logo";
+import {
+  PAINTING_B64,
+  WATERMARK_B64, WATERMARK_W, WATERMARK_H,
+  ICON_MAIL_B64, ICON_MAIL_W, ICON_MAIL_H,
+  ICON_PHONE_B64, ICON_PHONE_W, ICON_PHONE_H,
+  ICON_IG_B64, ICON_IG_W, ICON_IG_H,
+} from "@/lib/constancia-assets";
 
 /**
  * Generador de PDF mínimo, sin dependencias (coherente con el stack: JS puro,
@@ -99,15 +106,17 @@ class Painter {
     this.cur = "";
     this.y = 740;
   }
-  text(x: number, y: number, size: number, str: string, bold = false, color = "#000000") {
+  text(x: number, y: number, size: number, str: string, bold = false, color = "#000000", italic = false) {
     const [r, g, b] = rgb(color);
-    this.cur += `${f3(r)} ${f3(g)} ${f3(b)} rg BT /F${bold ? 2 : 1} ${size} Tf ${x} ${y} Td (${esc(str)}) Tj ET\n`;
+    // F1 normal · F2 negrita · F3 cursiva · F4 negrita cursiva.
+    const fn = italic ? (bold ? 4 : 3) : bold ? 2 : 1;
+    this.cur += `${f3(r)} ${f3(g)} ${f3(b)} rg BT /F${fn} ${size} Tf ${x} ${y} Td (${esc(str)}) Tj ET\n`;
   }
-  rtext(xRight: number, y: number, size: number, str: string, bold = false, color = "#000000") {
-    this.text(xRight - textWidth(str, size), y, size, str, bold, color);
+  rtext(xRight: number, y: number, size: number, str: string, bold = false, color = "#000000", italic = false) {
+    this.text(xRight - textWidth(str, size), y, size, str, bold, color, italic);
   }
-  ctext(xCenter: number, y: number, size: number, str: string, bold = false, color = "#000000") {
-    this.text(xCenter - textWidth(str, size) / 2, y, size, str, bold, color);
+  ctext(xCenter: number, y: number, size: number, str: string, bold = false, color = "#000000", italic = false) {
+    this.text(xCenter - textWidth(str, size) / 2, y, size, str, bold, color, italic);
   }
   line(x1: number, y1: number, x2: number, y2: number, color = "#000000", w = 0.5) {
     const [r, g, b] = rgb(color);
@@ -135,9 +144,11 @@ function serialize(pagesContent: string[], images: DocImage[] = []): Buffer {
     1: `<< /Type /Catalog /Pages 2 0 R >>`,
     3: `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`,
     4: `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`,
+    5: `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>`,
+    6: `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-BoldOblique /Encoding /WinAnsiEncoding >>`,
   };
   // Objetos de imagen (JPEG / DCTDecode).
-  let n = 5;
+  let n = 7;
   const imgRes: string[] = [];
   for (const im of images) {
     const jpeg = Buffer.from(im.b64, "base64").toString("latin1");
@@ -160,7 +171,7 @@ function serialize(pagesContent: string[], images: DocImage[] = []): Buffer {
   const total = n - 1;
   bodies[2] = `<< /Type /Pages /Kids [${pageObjNums.map((p) => `${p} 0 R`).join(" ")}] /Count ${pageObjNums.length} >>`;
   for (const p of pageObjs)
-    bodies[p.num] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xobj} >> /Contents ${p.contentNum} 0 R >>`;
+    bodies[p.num] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >>${xobj} >> /Contents ${p.contentNum} 0 R >>`;
   for (const c of contentObjs)
     bodies[c.num] = `<< /Length ${Buffer.byteLength(c.content, "latin1")} >>\nstream\n${c.content}\nendstream`;
 
@@ -335,22 +346,29 @@ const GRAY = "#6E7480";
 export function buildConstanciaPdf(d: ConstanciaData): Buffer {
   const p = new Painter();
   p.newPage();
-  // Barra lateral azul (guiño a la franja del machote).
-  p.rect(0, 0, 34, 792, NAVY);
-  const cx = 323; // centro del área de contenido (34..612)
 
-  // Logo (arriba, sobre el título)
-  const logoW = 176, logoH = (logoW * LOGO_H) / LOGO_W;
-  p.image(LOGO_JPEG_B64, cx - logoW / 2, 702, logoW, logoH);
+  // ── Franja lateral con la pintura barroca (igual que el machote) ──
+  const STRIP = 157;               // ancho de la franja (puntos)
+  const paintH = (STRIP * 2341) / 420; // alto manteniendo proporción
+  p.image(PAINTING_B64, 0, 792 - paintH, STRIP, paintH); // ancla arriba
 
-  p.ctext(cx, 672, 17, "C O N S T A N C I A   D E   T R A B A J O", true, NAVY);
-  p.ctext(cx, 654, 11, "RESTAURACIÓN ARTÍSTICA & ARQUITECTÓNICA.", false, NAVY);
-  p.line(cx - 150, 642, cx + 150, 642, NAVY, 0.7);
+  // ── Marca de agua de acanto (tenue, inferior derecha) ──
+  const wmW = 215, wmH = (wmW * WATERMARK_H) / WATERMARK_W;
+  p.image(WATERMARK_B64, 600 - wmW, 22, wmW, wmH);
 
-  // Bloque central dinámico: los campos variables (participante, proyecto,
-  // ubicación…) se ajustan en varias líneas centradas para no salirse de los
-  // márgenes ni invadir la franja azul.
-  const MAXW = 480; // ancho seguro dentro del área de contenido
+  // Centro del área de contenido (a la derecha de la franja).
+  const cx = (STRIP + 612) / 2; // ≈ 384.5
+
+  // ── Logo (CB + Cobalto Barroco + acanto), centrado arriba ──
+  const logoW = 248, logoH = (logoW * LOGO_H) / LOGO_W;
+  p.image(LOGO_JPEG_B64, cx - logoW / 2, 714 - logoH, logoW, logoH);
+
+  // ── Título y subtítulo ──
+  p.ctext(cx, 562, 16, "C O N S T A N C I A   D E   T R A B A J O", true, NAVY);
+  p.ctext(cx, 544, 11.5, "RESTAURACIÓN ARTÍSTICA & ARQUITECTÓNICA.", false, NAVY);
+
+  // ── Cuerpo (centrado, con ajuste dinámico para textos largos) ──
+  const MAXW = 2 * (cx - STRIP) - 24; // ancho seguro sin invadir la franja
   function wrapC(s: string, size: number): string[] {
     const out: string[] = [];
     let cur = "";
@@ -361,35 +379,57 @@ export function buildConstanciaPdf(d: ConstanciaData): Buffer {
     if (cur) out.push(cur);
     return out.length ? out : ["—"];
   }
-  let yc = 606;
-  const cline = (txt: string, size: number, bold = false, color = NAVY, lead = size + 5) => {
-    for (const ln of wrapC(txt, size)) { p.ctext(cx, yc, size, ln, bold, color); yc -= lead; }
+  let yc = 486;
+  const cline = (
+    txt: string, size: number,
+    bold = false, color = NAVY, italic = false, lead = size + 6,
+  ) => {
+    for (const ln of wrapC(txt, size)) {
+      p.ctext(cx, yc, size, ln, bold, color, italic);
+      yc -= lead;
+    }
   };
-  cline("Por medio de la presente, Cobalto Barroco hace constar que:", 11);
-  yc -= 6;
-  cline(d.participante || "—", 16, true, NAVY, 20);
-  yc -= 4;
+
+  // "Por medio de la presente, " (normal) + cita en cursiva, en una línea centrada.
+  {
+    const a = "Por medio de la presente, ";
+    const b = "Cobalto Barroco hace constar que:";
+    const wa = textWidth(a, 11), wb = textWidth(b, 11);
+    const x0 = cx - (wa + wb) / 2;
+    p.text(x0, yc, 11, a, false, NAVY, false);
+    p.text(x0 + wa, yc, 11, b, false, NAVY, true);
+    yc -= 17;
+  }
+  cline(d.participante || "—", 12.5, true, NAVY); // nombre en negrita
+  yc -= 8;
   cline("Participó en los trabajos correspondientes al proyecto:", 11);
-  yc -= 4;
-  cline(d.proyecto || "—", 14, true, NAVY, 18);
-  yc -= 4;
+  cline(d.proyecto || "—", 12.5, true, NAVY, true); // proyecto en negrita cursiva
+  yc -= 14;
   if (d.ubicacion) cline(`Ubicación: ${d.ubicacion}`, 11);
   if (d.periodo) cline(`Periodo: ${d.periodo}`, 11);
-  yc -= 10;
-  cline("Se expide la presente constancia para los fines que a", 11, false, NAVY, 16);
-  cline("la persona interesada convengan.", 11, false, NAVY, 20);
-  if (d.fecha) p.ctext(cx, Math.max(yc, 300), 10, `Ciudad de México, a ${d.fecha}.`, false, GRAY);
+  yc -= 16;
+  cline("Se expide la presente constancia para los fines que a", 11, false, NAVY, false, 16);
+  cline("la persona interesada convengan.", 11);
 
-  // Firma dibujada (si existe), sobre la línea.
-  if (d.firmaJpegB64) p.image(d.firmaJpegB64, cx - 90, 262, 180, 60);
-  p.line(cx - 110, 258, cx + 110, 258, NAVY, 0.7);
-  p.ctext(cx, 242, 12, d.firmanteNombre || "", true, NAVY);
-  if (d.firmanteCargo) p.ctext(cx, 228, 10, d.firmanteCargo, false, GRAY);
+  // ── Firma ──
+  if (d.firmaJpegB64) p.image(d.firmaJpegB64, cx - 90, 206, 180, 58);
+  p.line(cx - 122, 203, cx + 122, 203, NAVY, 0.8);
+  p.ctext(cx, 184, 12, d.firmanteNombre || "[NOMBRE Y FIRMA]", false, NAVY);
+  p.ctext(cx, 168, 11, d.firmanteCargo || "[CARGO]", false, NAVY);
 
-  // Pie de contacto
-  p.text(70, 150, 9, "cobaltobarroco@gmail.com", false, NAVY);
-  p.text(70, 136, 9, "55-27-51-44-39  //  55-14-88-25-09", false, NAVY);
-  p.text(70, 122, 9, "@cobaltobarroco", false, NAVY);
+  // ── Pie de contacto, con íconos ──
+  const foot = GRAY;
+  const ix = 206, tx = 228, isz = 11;
+  const drawIcon = (b64: string, iw: number, ih: number, yBase: number) => {
+    const h = isz, w = (h * iw) / ih;
+    p.image(b64, ix, yBase - 2, w, h);
+  };
+  drawIcon(ICON_MAIL_B64, ICON_MAIL_W, ICON_MAIL_H, 110);
+  p.text(tx, 110, 9, "cobaltobarroco@gmail.com", false, foot);
+  drawIcon(ICON_PHONE_B64, ICON_PHONE_W, ICON_PHONE_H, 88);
+  p.text(tx, 88, 9, "55-27-51-44-39 // 55-14-88-25-09", false, foot);
+  drawIcon(ICON_IG_B64, ICON_IG_W, ICON_IG_H, 66);
+  p.text(tx, 66, 9, "@cobaltobarroco", false, foot);
 
   return serialize(p.end(), p.images);
 }
