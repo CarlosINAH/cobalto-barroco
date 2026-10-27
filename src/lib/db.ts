@@ -399,6 +399,12 @@ export interface ConceptInput {
   precio: number;
   /** Rendimiento/consumo por unidad de obra. */
   cantidad: number;
+  /**
+   * Factor de depreciación (0..1) para equipo/herramienta/material: la fracción
+   * del precio que se carga al concepto (p. ej. 0.1 = 10% del costo del equipo).
+   * undefined = 1 (100%, se usa completo). No aplica a mano de obra ni recetas.
+   */
+  depreciacion?: number;
 }
 
 /**

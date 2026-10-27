@@ -34,6 +34,10 @@ export function cleanInputs(raw: unknown): ConceptInput[] {
       unidad: (o.unidad || "").trim(),
       precio: Number(o.precio) || 0,
       cantidad: Number(o.cantidad) || 0,
+      depreciacion:
+        o.depreciacion == null || !Number.isFinite(Number(o.depreciacion))
+          ? undefined
+          : Math.min(1, Math.max(0, Number(o.depreciacion))),
     };
   });
 }
