@@ -56,6 +56,25 @@ export async function canWriteSection(
 }
 
 /**
+ * ¿Puede ESCRIBIR en el área de trabajo (Administración / Proyectos /
+ * Presupuesto)? admin, o quien tenga nivel "total" en administración o en
+ * proyectos. "lectura" solo ve; no escribe. Guarda de las rutas de esa área.
+ */
+export async function canWriteWorkArea(session: Session): Promise<boolean> {
+  return (
+    (await canWriteSection(session, "proyectos")) ||
+    (await canWriteSection(session, "administracion"))
+  );
+}
+
+/** Devuelve la sesión si puede escribir en el área de trabajo, o null. */
+export async function requireWorkAreaWrite(): Promise<Session | null> {
+  const session = await getSession();
+  if (!session) return null;
+  return (await canWriteWorkArea(session)) ? session : null;
+}
+
+/**
  * Exige al menos ver la sección (nivel "lectura" o "total"). Si no, redirige al
  * panel que sí puede ver. Permite que un residente/superintendente entre a las
  * páginas de Administración/Proyectos sin ser admin.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-server";
+import { getSession, canWriteWorkArea } from "@/lib/auth-server";
 import { getDB, mutate, newId, type Project } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -16,8 +16,9 @@ export async function POST(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
-  // Empleados también pueden registrar proyectos, pero NO los montos de dinero.
-  const isAdmin = session.role === "admin";
+  // Empleados pueden registrar proyectos, pero los montos de dinero solo los
+  // captura quien tenga acceso de escritura al área (admin o nivel "total").
+  const puedeMontos = await canWriteWorkArea(session);
   let b: Partial<Project>;
   try {
     b = await req.json();
@@ -40,11 +41,11 @@ export async function POST(req: Request) {
     createdAt: Date.now(),
     cliente: b.cliente?.trim() || undefined,
     tipo: b.tipo?.trim() || undefined,
-    // Montos de dinero: solo administración.
-    montoTotal: isAdmin ? num(b.montoTotal) : undefined,
-    anticipo: isAdmin ? num(b.anticipo) : undefined,
-    egresos: isAdmin ? num(b.egresos) : undefined,
-    utilidad: isAdmin ? num(b.utilidad) : undefined,
+    // Montos de dinero: solo quien tiene escritura en el área.
+    montoTotal: puedeMontos ? num(b.montoTotal) : undefined,
+    anticipo: puedeMontos ? num(b.anticipo) : undefined,
+    egresos: puedeMontos ? num(b.egresos) : undefined,
+    utilidad: puedeMontos ? num(b.utilidad) : undefined,
   };
   await mutate((db) => db.projects.unshift(project));
   return NextResponse.json({ ok: true, project });

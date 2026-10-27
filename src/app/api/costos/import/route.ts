@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-server";
+import { getSession, canWriteWorkArea } from "@/lib/auth-server";
 import {
   mutate,
   type CostMaterial,
@@ -20,7 +20,7 @@ export const runtime = "nodejs";
  */
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session || session.role !== "admin")
+  if (!session || !(await canWriteWorkArea(session)))
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
 
   let b: {
