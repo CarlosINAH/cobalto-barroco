@@ -47,7 +47,6 @@ const adminNav: NavItem[] = [
   { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
   { icon: Boxes, label: "Fichas de piezas", href: "/dashboard/admin/fichas" },
   { icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" },
-  { icon: Award, label: "Currículum", href: "/dashboard/admin/cv" },
   { icon: Award, label: "Constancias", href: "/dashboard/admin/constancias" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/admin/nas" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/admin/papelera" },
