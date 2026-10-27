@@ -33,6 +33,8 @@ export interface Project {
   egresos?: number;
   /** Utilidad real de la obra. */
   utilidad?: number;
+  /** Carpeta de almacenamiento de informes (Word/PDF/Excel y otros recursos). */
+  carpetaInformes?: string;
 }
 
 /** Cualidad evaluada de un empleado, con nivel 1–5 (solo visible para admins). */

@@ -17,6 +17,7 @@ import {
   Printer,
   Download,
   Scale,
+  FolderOpen,
 } from "lucide-react";
 import type {
   Project,
@@ -195,7 +196,16 @@ function ProyectoDetalle({
 }) {
   const [tab, setTab] = useState<SubTab>("presupuesto");
   const [budget, setBudget] = useState<Budget | null>(budgetInicial);
+  const [carpeta, setCarpeta] = useState(proyecto.carpetaInformes || "");
   const est = ESTADO[proyecto.estado] ?? ESTADO.activo;
+
+  // Carpeta de almacenamiento de informes (Word/PDF/Excel y demás recursos).
+  async function guardarCarpeta(v: string) {
+    await fetch(`/api/projects/${proyecto.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ carpetaInformes: v }),
+    });
+  }
 
   return (
     <div>
@@ -211,6 +221,11 @@ function ProyectoDetalle({
           </div>
           <span className={`text-xs px-2 py-1 border ${est.cls}`}>{est.label}</span>
         </div>
+        <label className="flex flex-col gap-1 mt-4 text-xs text-[#7A7A7A]">
+          <span className="flex items-center gap-1.5"><FolderOpen size={13} className="text-[#C9A84C]" /> Carpeta de informes (Word / PDF / Excel y otros)</span>
+          <input value={carpeta} onChange={(e) => setCarpeta(e.target.value)} onBlur={(e) => guardarCarpeta(e.target.value)}
+            placeholder="p. ej. Proyectos/FES Iztacala/Informes" className={INPUT + " w-full max-w-xl"} />
+        </label>
       </div>
 
       <div className="flex gap-1 border-b border-[#EDE9E0] mb-6 overflow-x-auto" data-no-print>
