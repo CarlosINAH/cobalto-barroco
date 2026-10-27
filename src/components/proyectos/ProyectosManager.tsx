@@ -722,6 +722,9 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
   const [items, setItems] = useState<PayrollEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ persona: "", rol: "", periodo: "", monto: "" });
+  const [verRol, setVerRol] = useState("");
+  const [verPeriodo, setVerPeriodo] = useState("");
+  const [verPagado, setVerPagado] = useState<"" | "si" | "no">("");
 
   // Enlace con el catálogo de salarios: elegir un rol prellena rol y monto
   // (jornada de 8 h). El usuario puede ajustar el monto según el periodo.
@@ -753,8 +756,15 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
     if ((await fetch(`/api/costos/payroll/${id}`, { method: "DELETE" })).ok) setItems((xs) => xs.filter((x) => x.id !== id));
   }
 
-  const total = items.reduce((a, e) => a + e.monto, 0);
-  const pagado = items.filter((e) => e.pagado).reduce((a, e) => a + e.monto, 0);
+  const roles = [...new Set(items.map((e) => e.rol).filter(Boolean))].sort();
+  const periodos = [...new Set(items.map((e) => e.periodo).filter(Boolean))].sort();
+  const visibles = items.filter((e) =>
+    (!verRol || e.rol === verRol) &&
+    (!verPeriodo || e.periodo === verPeriodo) &&
+    (!verPagado || (verPagado === "si" ? e.pagado : !e.pagado)),
+  );
+  const total = visibles.reduce((a, e) => a + e.monto, 0);
+  const pagado = visibles.filter((e) => e.pagado).reduce((a, e) => a + e.monto, 0);
 
   return (
     <div>
@@ -776,6 +786,32 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
         <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
         <button onClick={crear} disabled={busy} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
       </div>
+      {items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {roles.length > 0 && (
+            <select value={verRol} onChange={(e) => setVerRol(e.target.value)} className={INPUT} title="Filtrar por rol">
+              <option value="">Todos los roles</option>
+              {roles.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          )}
+          {periodos.length > 0 && (
+            <select value={verPeriodo} onChange={(e) => setVerPeriodo(e.target.value)} className={INPUT} title="Filtrar por periodo">
+              <option value="">Todos los periodos</option>
+              {periodos.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          )}
+          {([["", "Todos"], ["si", "Pagado"], ["no", "Por pagar"]] as const).map(([id, label]) => {
+            const on = verPagado === id;
+            return (
+              <button key={id || "todos"} onClick={() => setVerPagado(id)}
+                className={`px-3 py-1.5 text-xs tracking-wider uppercase font-semibold border transition-colors ${on ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"}`}>
+                {label}
+              </button>
+            );
+          })}
+          <span className="text-xs text-[#7A7A7A]">{visibles.length} de {items.length}</span>
+        </div>
+      )}
       <div className={`${CARD} overflow-x-auto`}>
         <table className="w-full text-sm">
           <thead>
@@ -789,7 +825,7 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
             </tr>
           </thead>
           <tbody>
-            {items.map((e) => (
+            {visibles.map((e) => (
               <tr key={e.id} className="border-b border-[#F5F2EC]">
                 <td className="px-3 py-2 text-[#2C2C2C]">{e.persona}</td>
                 <td className="px-3 py-2 text-[#7A7A7A]">{e.rol || "—"}</td>
@@ -801,7 +837,7 @@ function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: Pa
                 <td className="px-3 py-2 text-right"><button onClick={() => borrar(e.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
               </tr>
             ))}
-            {items.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-[#7A7A7A]">Sin pagos registrados.</td></tr>}
+            {visibles.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-[#7A7A7A]">{items.length === 0 ? "Sin pagos registrados." : "Sin resultados para el filtro."}</td></tr>}
           </tbody>
         </table>
       </div>

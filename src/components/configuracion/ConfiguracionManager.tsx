@@ -7,12 +7,13 @@ import PersonalManager from "@/components/personal/PersonalManager";
 import PermisosManager from "@/components/permisos/PermisosManager";
 import type { Employee } from "@/lib/db";
 
-type Tab = "accesos" | "empleados" | "carpetas";
+type Tab = "permisos" | "empleados";
 
 /**
  * Centro de configuración (solo admin): reúne en un solo lugar los permisos de
- * la plataforma —acceso a secciones por persona (Accesos), alta/edición de
- * empleados (Empleados) y permisos de carpetas compartidas (Carpetas)—.
+ * la plataforma —en "Accesos y permisos" van juntos el acceso a secciones por
+ * persona y los permisos de carpetas compartidas; en "Empleados" el alta y
+ * edición del personal—.
  */
 export default function ConfiguracionManager({
   accesos, personal, permisos,
@@ -21,7 +22,7 @@ export default function ConfiguracionManager({
   personal: React.ComponentProps<typeof PersonalManager>;
   permisos: React.ComponentProps<typeof PermisosManager>;
 }) {
-  const [tab, setTab] = useState<Tab>("accesos");
+  const [tab, setTab] = useState<Tab>("permisos");
   const [importing, setImporting] = useState(false);
 
   // Único botón de importación de datos (catálogos + administración). Se quita
@@ -50,9 +51,8 @@ export default function ConfiguracionManager({
   }
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: "accesos", label: "Accesos", icon: ShieldCheck },
+    { id: "permisos", label: "Accesos y permisos", icon: ShieldCheck },
     { id: "empleados", label: "Empleados", icon: Users },
-    { id: "carpetas", label: "Permisos de carpetas", icon: FolderLock },
   ];
 
   return (
@@ -76,9 +76,17 @@ export default function ConfiguracionManager({
         })}
       </div>
 
-      {tab === "accesos" && <AccesosManager initial={accesos} />}
+      {tab === "permisos" && (
+        <div className="space-y-6">
+          <AccesosManager initial={accesos} />
+          <div className="flex items-center gap-2 text-[#1B2A5E] pt-2">
+            <FolderLock size={16} className="text-[#C9A84C]" />
+            <h3 className="font-semibold">Permisos de carpetas</h3>
+          </div>
+          <PermisosManager {...permisos} />
+        </div>
+      )}
       {tab === "empleados" && <PersonalManager {...personal} />}
-      {tab === "carpetas" && <PermisosManager {...permisos} />}
     </div>
   );
 }
