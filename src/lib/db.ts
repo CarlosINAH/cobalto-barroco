@@ -50,6 +50,15 @@ export interface Employee {
   nombre: string;
   email: string;
   telefono?: string;
+  // ── Hoja de seguridad (datos de emergencia del trabajador) ──
+  /** Tipo de sangre (p. ej. "O+"). */
+  tipoSangre?: string;
+  /** Enfermedades, alergias o padecimientos relevantes. */
+  enfermedades?: string;
+  /** Nombre del contacto de emergencia. */
+  emergenciaNombre?: string;
+  /** Teléfono de emergencia. */
+  emergenciaTel?: string;
   rol: string;
   ranking: number;
   habilidades: string[];
