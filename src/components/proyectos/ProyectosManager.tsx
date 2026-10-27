@@ -599,13 +599,15 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
   const [verCat, setVerCat] = useState(""); // filtro de la tabla por categoría
 
   // Enlace con el catálogo: en Administración solo se jalan CONCEPTOS (los
-  // materiales/recetas/personal se arman en Presupuesto). Elegir un concepto
-  // prellena nombre y monto (su P.U., que ya incluye indirectos y utilidad).
-  function pickConcepto(id: string) {
-    const c = catalog.conceptos.find((x) => x.id === id);
-    if (!c) return;
-    const nombre = [c.clave, c.concepto || c.descripcion].filter(Boolean).join(" · ");
-    setF((prev) => ({ ...prev, tipo: "egreso", concepto: nombre, monto: String(c.pu) }));
+  // materiales/recetas/personal se arman en Presupuesto). El campo Concepto
+  // ofrece los conceptos del catálogo; al elegir uno, prellena el monto con su
+  // P.U. (que ya incluye indirectos y utilidad). En cuanto se den de alta
+  // conceptos en el catálogo, aparecen aquí automáticamente.
+  const conceptoLabel = (c: (typeof catalog.conceptos)[number]) =>
+    [c.clave, c.concepto || c.descripcion].filter(Boolean).join(" · ");
+  function onConceptoChange(v: string) {
+    const hit = catalog.conceptos.find((c) => conceptoLabel(c) === v);
+    setF((prev) => (hit ? { ...prev, concepto: v, tipo: "egreso", monto: String(hit.pu) } : { ...prev, concepto: v }));
   }
 
   async function crear() {
@@ -636,12 +638,6 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
       </div>
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
         <input type="date" value={f.fecha} onChange={(e) => setF({ ...f, fecha: e.target.value })} className={INPUT} />
-        {catalog.conceptos.length > 0 && (
-          <select defaultValue="" onChange={(e) => { pickConcepto(e.target.value); e.target.value = ""; }} className={INPUT + " max-w-[260px]"} title="Traer un concepto del catálogo">
-            <option value="">Concepto del catálogo…</option>
-            {catalog.conceptos.map((c) => <option key={c.id} value={c.id}>{[c.clave, c.concepto || c.descripcion].filter(Boolean).join(" · ")} · {money(c.pu)}</option>)}
-          </select>
-        )}
         <select value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} className={INPUT}>
           {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -649,7 +645,10 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
           <option value="ingreso">Ingreso</option>
           <option value="egreso">Egreso</option>
         </select>
-        <input placeholder="Concepto" value={f.concepto} onChange={(e) => setF({ ...f, concepto: e.target.value })} className={INPUT + " flex-1 min-w-[160px]"} />
+        <input placeholder="Concepto (elige del catálogo o escribe)" list="admin-conceptos" value={f.concepto} onChange={(e) => onConceptoChange(e.target.value)} className={INPUT + " flex-1 min-w-[160px]"} />
+        <datalist id="admin-conceptos">
+          {catalog.conceptos.map((c) => <option key={c.id} value={conceptoLabel(c)}>{money(c.pu)}</option>)}
+        </datalist>
         <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
         <button onClick={crear} disabled={busy} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
       </div>
