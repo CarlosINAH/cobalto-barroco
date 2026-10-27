@@ -216,8 +216,8 @@ function ProyectoDetalle({
       {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} />}
       {tab === "cronograma" && <Cronograma budget={budget} onChange={setBudget} />}
       {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} />}
-      {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} />}
-      {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} />}
+      {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} catalog={catalog} />}
+      {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} catalog={catalog} />}
     </div>
   );
 }
@@ -520,10 +520,18 @@ function Stat({ label, val }: { label: string; val: string }) {
 // Categorías alineadas a los rubros del balance (presupuestado vs real).
 const CATEGORIAS = ["anticipo", "finiquito", "pago", "mano de obra", "material", "herramienta", "equipo", "viáticos", "indirectos", "impuestos", "otro"];
 
-function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[] }) {
+function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[]; catalog: CatalogProps }) {
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ fecha: new Date().toISOString().slice(0, 10), categoria: "anticipo", tipo: "ingreso" as LedgerEntry["tipo"], concepto: "", monto: "" });
+
+  // Enlace con el catálogo: elegir un material/herramienta/equipo prellena
+  // concepto, categoría (= su tipo) y monto (= su precio) como egreso.
+  function pickMaterial(id: string) {
+    const m = catalog.materiales.find((x) => x.id === id);
+    if (!m) return;
+    setF((prev) => ({ ...prev, tipo: "egreso", categoria: m.kind, concepto: m.nombre, monto: String(m.precio) }));
+  }
 
   async function crear() {
     setBusy(true);
@@ -553,6 +561,12 @@ function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budg
       </div>
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
         <input type="date" value={f.fecha} onChange={(e) => setF({ ...f, fecha: e.target.value })} className={INPUT} />
+        {catalog.materiales.length > 0 && (
+          <select defaultValue="" onChange={(e) => { pickMaterial(e.target.value); e.target.value = ""; }} className={INPUT + " max-w-[220px]"} title="Traer del catálogo de materiales">
+            <option value="">Del catálogo…</option>
+            {catalog.materiales.map((m) => <option key={m.id} value={m.id}>{m.nombre} · {money(m.precio)}</option>)}
+          </select>
+        )}
         <select value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} className={INPUT}>
           {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -594,10 +608,18 @@ function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budg
 }
 
 // ─── Nómina del proyecto ─────────────────────────────────────────────────────
-function Nomina({ proyecto, inicial }: { proyecto: Project; inicial: PayrollEntry[] }) {
+function Nomina({ proyecto, inicial, catalog }: { proyecto: Project; inicial: PayrollEntry[]; catalog: CatalogProps }) {
   const [items, setItems] = useState<PayrollEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ persona: "", rol: "", periodo: "", monto: "" });
+
+  // Enlace con el catálogo de salarios: elegir un rol prellena rol y monto
+  // (jornada de 8 h). El usuario puede ajustar el monto según el periodo.
+  function pickRol(id: string) {
+    const s = catalog.salarios.find((x) => x.id === id);
+    if (!s) return;
+    setF((prev) => ({ ...prev, rol: s.rol, monto: String(s.jornada) }));
+  }
 
   async function crear() {
     if (!f.persona.trim()) return;
@@ -633,6 +655,12 @@ function Nomina({ proyecto, inicial }: { proyecto: Project; inicial: PayrollEntr
       </div>
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
         <input placeholder="Persona" value={f.persona} onChange={(e) => setF({ ...f, persona: e.target.value })} className={INPUT + " flex-1 min-w-[160px]"} />
+        {catalog.salarios.length > 0 && (
+          <select defaultValue="" onChange={(e) => { pickRol(e.target.value); e.target.value = ""; }} className={INPUT + " w-44"} title="Traer del catálogo de salarios">
+            <option value="">Del catálogo…</option>
+            {catalog.salarios.map((s) => <option key={s.id} value={s.id}>{s.rol} · {money(s.jornada)}</option>)}
+          </select>
+        )}
         <input placeholder="Rol" value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value })} className={INPUT + " w-40"} />
         <input placeholder="Periodo" value={f.periodo} onChange={(e) => setF({ ...f, periodo: e.target.value })} className={INPUT + " w-32"} />
         <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
