@@ -347,15 +347,38 @@ export function buildConstanciaPdf(d: ConstanciaData): Buffer {
   p.ctext(cx, 654, 11, "RESTAURACIÓN ARTÍSTICA & ARQUITECTÓNICA.", false, NAVY);
   p.line(cx - 150, 642, cx + 150, 642, NAVY, 0.7);
 
-  p.ctext(cx, 600, 11, "Por medio de la presente, Cobalto Barroco hace constar que:", false, NAVY);
-  p.ctext(cx, 578, 16, d.participante || "—", true, NAVY);
-  p.ctext(cx, 548, 11, "Participó en los trabajos correspondientes al proyecto:", false, NAVY);
-  p.ctext(cx, 526, 14, d.proyecto || "—", true, NAVY);
-  if (d.ubicacion) p.ctext(cx, 498, 11, `Ubicación: ${d.ubicacion}`, false, NAVY);
-  if (d.periodo) p.ctext(cx, 482, 11, `Periodo: ${d.periodo}`, false, NAVY);
-  p.ctext(cx, 446, 11, "Se expide la presente constancia para los fines que a", false, NAVY);
-  p.ctext(cx, 430, 11, "la persona interesada convengan.", false, NAVY);
-  if (d.fecha) p.ctext(cx, 404, 10, `Ciudad de México, a ${d.fecha}.`, false, GRAY);
+  // Bloque central dinámico: los campos variables (participante, proyecto,
+  // ubicación…) se ajustan en varias líneas centradas para no salirse de los
+  // márgenes ni invadir la franja azul.
+  const MAXW = 480; // ancho seguro dentro del área de contenido
+  function wrapC(s: string, size: number): string[] {
+    const out: string[] = [];
+    let cur = "";
+    for (const w of (s || "").split(/\s+/)) {
+      const t = cur ? `${cur} ${w}` : w;
+      if (textWidth(t, size) > MAXW && cur) { out.push(cur); cur = w; } else cur = t;
+    }
+    if (cur) out.push(cur);
+    return out.length ? out : ["—"];
+  }
+  let yc = 606;
+  const cline = (txt: string, size: number, bold = false, color = NAVY, lead = size + 5) => {
+    for (const ln of wrapC(txt, size)) { p.ctext(cx, yc, size, ln, bold, color); yc -= lead; }
+  };
+  cline("Por medio de la presente, Cobalto Barroco hace constar que:", 11);
+  yc -= 6;
+  cline(d.participante || "—", 16, true, NAVY, 20);
+  yc -= 4;
+  cline("Participó en los trabajos correspondientes al proyecto:", 11);
+  yc -= 4;
+  cline(d.proyecto || "—", 14, true, NAVY, 18);
+  yc -= 4;
+  if (d.ubicacion) cline(`Ubicación: ${d.ubicacion}`, 11);
+  if (d.periodo) cline(`Periodo: ${d.periodo}`, 11);
+  yc -= 10;
+  cline("Se expide la presente constancia para los fines que a", 11, false, NAVY, 16);
+  cline("la persona interesada convengan.", 11, false, NAVY, 20);
+  if (d.fecha) p.ctext(cx, Math.max(yc, 300), 10, `Ciudad de México, a ${d.fecha}.`, false, GRAY);
 
   // Firma dibujada (si existe), sobre la línea.
   if (d.firmaJpegB64) p.image(d.firmaJpegB64, cx - 90, 262, 180, 60);
