@@ -252,6 +252,7 @@ const G_EMPTY = (): GForm => ({ id: null, fecha: new Date().toISOString().slice(
 function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEntry[] }) {
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
   const [mes, setMes] = useState("");
+  const [sub, setSub] = useState("");
   const [form, setForm] = useState<GForm>(G_EMPTY());
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -265,8 +266,11 @@ function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEn
     [items],
   );
   const visibles = useMemo(
-    () => items.filter((e) => !mes || (e.fecha || "").slice(0, 7) === mes),
-    [items, mes],
+    () => items.filter((e) =>
+      (!mes || (e.fecha || "").slice(0, 7) === mes) &&
+      (!sub || (e.subcategoria || "SIN CATEGORÍA") === sub),
+    ),
+    [items, mes, sub],
   );
   // Agrupado por subcategoría.
   const grupos = useMemo(() => {
@@ -310,11 +314,17 @@ function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEn
   return (
     <div>
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <select value={mes} onChange={(e) => setMes(e.target.value)} className={INPUT + " w-44"}>
+        <div className="flex flex-wrap items-center gap-3">
+          <select value={mes} onChange={(e) => setMes(e.target.value)} className={INPUT + " w-40"}>
             <option value="">Todos los meses</option>
             {meses.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
           </select>
+          {subcats.length > 0 && (
+            <select value={sub} onChange={(e) => setSub(e.target.value)} className={INPUT + " w-44"}>
+              <option value="">Todas las categorías</option>
+              {subcats.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
           <span className="text-sm text-[#7A7A7A]">{visibles.length} movimientos</span>
         </div>
         <div className="flex items-center gap-4">
@@ -385,6 +395,7 @@ const N_EMPTY = (): NForm => ({ id: null, fecha: new Date().toISOString().slice(
 function NominaTab({ inicial }: { inicial: PayrollEntry[] }) {
   const [items, setItems] = useState<PayrollEntry[]>(inicial);
   const [mes, setMes] = useState("");
+  const [cat, setCat] = useState("");
   const [form, setForm] = useState<NForm>(N_EMPTY());
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -392,7 +403,10 @@ function NominaTab({ inicial }: { inicial: PayrollEntry[] }) {
   const fechaDe = (e: PayrollEntry) => (e.fecha || "").slice(0, 7);
   const meses = useMemo(() => [...new Set(items.map(fechaDe).filter(Boolean))].sort().reverse(), [items]);
   const cats = useMemo(() => [...new Set(items.map((e) => e.categoria || "").filter(Boolean))].sort(), [items]);
-  const visibles = useMemo(() => items.filter((e) => !mes || fechaDe(e) === mes), [items, mes]);
+  const visibles = useMemo(
+    () => items.filter((e) => (!mes || fechaDe(e) === mes) && (!cat || (e.categoria || "nómina") === cat)),
+    [items, mes, cat],
+  );
   const grupos = useMemo(() => {
     const g = new Map<string, PayrollEntry[]>();
     for (const e of visibles) {
@@ -432,10 +446,14 @@ function NominaTab({ inicial }: { inicial: PayrollEntry[] }) {
   return (
     <div>
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <select value={mes} onChange={(e) => setMes(e.target.value)} className={INPUT + " w-44"}>
+        <div className="flex flex-wrap items-center gap-3">
+          <select value={mes} onChange={(e) => setMes(e.target.value)} className={INPUT + " w-40"}>
             <option value="">Todos los meses</option>
             {meses.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+          </select>
+          <select value={cat} onChange={(e) => setCat(e.target.value)} className={INPUT + " w-44 capitalize"}>
+            <option value="">Todas las categorías</option>
+            {cats.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <span className="text-sm text-[#7A7A7A]">{visibles.length} pagos</span>
         </div>

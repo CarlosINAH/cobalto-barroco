@@ -1,26 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldCheck, Users, FolderLock, Upload } from "lucide-react";
+import { ShieldCheck, Users, Upload } from "lucide-react";
 import AccesosManager from "@/components/configuracion/AccesosManager";
 import PersonalManager from "@/components/personal/PersonalManager";
-import PermisosManager from "@/components/permisos/PermisosManager";
 import type { Employee } from "@/lib/db";
+import type { FolderPerms } from "@/components/permisos/PermisosManager";
 
 type Tab = "permisos" | "empleados";
 
 /**
  * Centro de configuración (solo admin): reúne en un solo lugar los permisos de
- * la plataforma —en "Accesos y permisos" van juntos el acceso a secciones por
- * persona y los permisos de carpetas compartidas; en "Empleados" el alta y
- * edición del personal—.
+ * la plataforma —en "Accesos y permisos" el acceso por persona a secciones
+ * sensibles y a cada carpeta compartida (todo en el mismo panel); en
+ * "Empleados" el alta y edición del personal—.
  */
 export default function ConfiguracionManager({
-  accesos, personal, permisos,
+  accesos, personal, folders, folderPerms,
 }: {
   accesos: Employee[];
   personal: React.ComponentProps<typeof PersonalManager>;
-  permisos: React.ComponentProps<typeof PermisosManager>;
+  folders: { name: string; path: string }[];
+  folderPerms: Record<string, FolderPerms>;
 }) {
   const [tab, setTab] = useState<Tab>("permisos");
   const [importing, setImporting] = useState(false);
@@ -76,16 +77,7 @@ export default function ConfiguracionManager({
         })}
       </div>
 
-      {tab === "permisos" && (
-        <div className="space-y-6">
-          <AccesosManager initial={accesos} />
-          <div className="flex items-center gap-2 text-[#1B2A5E] pt-2">
-            <FolderLock size={16} className="text-[#C9A84C]" />
-            <h3 className="font-semibold">Permisos de carpetas</h3>
-          </div>
-          <PermisosManager {...permisos} />
-        </div>
-      )}
+      {tab === "permisos" && <AccesosManager initial={accesos} folders={folders} folderPerms={folderPerms} />}
       {tab === "empleados" && <PersonalManager {...personal} />}
     </div>
   );
