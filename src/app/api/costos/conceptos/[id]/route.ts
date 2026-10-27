@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-server";
+import { requireWorkAreaWrite } from "@/lib/auth-server";
 import { mutate, type Concept } from "@/lib/db";
 import { buildCatalogs, recomputeConcept } from "@/lib/pu";
 import { cleanInputs } from "@/lib/costos";
@@ -7,8 +7,7 @@ import { cleanInputs } from "@/lib/costos";
 export const runtime = "nodejs";
 
 async function requireAdmin() {
-  const session = await getSession();
-  return session && session.role === "admin" ? session : null;
+  return requireWorkAreaWrite();
 }
 
 export async function PATCH(

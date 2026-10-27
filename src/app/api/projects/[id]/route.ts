@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-server";
+import { requireWorkAreaWrite } from "@/lib/auth-server";
 import { mutate, type Project } from "@/lib/db";
 
 export const runtime = "nodejs";
 
 async function requireAdmin() {
-  const session = await getSession();
-  if (!session || session.role !== "admin") return null;
-  return session;
+  return requireWorkAreaWrite();
 }
 
 export async function PATCH(
