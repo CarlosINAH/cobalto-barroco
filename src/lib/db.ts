@@ -428,8 +428,14 @@ export interface LedgerEntry {
   /** Proyecto, o null = gasto general de la empresa. */
   projectId: string | null;
   fecha: string; // YYYY-MM-DD
-  /** anticipo, finiquito, pago, egreso, indirectos, impuestos, nómina, otro. */
+  /** anticipo, finiquito, pago, egreso, indirectos, impuestos, adquisiciones, utilidades, nómina, otro. */
   categoria: string;
+  /**
+   * Subgrupo dentro de la categoría (p. ej. en Indirectos: "SERVICIOS",
+   * "VIÁTICOS"; en Adquisiciones: "MATERIAL", "EQUIPO"). Replica los bloques de
+   * las hojas de Administración del Excel; opcional.
+   */
+  subcategoria?: string;
   tipo: LedgerKind;
   concepto: string;
   monto: number;

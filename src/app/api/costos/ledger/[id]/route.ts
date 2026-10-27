@@ -27,6 +27,7 @@ export async function PATCH(
     if (!e) return null;
     if (b.fecha !== undefined) e.fecha = b.fecha.trim();
     if (b.categoria !== undefined) e.categoria = b.categoria.trim();
+    if (b.subcategoria !== undefined) e.subcategoria = b.subcategoria.trim() || undefined;
     if (b.tipo !== undefined) e.tipo = b.tipo === "ingreso" ? "ingreso" : "egreso";
     if (b.concepto !== undefined) e.concepto = b.concepto.trim();
     if (b.monto !== undefined) e.monto = Number(b.monto) || 0;

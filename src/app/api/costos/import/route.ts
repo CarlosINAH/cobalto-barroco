@@ -30,6 +30,13 @@ export async function POST(req: Request) {
     projects?: Project[];
     payrollEntries?: PayrollEntry[];
     ledgerEntries?: LedgerEntry[];
+    /**
+     * "admin": antes de insertar, reemplaza los gastos y la nómina DE EMPRESA
+     * (projectId == null) por lo que trae el archivo. Deja intactos los
+     * movimientos ligados a un proyecto. Hace idempotente la carga de la hoja
+     * de Administración (sin duplicar lo ya subido).
+     */
+    mode?: string;
   };
   try {
     b = await req.json();
@@ -38,6 +45,12 @@ export async function POST(req: Request) {
   }
 
   const importado = await mutate((db) => {
+    if (b.mode === "admin") {
+      if (Array.isArray(b.ledgerEntries))
+        db.ledgerEntries = db.ledgerEntries.filter((e) => e.projectId !== null);
+      if (Array.isArray(b.payrollEntries))
+        db.payrollEntries = db.payrollEntries.filter((e) => e.projectId !== null);
+    }
     const out: {
       costMaterials?: number;
       recipes?: number;

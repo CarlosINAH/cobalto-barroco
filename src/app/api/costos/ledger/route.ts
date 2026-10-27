@@ -36,6 +36,7 @@ export async function POST(req: Request) {
     projectId,
     fecha: (b.fecha || new Date().toISOString().slice(0, 10)).trim(),
     categoria: (b.categoria || "otro").trim(),
+    subcategoria: (b.subcategoria || "").trim() || undefined,
     tipo: b.tipo === "ingreso" ? "ingreso" : "egreso",
     concepto: (b.concepto || "").trim(),
     monto: Number(b.monto) || 0,
