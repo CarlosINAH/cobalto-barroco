@@ -32,6 +32,13 @@ export async function PATCH(
     if (b.ranking !== undefined)
       e.ranking = Math.max(0, Math.min(100, Number(b.ranking) || 0));
     if (b.proyectoId !== undefined) e.proyectoId = b.proyectoId || null;
+    if (b.proyectoIds !== undefined) {
+      e.proyectoIds = Array.isArray(b.proyectoIds)
+        ? b.proyectoIds.map((s) => String(s)).filter(Boolean)
+        : [];
+      // Mantener proyectoId (principal) en sintonía con el primero.
+      e.proyectoId = e.proyectoIds[0] ?? e.proyectoId ?? null;
+    }
     if (b.habilidades !== undefined) {
       e.habilidades = Array.isArray(b.habilidades)
         ? b.habilidades

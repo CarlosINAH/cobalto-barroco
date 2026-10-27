@@ -46,6 +46,7 @@ interface Employee {
   carpetasVisibles?: string[];
   acciones?: Acciones;
   proyectoId: string | null;
+  proyectoIds?: string[];
 }
 
 const ACCIONES: { key: keyof Acciones; label: string }[] = [
@@ -207,7 +208,11 @@ export default function PersonalManager({
                 )}
                 <p className="flex items-center gap-1.5">
                   <FolderOpen size={11} />
-                  {projName(e.proyectoId) || "Sin proyecto asignado"}
+                  {(() => {
+                    const ids = e.proyectoIds?.length ? e.proyectoIds : (e.proyectoId ? [e.proyectoId] : []);
+                    const nombres = ids.map((id) => projName(id)).filter(Boolean);
+                    return nombres.length ? nombres.join(", ") : "Sin proyecto asignado";
+                  })()}
                 </p>
               </div>
               {e.habilidades.length > 0 && (
@@ -366,19 +371,29 @@ function EmployeeModal({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={label}>Proyecto asignado</label>
-              <select
-                className={field}
-                value={(form.proyectoId as string) || ""}
-                onChange={(e) => set("proyectoId", e.target.value)}
-              >
-                <option value="">Sin asignar</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                  </option>
-                ))}
-              </select>
+              <label className={label}>Proyectos asignados</label>
+              {(() => {
+                const sel = ((form.proyectoIds as string[]) ||
+                  (form.proyectoId ? [form.proyectoId as string] : []));
+                const toggle = (id: string) =>
+                  set(
+                    "proyectoIds",
+                    sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id],
+                  );
+                return (
+                  <div className="border border-[#EDE9E0] bg-white max-h-32 overflow-y-auto p-2 space-y-1">
+                    {projects.length === 0 && (
+                      <p className="text-xs text-[#7A7A7A] px-1">No hay proyectos.</p>
+                    )}
+                    {projects.map((p) => (
+                      <label key={p.id} className="flex items-center gap-2 text-sm text-[#2C2C2C] px-1 py-0.5 cursor-pointer hover:bg-[#F5F2EC]">
+                        <input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} />
+                        {p.nombre}
+                      </label>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <label className={label}>Ranking general ({(form.ranking as number) || 0})</label>
