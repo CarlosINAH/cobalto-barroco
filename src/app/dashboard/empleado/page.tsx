@@ -57,7 +57,7 @@ export default async function PanelGeneralEmpleado() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {misProyectos.map((p) => (
-              <div key={p.id} className="bg-white border border-[#EDE9E0] p-4 flex flex-col">
+              <Link key={p.id} href={`/dashboard/empleado/proyectos/${p.id}`} className="bg-white border border-[#EDE9E0] p-4 flex flex-col hover:border-[#C9A84C]/60 transition-colors group">
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <p className="text-[#1B2A5E] font-semibold text-sm leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>{p.nombre}</p>
                   <span className={`text-[11px] px-2 py-0.5 border shrink-0 ${ESTADO_CLS[p.estado] || ""}`}>{p.estado}</span>
@@ -67,8 +67,8 @@ export default async function PanelGeneralEmpleado() {
                 <div className="mt-3 h-1.5 bg-[#F5F2EC] overflow-hidden">
                   <div className="h-full bg-[#C9A84C]" style={{ width: `${Math.min(100, Math.max(0, p.avance))}%` }} />
                 </div>
-                <p className="text-[11px] text-[#7A7A7A] mt-1 data-label">{p.avance}% avance</p>
-              </div>
+                <p className="flex items-center justify-between text-[11px] text-[#7A7A7A] mt-1"><span className="data-label">{p.avance}% avance</span><span className="text-[#C9A84C] opacity-0 group-hover:opacity-100">Ver →</span></p>
+              </Link>
             ))}
           </div>
         )}
