@@ -1,6 +1,5 @@
 import "server-only";
 import type { Budget, Project } from "@/lib/db";
-import { budgetTotals } from "@/lib/pu";
 import { LOGO_JPEG_B64, LOGO_W, LOGO_H } from "@/lib/constancia-logo";
 
 /**
@@ -162,7 +161,14 @@ function serialize(pagesContent: string[], images: DocImage[] = []): Buffer {
 
 /** Construye el PDF de la cotización de un presupuesto. */
 export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
-  const t = budgetTotals(budget);
+  // La cotización al contratista lista solo CONCEPTOS (los materiales, recetas
+  // y personal son el armado interno). Si aún no hay conceptos, se usan todas
+  // las partidas como respaldo. El P.U. del concepto ya incluye indirectos y
+  // utilidad.
+  const soloConceptos = budget.lineas.filter((l) => l.conceptId);
+  const lineas = soloConceptos.length ? soloConceptos : budget.lineas;
+  const subtotal = lineas.reduce((a, l) => a + l.pu * l.cantidad, 0);
+  const t = { subtotal, iva: subtotal * budget.factorIva, total: subtotal * (1 + budget.factorIva) };
   const p = new Painter();
   p.newPage();
 
@@ -185,7 +191,7 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   };
   header(694);
   let y = 678;
-  for (const l of budget.lineas) {
+  for (const l of lineas) {
     if (y < 96) {
       p.newPage();
       header(730);
