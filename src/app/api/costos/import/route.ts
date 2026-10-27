@@ -8,6 +8,7 @@ import {
   type Project,
   type PayrollEntry,
   type LedgerEntry,
+  type CVEntry,
 } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
     projects?: Project[];
     payrollEntries?: PayrollEntry[];
     ledgerEntries?: LedgerEntry[];
+    cvEntries?: CVEntry[];
     /**
      * "admin": antes de insertar, reemplaza los gastos y la nómina DE EMPRESA
      * (projectId == null) por lo que trae el archivo. Deja intactos los
@@ -58,6 +60,7 @@ export async function POST(req: Request) {
       projects?: number;
       payrollEntries?: number;
       ledgerEntries?: number;
+      cvEntries?: number;
     } = {};
     // Catálogos: se reemplazan (son la fuente canónica del Excel).
     if (Array.isArray(b.costMaterials)) {
@@ -106,6 +109,11 @@ export async function POST(req: Request) {
         else db.ledgerEntries.push(g);
       }
       out.ledgerEntries = b.ledgerEntries.length;
+    }
+    // CV de la empresa: se reemplaza (fuente canónica del Excel CURRÍCULUM).
+    if (Array.isArray(b.cvEntries)) {
+      db.cvEntries = b.cvEntries;
+      out.cvEntries = b.cvEntries.length;
     }
     return out;
   });

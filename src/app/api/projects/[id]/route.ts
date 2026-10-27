@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireWorkAreaWrite } from "@/lib/auth-server";
-import { mutate, type Project } from "@/lib/db";
+import { mutate, newId, type Project, type CVEntry } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -39,6 +39,24 @@ export async function PATCH(
     if (b.anticipo !== undefined) p.anticipo = num(b.anticipo);
     if (b.egresos !== undefined) p.egresos = num(b.egresos);
     if (b.utilidad !== undefined) p.utilidad = num(b.utilidad);
+    // Al marcarse FINALIZADO, el proyecto se suma al CV de la empresa (una sola
+    // vez: no se duplica si ya tiene su entrada de currículum).
+    if (b.estado === "finalizado" && !db.cvEntries.some((c) => c.projectId === p.id)) {
+      const yStr = (p.entrega || p.inicio || "").slice(0, 4);
+      const anio = Number(yStr) > 0 ? Number(yStr) : new Date().getFullYear();
+      const cv: CVEntry = {
+        id: newId("CV"),
+        anio,
+        fecha: p.entrega || p.inicio || "",
+        tipoBien: p.tipo || undefined,
+        lugar: p.ubicacion || undefined,
+        titulo: p.nombre,
+        descripcion: p.desc || undefined,
+        projectId: p.id,
+        createdAt: Date.now(),
+      };
+      db.cvEntries.push(cv);
+    }
     return p;
   });
   if (!updated) return NextResponse.json({ error: "No encontrado." }, { status: 404 });

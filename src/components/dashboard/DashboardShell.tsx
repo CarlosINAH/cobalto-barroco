@@ -47,6 +47,7 @@ const adminNav: NavItem[] = [
   { icon: FolderKanban, label: "Proyectos", href: "/dashboard/admin/proyectos" },
   { icon: Boxes, label: "Fichas de piezas", href: "/dashboard/admin/fichas" },
   { icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" },
+  { icon: Award, label: "Currículum", href: "/dashboard/admin/cv" },
   { icon: Award, label: "Constancias", href: "/dashboard/admin/constancias" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/admin/nas" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/admin/papelera" },
@@ -80,6 +81,8 @@ export default function DashboardShell({
       extra.push({ icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" });
     if (acc.proyectos && acc.proyectos !== "oculto")
       extra.push({ icon: Calculator, label: "Proyectos (empresa)", href: "/dashboard/admin/proyectos" });
+    if (acc.cv && acc.cv !== "oculto")
+      extra.push({ icon: Award, label: "Currículum", href: "/dashboard/admin/cv" });
     return extra.length ? [...empleadoNav, ...extra] : empleadoNav;
   }, [role, me]);
 

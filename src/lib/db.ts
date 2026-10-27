@@ -95,7 +95,7 @@ export type PerfilSistema =
   | "restaurador";
 
 /** Secciones sensibles con control de acceso por persona. */
-export type SeccionSistema = "administracion" | "proyectos";
+export type SeccionSistema = "administracion" | "proyectos" | "cv";
 
 /** Nivel de acceso a una sección (igual que las carpetas compartidas). */
 export type AccesoNivel = "oculto" | "lectura" | "total";
@@ -536,6 +536,38 @@ export interface PayrollEntry {
   descuento?: number;
 }
 
+/**
+ * Entrada del currículum (CV) de la empresa: una intervención/participación en
+ * un proyecto de restauración. Se captura de forma colaborativa y los proyectos
+ * finalizados se suman automáticamente. (Hoja CURRÍCULUM del Excel.)
+ */
+export interface CVEntry {
+  id: string;
+  /** Clave de proyecto (CB001…), opcional. */
+  clave?: string;
+  /** Año de la intervención (agrupador del CV). */
+  anio: number;
+  /** Fecha o rango (p. ej. "MAYO - JULIO"). */
+  fecha: string;
+  /** Clasificación: HISTÓRICO / MODERNO. */
+  clasificacion?: string;
+  /** Tipo de bien (ESCULTURA, VITRAL, RETABLO, METAL…). */
+  tipoBien?: string;
+  /** Lugar (ciudad/estado). */
+  lugar?: string;
+  /** Inmueble/sitio (templo, museo, colección…). */
+  sitio?: string;
+  /** Título del proyecto. */
+  titulo: string;
+  /** Descripción de los trabajos. */
+  descripcion?: string;
+  /** Colaboración (p. ej. "COLABORACIÓN CON MURO XXI"). */
+  colaboracion?: string;
+  /** Proyecto ligado, si vino de una obra finalizada (para no duplicar). */
+  projectId?: string | null;
+  createdAt: number;
+}
+
 export interface DBShape {
   projects: Project[];
   employees: Employee[];
@@ -558,6 +590,7 @@ export interface DBShape {
   budgets: Budget[];
   ledgerEntries: LedgerEntry[];
   payrollEntries: PayrollEntry[];
+  cvEntries: CVEntry[];
   seededEmployees?: boolean;
 }
 
@@ -582,6 +615,7 @@ const EMPTY: DBShape = {
   budgets: [],
   ledgerEntries: [],
   payrollEntries: [],
+  cvEntries: [],
 };
 
 function dbPath(): string {
