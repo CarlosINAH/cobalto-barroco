@@ -53,7 +53,7 @@ const adminNav: NavItem[] = [
   { icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" },
   { icon: Banknote, label: "Nómina", href: "/dashboard/admin/nomina" },
   { icon: Receipt, label: "Gastos", href: "/dashboard/admin/gastos" },
-  { icon: Calculator, label: "Costos y P.U.", href: "/dashboard/admin/costos" },
+  { icon: Calculator, label: "Presupuesto", href: "/dashboard/admin/presupuesto" },
   { icon: Award, label: "Constancias", href: "/dashboard/admin/constancias" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/admin/nas" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/admin/papelera" },

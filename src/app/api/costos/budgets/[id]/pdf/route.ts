@@ -16,8 +16,8 @@ export async function GET(
   const budget = db.budgets.find((b) => b.id === id);
   if (!budget) return new Response("No encontrado.", { status: 404 });
   const proyecto = db.projects.find((p) => p.id === budget.projectId) ?? {
-    id: budget.projectId,
-    nombre: budget.nombre,
+    id: budget.projectId ?? budget.id,
+    nombre: budget.obra || budget.nombre,
     ubicacion: "",
     inicio: "",
     entrega: "",

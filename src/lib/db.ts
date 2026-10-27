@@ -405,18 +405,39 @@ export interface BudgetLine {
   tiempoPU?: number | null;
 }
 
-/** Presupuesto/cotización de un proyecto (hojas `COTIZACIÓN`/`CRONO`). */
+/**
+ * Ciclo de vida de un presupuesto:
+ * - borrador: en elaboración.
+ * - enviado: entregado al cliente, esperando respuesta.
+ * - aprobado: aceptado → se convierte en proyecto (projectId queda ligado).
+ * - rechazado: no procedió (se conserva como historial).
+ */
+export type BudgetEstado = "borrador" | "enviado" | "aprobado" | "rechazado";
+
+/** Presupuesto/cotización (hojas `COTIZACIÓN`/`CRONO`). */
 export interface Budget {
   id: string;
-  projectId: string;
+  /**
+   * Proyecto ligado, o null si aún es solo un presupuesto (todavía no
+   * aprobado). Al aprobarse se crea el proyecto y se llena este campo.
+   */
+  projectId: string | null;
   nombre: string;
   cliente: string;
+  /** Nombre de la obra propuesta (cuando aún no hay proyecto). */
+  obra?: string;
+  /** Estado del ciclo de vida; por defecto "borrador". */
+  estado?: BudgetEstado;
   lineas: BudgetLine[];
   factorIva: number;
   factorIndirectos: number;
   factorUtilidad: number;
   /** Tamaño de cuadrilla para el cronograma (personas trabajando en paralelo). */
   personas?: number;
+  /** Fecha de envío al cliente (epoch ms). */
+  enviadoEn?: number;
+  /** Fecha en que se aprobó o rechazó (epoch ms). */
+  decididoEn?: number;
   createdAt: number;
   updatedAt: number;
 }

@@ -38,18 +38,16 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
-  const projectId = (b.projectId || "").trim();
-  if (!projectId)
-    return NextResponse.json(
-      { error: "El presupuesto debe pertenecer a un proyecto." },
-      { status: 400 },
-    );
+  // projectId opcional: un presupuesto puede existir solo (aún no aprobado).
+  const projectId = (b.projectId || "").trim() || null;
   const now = Date.now();
   const budget: Budget = {
     id: newId("PRE"),
     projectId,
     nombre: (b.nombre || "Presupuesto").trim(),
     cliente: (b.cliente || "").trim(),
+    obra: (b.obra || "").trim() || undefined,
+    estado: "borrador",
     lineas: cleanBudgetLines(b.lineas),
     factorIva: b.factorIva != null ? Number(b.factorIva) : FACTOR_IVA,
     factorIndirectos:
