@@ -72,11 +72,19 @@ export async function POST(req: Request) {
       db.laborRates = b.laborRates;
       out.laborRates = b.laborRates.length;
     }
-    // Proyectos: UPSERT por id (no borra los que ya existen en la plataforma).
+    // Proyectos: UPSERT emparejando por id O por nombre+ubicación (evita
+    // duplicar una obra aunque cambie su id generado). Al emparejar por nombre,
+    // se conserva el id existente para no romper lo ligado a esa obra
+    // (presupuestos, movimientos, nómina por proyecto).
     if (Array.isArray(b.projects)) {
+      const norm = (s?: string) => (s || "").trim().toLowerCase();
       for (const p of b.projects) {
-        const i = db.projects.findIndex((x) => x.id === p.id);
-        if (i >= 0) db.projects[i] = p;
+        let i = db.projects.findIndex((x) => x.id === p.id);
+        if (i < 0)
+          i = db.projects.findIndex(
+            (x) => norm(x.nombre) === norm(p.nombre) && norm(x.ubicacion) === norm(p.ubicacion),
+          );
+        if (i >= 0) db.projects[i] = { ...p, id: db.projects[i].id };
         else db.projects.push(p);
       }
       out.projects = b.projects.length;
