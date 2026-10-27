@@ -38,6 +38,12 @@ export async function PATCH(
       p.factorUtilidad = Number(b.factorUtilidad) || 0;
     if (b.personas !== undefined)
       p.personas = b.personas != null ? Number(b.personas) : undefined;
+    if (b.cronoInicio !== undefined)
+      p.cronoInicio = b.cronoInicio || undefined;
+    if (b.cronoDescanso !== undefined)
+      p.cronoDescanso = Array.isArray(b.cronoDescanso)
+        ? b.cronoDescanso.map(Number).filter((n) => n >= 0 && n <= 6)
+        : undefined;
 
     // Transiciones del ciclo de vida.
     if (b.estado !== undefined && ESTADOS.includes(b.estado)) {
