@@ -2,9 +2,15 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
-import { HardDrive, Share2, Settings, ArrowRight } from "lucide-react";
+import { HardDrive, Share2, Settings, ArrowRight, FolderKanban } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+const ESTADO_CLS: Record<string, string> = {
+  activo: "bg-green-50 text-green-700 border-green-200",
+  finalizado: "bg-[#F5F2EC] text-[#7A7A7A] border-[#EDE9E0]",
+  futuro: "bg-[#1B2A5E]/5 text-[#1B2A5E] border-[#1B2A5E]/20",
+};
 
 export default async function PanelGeneralEmpleado() {
   const session = await requireSession();
@@ -12,6 +18,14 @@ export default async function PanelGeneralEmpleado() {
   const emp = db.employees.find(
     (e) => e.username.toLowerCase() === session.username.toLowerCase(),
   );
+
+  // Proyectos en los que participa (varios; respaldo al proyecto principal).
+  const misIds = emp?.proyectoIds?.length
+    ? emp.proyectoIds
+    : emp?.proyectoId
+      ? [emp.proyectoId]
+      : [];
+  const misProyectos = db.projects.filter((p) => misIds.includes(p.id));
 
   const accesos = [
     { label: "Nube", href: "/dashboard/empleado/repositorio", icon: HardDrive },
@@ -28,6 +42,31 @@ export default async function PanelGeneralEmpleado() {
         <p className="text-[#7A7A7A] text-sm mt-1">
           {emp?.rol || "Bienvenido a tu espacio de trabajo."}
         </p>
+      </div>
+
+      {/* Mis proyectos: obras en las que participa el empleado. */}
+      <div className="mb-8">
+        <h3 className="text-[#1B2A5E] text-sm uppercase tracking-wider font-semibold mb-3 flex items-center gap-2">
+          <FolderKanban size={15} className="text-[#C9A84C]" /> Mis proyectos
+        </h3>
+        {misProyectos.length === 0 ? (
+          <div className="bg-white border border-[#EDE9E0] p-5 text-sm text-[#7A7A7A]">
+            Aún no tienes proyectos asignados. Cuando administración te asigne a una
+            obra, aparecerá aquí.
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {misProyectos.map((p) => (
+              <div key={p.id} className="bg-white border border-[#EDE9E0] p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[#2C2C2C] font-medium text-sm">{p.nombre}</p>
+                  <span className={`text-[11px] px-2 py-0.5 border ${ESTADO_CLS[p.estado] || ""}`}>{p.estado}</span>
+                </div>
+                {p.ubicacion && <p className="text-[#7A7A7A] text-xs mt-1">{p.ubicacion}</p>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Accesos rápidos */}

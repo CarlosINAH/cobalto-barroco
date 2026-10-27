@@ -76,7 +76,14 @@ export interface Employee {
   acceso?: Partial<Record<SeccionSistema, AccesoNivel>>;
   /** ¿Puede borrar/vaciar elementos de la papelera? (admins siempre pueden). */
   papeleraBorrar?: boolean;
+  /** Proyecto principal asignado (compatibilidad). */
   proyectoId: string | null;
+  /**
+   * Proyectos/obras en los que participa (un restaurador puede estar en varios).
+   * Es la fuente para "Mis proyectos" del panel del empleado. Si está vacío, se
+   * usa `proyectoId` como respaldo.
+   */
+  proyectoIds?: string[];
   createdAt: number;
 }
 
