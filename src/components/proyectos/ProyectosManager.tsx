@@ -13,7 +13,6 @@ import {
   ArrowRight,
   Plus,
   Trash2,
-  Save,
   Printer,
   Download,
   Scale,
@@ -438,17 +437,68 @@ function Balance({ budget, conceptos, ledger, payroll }: {
   );
 }
 
-// ─── Cronograma (jornales → semanas) ─────────────────────────────────────────
+// ─── Cronograma (jornales → calendario con Gantt gráfico) ────────────────────
+// Días de la semana en orden laboral (lunes→domingo). getDay(): 0=Dom … 6=Sáb.
+const DIAS_SEMANA: { d: number; label: string }[] = [
+  { d: 1, label: "L" }, { d: 2, label: "M" }, { d: 3, label: "M" },
+  { d: 4, label: "J" }, { d: 5, label: "V" }, { d: 6, label: "S" }, { d: 0, label: "D" },
+];
+
+/** Offsets de inicio acumulados (en días laborables) para una lista de duraciones. */
+function offsetsAcumulados(durs: number[]): number[] {
+  const out: number[] = [];
+  let s = 0;
+  for (const d of durs) { out.push(s); s += d; }
+  return out;
+}
+
+/** Fecha del n-ésimo día laborable (0 = primer laborable en/después de `start`),
+ *  saltando los días marcados como descanso. */
+function diaLaborable(start: Date, descanso: Set<number>, n: number): Date {
+  const d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  while (descanso.has(d.getDay())) d.setDate(d.getDate() + 1);
+  let hechos = 0;
+  while (hechos < n) {
+    d.setDate(d.getDate() + 1);
+    if (!descanso.has(d.getDay())) hechos += 1;
+  }
+  return d;
+}
+
+const fmtDia = (d: Date) => d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+
 function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b: Budget) => void }) {
   const [personas, setPersonas] = useState(budget?.personas ?? 2);
+  const [inicioStr, setInicioStr] = useState(() => new Date().toISOString().slice(0, 10));
+  const [descanso, setDescanso] = useState<number[]>([0]); // domingo por defecto
   if (!budget || budget.lineas.length === 0)
     return <div className={`${CARD} py-14 px-6 text-center text-sm text-[#7A7A7A]`}>Arma primero el presupuesto para calcular el cronograma.</div>;
 
   const b = budget;
   const p = Math.max(1, personas);
-  const capSemana = 5 * p; // jornales por semana (5 días × personas)
   const totalJornales = budgetTotals(b).jornadas;
-  const dias = totalJornales / p;
+
+  // Descanso efectivo: si marcaran los 7 días, se ignora para no dejar 0 laborables.
+  const restSet = new Set(descanso.length >= 7 ? [] : descanso);
+  const diasLaborSem = Math.max(1, 7 - restSet.size);
+  const inicio = new Date(inicioStr + "T00:00:00");
+
+  // Duración de cada concepto en días laborables = jornales / cuadrilla.
+  const durs = b.lineas.map((l) => ((l.tiempoPU ?? 0) * l.cantidad) / p);
+  const starts = offsetsAcumulados(durs);
+  const totalDias = durs.reduce((a, d) => a + d, 0);
+  const fechaFin = totalDias > 0 ? diaLaborable(inicio, restSet, Math.max(0, Math.ceil(totalDias) - 1)) : inicio;
+
+  const filas = b.lineas.map((l, i) => {
+    const dur = durs[i];
+    const so = starts[i];
+    const ini = diaLaborable(inicio, restSet, Math.floor(so));
+    const fin = diaLaborable(inicio, restSet, Math.max(Math.floor(so), Math.ceil(so + dur) - 1));
+    const left = totalDias > 0 ? (so / totalDias) * 100 : 0;
+    const width = totalDias > 0 ? Math.max(1.5, (dur / totalDias) * 100) : 0;
+    const jornales = (l.tiempoPU ?? 0) * l.cantidad;
+    return { l, dur, jornales, ini, fin, left, width };
+  });
 
   async function guardarPersonas(v: number) {
     const next = { ...b, personas: v };
@@ -459,50 +509,61 @@ function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b:
     });
   }
 
-  // Asignación secuencial de cada concepto a semanas.
-  let acum = 0;
-  const filas = b.lineas.map((l) => {
-    const j = (l.tiempoPU ?? 0) * l.cantidad;
-    const ini = Math.floor(acum / capSemana) + 1;
-    acum += j;
-    const fin = Math.max(ini, Math.ceil(acum / capSemana));
-    return { l, j, ini, fin };
-  });
+  function toggleDescanso(d: number) {
+    setDescanso((xs) => (xs.includes(d) ? xs.filter((x) => x !== d) : [...xs, d]));
+  }
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-4 mb-4">
-        <label className="text-xs text-[#7A7A7A] flex items-center gap-2">Cuadrilla (personas)
-          <input type="number" min={1} value={personas} onChange={(e) => setPersonas(Number(e.target.value) || 1)} onBlur={(e) => guardarPersonas(Number(e.target.value) || 1)} className={INPUT + " w-20"} />
+      <div className={`${CARD} p-4 mb-5 flex flex-wrap items-end gap-5`}>
+        <label className="text-xs text-[#7A7A7A] flex flex-col gap-1">Fecha de inicio
+          <input type="date" value={inicioStr} onChange={(e) => setInicioStr(e.target.value)} className={INPUT + " w-44"} />
         </label>
+        <label className="text-xs text-[#7A7A7A] flex flex-col gap-1">Cuadrilla (personas)
+          <input type="number" min={1} value={personas} onChange={(e) => setPersonas(Number(e.target.value) || 1)} onBlur={(e) => guardarPersonas(Number(e.target.value) || 1)} className={INPUT + " w-24"} />
+        </label>
+        <div className="text-xs text-[#7A7A7A] flex flex-col gap-1">Días de descanso
+          <div className="flex gap-1">
+            {DIAS_SEMANA.map((x) => {
+              const on = descanso.includes(x.d);
+              return (
+                <button key={x.d} type="button" onClick={() => toggleDescanso(x.d)} title={on ? "Descanso" : "Laborable"}
+                  className={`w-8 h-9 text-xs font-semibold border transition-colors ${on ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "bg-white text-[#7A7A7A] border-[#EDE9E0] hover:border-[#C9A84C]"}`}>
+                  {x.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
+
       <div className="grid gap-3 sm:grid-cols-4 mb-5">
         <Stat label="Jornales" val={totalJornales.toFixed(2)} />
-        <Stat label="Días" val={dias.toFixed(1)} />
-        <Stat label="Semanas" val={(dias / 5).toFixed(1)} />
-        <Stat label="Meses" val={(dias / 20).toFixed(1)} />
+        <Stat label="Días laborables" val={totalDias.toFixed(1)} />
+        <Stat label="Semanas" val={(totalDias / diasLaborSem).toFixed(1)} />
+        <Stat label="Entrega" val={fmtDia(fechaFin)} />
       </div>
-      <div className={`${CARD} overflow-x-auto`}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
-              <th className="px-3 py-3 font-semibold">Concepto</th>
-              <th className="px-3 py-3 font-semibold text-right">Jornales</th>
-              <th className="px-3 py-3 font-semibold text-right">Semana</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((f, i) => (
-              <tr key={i} className="border-b border-[#F5F2EC]">
-                <td className="px-3 py-2 text-[#2C2C2C]">{f.l.concepto || f.l.descripcion}</td>
-                <td className="px-3 py-2 text-right data-label">{f.j.toFixed(2)}</td>
-                <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{f.ini === f.fin ? f.ini : `${f.ini}–${f.fin}`}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      {/* Gantt gráfico: una barra por concepto en la línea de tiempo. */}
+      <div className={`${CARD} p-4`}>
+        <div className="flex items-center justify-between text-xs text-[#7A7A7A] mb-3 data-label">
+          <span>Inicio · {fmtDia(diaLaborable(inicio, restSet, 0))}</span>
+          <span>Entrega · {fmtDia(fechaFin)}</span>
+        </div>
+        <div className="space-y-1.5">
+          {filas.map((f, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="w-40 shrink-0 truncate text-xs text-[#2C2C2C]" title={f.l.concepto || f.l.descripcion}>{f.l.concepto || f.l.descripcion}</div>
+              <div className="flex-1 relative h-6 bg-[#F5F2EC]">
+                <div className="absolute top-0 h-6 bg-[#C9A84C]" style={{ left: `${f.left}%`, width: `${f.width}%` }}
+                  title={`${f.jornales.toFixed(2)} jornales · ${fmtDia(f.ini)} – ${fmtDia(f.fin)}`} />
+              </div>
+              <div className="w-36 shrink-0 text-right text-[11px] text-[#7A7A7A] data-label">{fmtDia(f.ini)} – {fmtDia(f.fin)}</div>
+            </div>
+          ))}
+        </div>
       </div>
-      <p className="text-xs text-[#7A7A7A] mt-2">Jornales = tiempo por unidad × cantidad. Semanas asumen {p} persona(s) a 5 días ({capSemana} jornales/semana).</p>
+      <p className="text-xs text-[#7A7A7A] mt-2">Jornales = tiempo por unidad × cantidad. Duración = jornales ÷ cuadrilla, repartidos en {diasLaborSem} día(s) laborable(s) por semana desde la fecha de inicio. La fecha de inicio y los días de descanso son para generar el gráfico (no se guardan).</p>
     </div>
   );
 }
@@ -524,6 +585,12 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ fecha: new Date().toISOString().slice(0, 10), categoria: "anticipo", tipo: "ingreso" as LedgerEntry["tipo"], concepto: "", monto: "" });
+  const [catSel, setCatSel] = useState(""); // categoría del catálogo a listar en el selector
+  const [verCat, setVerCat] = useState(""); // filtro de la tabla por categoría
+
+  // Categorías (etapa/proceso) presentes en el catálogo de materiales.
+  const catsCatalogo = [...new Set(catalog.materiales.map((m) => m.categoria).filter(Boolean))].sort();
+  const materialesCat = catSel ? catalog.materiales.filter((m) => m.categoria === catSel) : catalog.materiales;
 
   // Enlace con el catálogo: elegir un material/herramienta/equipo prellena
   // concepto, categoría (= su tipo) y monto (= su precio) como egreso.
@@ -562,10 +629,18 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
         <input type="date" value={f.fecha} onChange={(e) => setF({ ...f, fecha: e.target.value })} className={INPUT} />
         {catalog.materiales.length > 0 && (
-          <select defaultValue="" onChange={(e) => { pickMaterial(e.target.value); e.target.value = ""; }} className={INPUT + " max-w-[220px]"} title="Traer del catálogo de materiales">
-            <option value="">Del catálogo…</option>
-            {catalog.materiales.map((m) => <option key={m.id} value={m.id}>{m.nombre} · {money(m.precio)}</option>)}
-          </select>
+          <>
+            {catsCatalogo.length > 0 && (
+              <select value={catSel} onChange={(e) => setCatSel(e.target.value)} className={INPUT + " max-w-[180px]"} title="Categoría del catálogo">
+                <option value="">Todas las categorías</option>
+                {catsCatalogo.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+            <select defaultValue="" onChange={(e) => { pickMaterial(e.target.value); e.target.value = ""; }} className={INPUT + " max-w-[220px]"} title="Traer del catálogo de materiales">
+              <option value="">Del catálogo…</option>
+              {materialesCat.map((m) => <option key={m.id} value={m.id}>{m.nombre} · {money(m.precio)}</option>)}
+            </select>
+          </>
         )}
         <select value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} className={INPUT}>
           {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -578,31 +653,66 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
         <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
         <button onClick={crear} disabled={busy} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
       </div>
-      <div className={`${CARD} overflow-x-auto`}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
-              <th className="px-3 py-3 font-semibold">Fecha</th>
-              <th className="px-3 py-3 font-semibold">Categoría</th>
-              <th className="px-3 py-3 font-semibold">Concepto</th>
-              <th className="px-3 py-3 font-semibold text-right">Monto</th>
-              <th className="px-3 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((e) => (
-              <tr key={e.id} className="border-b border-[#F5F2EC]">
-                <td className="px-3 py-2 data-label text-[#7A7A7A]">{e.fecha}</td>
-                <td className="px-3 py-2 text-[#7A7A7A]">{e.categoria}</td>
-                <td className="px-3 py-2 text-[#2C2C2C]">{e.concepto || "—"}</td>
-                <td className={`px-3 py-2 text-right data-label ${e.tipo === "ingreso" ? "text-green-700" : "text-[#2C2C2C]"}`}>{e.tipo === "egreso" ? "−" : ""}{money(e.monto)}</td>
-                <td className="px-3 py-2 text-right"><button onClick={() => borrar(e.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
-              </tr>
-            ))}
-            {items.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-[#7A7A7A]">Sin movimientos.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      {/* Barra de filtro por categoría */}
+      {items.length > 0 && (() => {
+        const catsMov = [...new Set(items.map((e) => e.categoria).filter(Boolean))].sort();
+        return (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {[{ id: "", label: "Todas" }, ...catsMov.map((c) => ({ id: c, label: c }))].map((c) => {
+              const on = verCat === c.id;
+              const n = c.id === "" ? items.length : items.filter((e) => e.categoria === c.id).length;
+              return (
+                <button key={c.id || "todas"} onClick={() => setVerCat(c.id)}
+                  className={`px-3 py-1.5 text-xs tracking-wider uppercase font-semibold border transition-colors ${on ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"}`}>
+                  {c.label} <span className="text-[#C9A84C]">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {(() => {
+        const visibles = verCat ? items.filter((e) => e.categoria === verCat) : items;
+        const subIng = visibles.filter((e) => e.tipo === "ingreso").reduce((a, e) => a + e.monto, 0);
+        const subEgr = visibles.filter((e) => e.tipo === "egreso").reduce((a, e) => a + e.monto, 0);
+        return (
+          <div className={`${CARD} overflow-x-auto`}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+                  <th className="px-3 py-3 font-semibold">Fecha</th>
+                  <th className="px-3 py-3 font-semibold">Categoría</th>
+                  <th className="px-3 py-3 font-semibold">Concepto</th>
+                  <th className="px-3 py-3 font-semibold text-right">Monto</th>
+                  <th className="px-3 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map((e) => (
+                  <tr key={e.id} className="border-b border-[#F5F2EC]">
+                    <td className="px-3 py-2 data-label text-[#7A7A7A]">{e.fecha}</td>
+                    <td className="px-3 py-2 text-[#7A7A7A]">{e.categoria}</td>
+                    <td className="px-3 py-2 text-[#2C2C2C]">{e.concepto || "—"}</td>
+                    <td className={`px-3 py-2 text-right data-label ${e.tipo === "ingreso" ? "text-green-700" : "text-[#2C2C2C]"}`}>{e.tipo === "egreso" ? "−" : ""}{money(e.monto)}</td>
+                    <td className="px-3 py-2 text-right"><button onClick={() => borrar(e.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
+                  </tr>
+                ))}
+                {visibles.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-[#7A7A7A]">Sin movimientos.</td></tr>}
+              </tbody>
+              {visibles.length > 0 && (
+                <tfoot className="data-label">
+                  <tr className="border-t border-[#EDE9E0] text-[#7A7A7A]">
+                    <td colSpan={3} className="px-3 py-2 text-right">{verCat ? `Subtotal «${verCat}»` : "Subtotal"}</td>
+                    <td className="px-3 py-2 text-right text-[#1B2A5E] font-semibold">{money(subIng - subEgr)}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -46,27 +46,9 @@ export default function PresupuestoManager({
   projects: Project[];
   catalog: CatalogProps;
 }) {
-  const [tab, setTab] = useState<"presupuestos" | "catalogos">("presupuestos");
-
-  return (
-    <div>
-      <div className="flex gap-1 border-b border-[#EDE9E0] mb-6">
-        {([["presupuestos", "Presupuestos", ClipboardList], ["catalogos", "Catálogos", Layers]] as const).map(([id, label, Icon]) => {
-          const on = tab === id;
-          return (
-            <button key={id} onClick={() => setTab(id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs tracking-wider uppercase font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${on ? "border-[#C9A84C] text-[#1B2A5E]" : "border-transparent text-[#7A7A7A] hover:text-[#1B2A5E]"}`}>
-              <Icon size={14} /> {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {tab === "presupuestos"
-        ? <Presupuestos budgets={budgets} conceptos={conceptos} projects={projects} catalog={catalog} />
-        : <CatalogosManager {...catalog} />}
-    </div>
-  );
+  // El catálogo se administra en su propia pestaña (junto a Proyectos y
+  // Presupuesto); aquí solo se arman y gestionan los presupuestos.
+  return <Presupuestos budgets={budgets} conceptos={conceptos} projects={projects} catalog={catalog} />;
 }
 
 function Presupuestos({ budgets, conceptos, projects, catalog }: { budgets: Budget[]; conceptos: ConceptoPick[]; projects: Project[]; catalog: CatalogProps }) {

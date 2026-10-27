@@ -1,17 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { FolderKanban, ClipboardList } from "lucide-react";
+import { FolderKanban, ClipboardList, Layers } from "lucide-react";
 import ProyectosManager from "@/components/proyectos/ProyectosManager";
 import PresupuestoManager from "@/components/presupuesto/PresupuestoManager";
+import CatalogosManager from "@/components/costos/CatalogosManager";
 
 type ProyProps = React.ComponentProps<typeof ProyectosManager>;
 type PresProps = React.ComponentProps<typeof PresupuestoManager>;
 
 /**
- * Sección Proyectos con dos submenús: "Proyectos activos" (obras en curso con
- * sus hojas) y "Presupuesto" (armador + catálogos: costos unitarios,
- * materiales, salarios, recetas). Al aprobar un presupuesto se vuelve proyecto.
+ * Sección Proyectos con tres submenús: "Proyectos" (obras en curso con sus
+ * hojas), "Presupuesto" (armador de cotizaciones) y "Catálogo" (costos
+ * unitarios, materiales, salarios, recetas). El catálogo alimenta tanto los
+ * presupuestos como la administración y nómina de cada proyecto.
  */
 export default function ProyectosYPresupuesto({
   proyectos, presupuesto,
@@ -19,12 +21,12 @@ export default function ProyectosYPresupuesto({
   proyectos: ProyProps;
   presupuesto: PresProps;
 }) {
-  const [tab, setTab] = useState<"activos" | "presupuesto">("activos");
+  const [tab, setTab] = useState<"activos" | "presupuesto" | "catalogo">("activos");
 
   return (
     <div>
       <div className="flex gap-1 border-b border-[#EDE9E0] mb-6">
-        {([["activos", "Proyectos", FolderKanban], ["presupuesto", "Presupuesto", ClipboardList]] as const).map(([id, label, Icon]) => {
+        {([["activos", "Proyectos", FolderKanban], ["presupuesto", "Presupuesto", ClipboardList], ["catalogo", "Catálogo", Layers]] as const).map(([id, label, Icon]) => {
           const on = tab === id;
           return (
             <button key={id} onClick={() => setTab(id)}
@@ -35,7 +37,9 @@ export default function ProyectosYPresupuesto({
         })}
       </div>
 
-      {tab === "activos" ? <ProyectosManager {...proyectos} /> : <PresupuestoManager {...presupuesto} />}
+      {tab === "activos" && <ProyectosManager {...proyectos} />}
+      {tab === "presupuesto" && <PresupuestoManager {...presupuesto} />}
+      {tab === "catalogo" && <CatalogosManager {...presupuesto.catalog} />}
     </div>
   );
 }
