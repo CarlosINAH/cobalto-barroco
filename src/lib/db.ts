@@ -489,6 +489,27 @@ export type BudgetEstado = "borrador" | "enviado" | "aprobado" | "rechazado";
 export { fichaCompleta, cleanFicha };
 export type { BudgetFicha };
 
+/**
+ * Prorrateo (hoja `PRORRATEO`): un monto que no se puede comprar como partida
+ * directa (viáticos, comisión, un material/equipo no aceptado) se reparte entre
+ * conceptos elegidos, en el porcentaje deseado, para absorberlo en sus P.U.
+ */
+export interface ProrrateoReparto {
+  /** Identifica la línea del presupuesto que absorbe parte del monto. */
+  lineKey: string;
+  /** Porcentaje del monto que toma esa línea (0..100). */
+  porcentaje: number;
+}
+export interface ProrrateoItem {
+  id: string;
+  /** Nombre del concepto a repartir (p. ej. "Viáticos", "Comisión"). */
+  nombre: string;
+  /** Monto total a prorratear (MXN). */
+  monto: number;
+  /** Reparto por línea (los porcentajes idealmente suman 100). */
+  reparto: ProrrateoReparto[];
+}
+
 /** Presupuesto/cotización (hojas `COTIZACIÓN`/`CRONO`). */
 export interface Budget {
   id: string;
@@ -503,6 +524,8 @@ export interface Budget {
   obra?: string;
   /** Ficha de registro del bien (obligatoria antes de capturar precios). */
   ficha?: BudgetFicha;
+  /** Montos prorrateados entre conceptos (hoja PRORRATEO). */
+  prorrateos?: ProrrateoItem[];
   /** Estado del ciclo de vida; por defecto "borrador". */
   estado?: BudgetEstado;
   lineas: BudgetLine[];
