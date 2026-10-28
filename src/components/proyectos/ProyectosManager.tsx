@@ -17,6 +17,7 @@ import {
   Printer,
   Download,
   Scale,
+  Clock,
 } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
 import type {
@@ -933,6 +934,23 @@ function Nomina({ proyecto, inicial, empleados, catalog }: { proyecto: Project; 
         <button onClick={generarQuincena} disabled={busy} className={BTN_PRIMARY}><Users size={14} /> Generar quincena</button>
       </div>
 
+      {/* Equivalencia jornada ↔ horas (referencia para capturar días) */}
+      <div className={`${CARD} px-4 py-3 mb-4`}>
+        <div className="flex items-center gap-2 mb-2">
+          <Clock size={14} className="text-[#C9A84C]" />
+          <span className="text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold">Equivalencia de jornada</span>
+          <span className="text-xs text-[#7A7A7A]">1 jornada = 8 horas. La columna «Días» se captura en jornadas (admite medios).</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[["1", "jornada", "8 h"], ["0.75", "¾ jornada", "6 h"], ["0.5", "½ jornada", "4 h"], ["0.25", "¼ jornada", "2 h"]].map(([d, j, h]) => (
+            <span key={d} className="inline-flex items-center gap-1.5 bg-[#F5F2EC] border border-[#EDE9E0] px-2.5 py-1 text-xs">
+              <span className="data-label text-[#1B2A5E] font-semibold">{d}</span>
+              <span className="text-[#7A7A7A]">{j} = {h}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
         <input placeholder="Persona" value={f.persona} onChange={(e) => setF({ ...f, persona: e.target.value })} className={INPUT + " flex-1 min-w-[160px]"} />
         {catalog.salarios.length > 0 && (
@@ -982,7 +1000,7 @@ function Nomina({ proyecto, inicial, empleados, catalog }: { proyecto: Project; 
               <th className="px-3 py-3 font-semibold">Rol</th>
               <th className="px-3 py-3 font-semibold">Periodo</th>
               <th className="px-3 py-3 font-semibold text-right">Diaria</th>
-              <th className="px-3 py-3 font-semibold text-right">Días</th>
+              <th className="px-3 py-3 font-semibold text-right" title="En jornadas (1 = 8 h)">Días</th>
               <th className="px-3 py-3 font-semibold text-right">Descuento</th>
               <th className="px-3 py-3 font-semibold text-right">Monto</th>
               <th className="px-3 py-3 font-semibold text-center">Pagado</th>
@@ -1007,9 +1025,9 @@ function Nomina({ proyecto, inicial, empleados, catalog }: { proyecto: Project; 
                 <td className="px-3 py-2 text-right data-label whitespace-nowrap">
                   {quincenal ? (
                     <span className="inline-flex items-center gap-1">
-                      <input key={`dt-${e.id}-${e.diasTrabajados}`} type="number" step="1" min="0" defaultValue={e.diasTrabajados ?? e.diasQuincena ?? 0}
+                      <input key={`dt-${e.id}-${e.diasTrabajados}`} type="number" step="0.5" min="0" defaultValue={e.diasTrabajados ?? e.diasQuincena ?? 0}
                         onBlur={(ev) => { const v = Number(ev.target.value) || 0; if (v !== (e.diasTrabajados ?? e.diasQuincena)) patchCampo(e, "diasTrabajados", v); }}
-                        className="w-14 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]" title="Días trabajados" />
+                        className="w-14 border border-[#EDE9E0] px-2 py-1 text-right focus:outline-none focus:border-[#C9A84C]" title={`Días trabajados en jornadas (1 = 8 h). ${(e.diasTrabajados ?? e.diasQuincena ?? 0)} jor = ${(e.diasTrabajados ?? e.diasQuincena ?? 0) * 8} h`} />
                       <span className="text-[#7A7A7A] text-xs">/{e.diasQuincena ?? "—"}</span>
                     </span>
                   ) : <span className="text-[#C0BDB8]">—</span>}
