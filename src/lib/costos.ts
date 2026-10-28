@@ -3,6 +3,7 @@ import type {
   BudgetLine,
   ConceptInput,
   CostInputKind,
+  CuadrillaRol,
   RecipeComponent,
 } from "@/lib/db";
 
@@ -40,6 +41,22 @@ export function cleanInputs(raw: unknown): ConceptInput[] {
           : Math.min(1, Math.max(0, Number(o.depreciacion))),
     };
   });
+}
+
+/** Normaliza la cuadrilla de un concepto (rol × personas × jornadas). */
+export function cleanCuadrilla(raw: unknown): CuadrillaRol[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out = raw
+    .map((c): CuadrillaRol => {
+      const o = (c ?? {}) as Partial<CuadrillaRol>;
+      return {
+        rol: (o.rol || "").trim(),
+        personas: Math.max(0, Number(o.personas) || 0),
+        jornadas: Math.max(0, Number(o.jornadas) || 0),
+      };
+    })
+    .filter((c) => c.rol);
+  return out.length ? out : undefined;
 }
 
 /** Normaliza los componentes de una receta recibidos del cliente. */

@@ -423,6 +423,16 @@ export interface ConceptInput {
  * Concepto de obra con su matriz de P.U. (hojas `1`..`n` + `P.U.`). Puede ser
  * de catálogo global (reutilizable) o propio de un presupuesto.
  */
+/** Un rol dentro de la cuadrilla de un concepto. */
+export interface CuadrillaRol {
+  /** Rol (p. ej. "Restaurador", "Técnico"). */
+  rol: string;
+  /** Número de personas con ese rol. */
+  personas: number;
+  /** Jornadas que invierte cada persona de ese rol. */
+  jornadas: number;
+}
+
 export interface Concept {
   id: string;
   clave: string;
@@ -432,6 +442,8 @@ export interface Concept {
   /** Material a intervenir (metal, madera, piedra…) para filtrar/agrupar. */
   materialIntervencion?: string;
   insumos: ConceptInput[];
+  /** Cuadrilla que ejecuta el concepto (rol × personas × jornadas). */
+  cuadrilla?: CuadrillaRol[];
   factorIndirectos: number;
   factorUtilidad: number;
   /** Jornadas por unidad de obra (para el cronograma); null si no aplica. */
