@@ -7,6 +7,7 @@ import {
   FACTOR_INDIRECTOS,
   FACTOR_UTILIDAD,
   FACTOR_IVA,
+  cleanFicha,
   type Budget,
 } from "@/lib/db";
 import { cleanBudgetLines } from "@/lib/costos";
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
     nombre: (b.nombre || "Presupuesto").trim(),
     cliente: (b.cliente || "").trim(),
     obra: (b.obra || "").trim() || undefined,
+    ficha: cleanFicha(b.ficha),
     estado: "borrador",
     lineas: cleanBudgetLines(b.lineas),
     factorIva: b.factorIva != null ? Number(b.factorIva) : FACTOR_IVA,

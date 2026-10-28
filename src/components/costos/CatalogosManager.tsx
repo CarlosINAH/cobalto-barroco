@@ -671,6 +671,22 @@ function Conceptos({
   const [items, setItems] = useState<ConceptoView[]>(initial);
   const [editing, setEditing] = useState<Concept | null>(null); // objeto en edición
   const [creating, setCreating] = useState(false);
+  const [cq, setCq] = useState("");
+  const [cmat, setCmat] = useState("");
+
+  // Materiales a intervenir presentes (para filtrar/agrupar conceptos).
+  const matsInterv = useMemo(
+    () => [...new Set(items.map((c) => c.materialIntervencion).filter(Boolean))].sort() as string[],
+    [items],
+  );
+  const visibles = useMemo(() => {
+    const nq = cq.trim().toLowerCase();
+    return items.filter(
+      (c) =>
+        (!cmat || c.materialIntervencion === cmat) &&
+        (!nq || `${c.clave} ${c.concepto} ${c.descripcion} ${c.materialIntervencion || ""}`.toLowerCase().includes(nq)),
+    );
+  }, [items, cq, cmat]);
 
   function onSaved(c: Concept) {
     const v = toView(c);
@@ -705,16 +721,36 @@ function Conceptos({
         <p className="text-sm text-[#7A7A7A]">Conceptos de obra reutilizables. Cada uno es una matriz de P.U.: insumos × rendimiento → costo directo → P.U.</p>
         <button onClick={() => setCreating(true)} className={BTN_PRIMARY}><Plus size={14} /> Nuevo concepto</button>
       </div>
+      {items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+            <input value={cq} onChange={(e) => setCq(e.target.value)} placeholder="Buscar concepto…" className={INPUT + " pl-9 w-full"} />
+          </div>
+          {matsInterv.length > 0 && (
+            <select value={cmat} onChange={(e) => setCmat(e.target.value)} className={INPUT + " w-56"}>
+              <option value="">Todos los materiales a intervenir</option>
+              {matsInterv.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          )}
+          <span className="text-xs text-[#7A7A7A]">{visibles.length} de {items.length}</span>
+        </div>
+      )}
       {items.length === 0 ? (
         <Empty>Aún no hay conceptos. Crea el primero con “Nuevo concepto”.</Empty>
+      ) : visibles.length === 0 ? (
+        <Empty>Ningún concepto coincide con el filtro.</Empty>
       ) : (
         <div className="space-y-3">
-          {items.map((c) => (
+          {visibles.map((c) => (
             <div key={c.id} className="bg-white border border-[#EDE9E0] p-5 group">
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-[#1B2A5E] font-semibold" style={{ fontFamily: "var(--font-playfair)" }}>
                   <span className="data-label text-[#7A7A7A] mr-2">{c.clave || "—"}</span>
                   {c.concepto || c.descripcion || "Concepto"}
+                  {c.materialIntervencion && (
+                    <span className="ml-2 align-middle text-[10px] uppercase tracking-wider bg-[#F5F2EC] border border-[#EDE9E0] text-[#7A7A7A] px-1.5 py-0.5">{c.materialIntervencion}</span>
+                  )}
                 </h3>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="data-label text-[#C9A84C] font-bold">{money(c.pu)} / {c.unidad || "u"}</span>
@@ -761,6 +797,7 @@ function ConceptoEditor({
     concepto: concept?.concepto ?? "",
     descripcion: concept?.descripcion ?? "",
     unidad: concept?.unidad ?? "PZA",
+    materialIntervencion: concept?.materialIntervencion ?? "",
     factorIndirectos: String(concept?.factorIndirectos ?? 0.25),
     factorUtilidad: String(concept?.factorUtilidad ?? 0.3),
     tiempoPU: concept?.tiempoPU != null ? String(concept.tiempoPU) : "",
@@ -772,17 +809,31 @@ function ConceptoEditor({
   const [depr, setDepr] = useState("100"); // % de depreciación para equipo/herramienta/material
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Búsqueda y filtro por categoría dentro del picker de insumos (la lista
+  // completa es muy larga; permite hallar rápido un material, p. ej. solventes).
+  const [pq, setPq] = useState("");
+  const [pcat, setPcat] = useState("");
 
-  // Opciones del picker según el tipo elegido.
+  // Categorías disponibles para el tipo elegido (solo materiales/herramienta/equipo).
+  const kindCats = useMemo(() => {
+    if (kind === "receta" || kind === "mano_obra") return [];
+    return [...new Set(materiales.filter((m) => m.kind === kind).map((m) => m.categoria).filter(Boolean))].sort();
+  }, [kind, materiales]);
+
+  // Opciones del picker según el tipo elegido, filtradas por búsqueda y categoría.
   const opciones = useMemo(() => {
+    let base: { id: string; label: string; cat?: string }[];
     if (kind === "receta")
-      return recetas.map((r) => ({ id: r.id, label: `${r.nombre} · ${money(r.costo)}` }));
-    if (kind === "mano_obra")
-      return salarios.map((s) => ({ id: s.id, label: `${s.rol} · ${money(s.jornada)}/jornada` }));
-    return materiales
-      .filter((m) => m.kind === kind)
-      .map((m) => ({ id: m.id, label: `${m.nombre} · ${money(m.precio)}` }));
-  }, [kind, materiales, recetas, salarios]);
+      base = recetas.map((r) => ({ id: r.id, label: `${r.nombre} · ${money(r.costo)}` }));
+    else if (kind === "mano_obra")
+      base = salarios.map((s) => ({ id: s.id, label: `${s.rol} · ${money(s.jornada)}/jornada` }));
+    else
+      base = materiales
+        .filter((m) => m.kind === kind)
+        .map((m) => ({ id: m.id, label: `${m.nombre}${m.categoria ? " · " + m.categoria : ""} · ${money(m.precio)}`, cat: m.categoria }));
+    const nq = pq.trim().toLowerCase();
+    return base.filter((o) => (!pcat || o.cat === pcat) && (!nq || o.label.toLowerCase().includes(nq)));
+  }, [kind, materiales, recetas, salarios, pq, pcat]);
 
   // Cálculo en vivo con el mismo motor del servidor.
   const preview = useMemo(() => {
@@ -839,6 +890,7 @@ function ConceptoEditor({
       concepto: form.concepto,
       descripcion: form.descripcion,
       unidad: form.unidad,
+      materialIntervencion: form.materialIntervencion,
       factorIndirectos: Number(form.factorIndirectos) || 0,
       factorUtilidad: Number(form.factorUtilidad) || 0,
       tiempoPU: form.tiempoPU === "" ? null : Number(form.tiempoPU),
@@ -875,7 +927,13 @@ function ConceptoEditor({
         <input className={INPUT} placeholder="Clave" value={form.clave} onChange={(e) => setForm({ ...form, clave: e.target.value })} />
         <input className={INPUT + " sm:col-span-2 lg:col-span-2"} placeholder="Concepto" value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} />
         <input className={INPUT} placeholder="Unidad (PZA, M2…)" value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} />
-        <input className={INPUT + " sm:col-span-2 lg:col-span-4"} placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+        <textarea className={INPUT + " sm:col-span-2 lg:col-span-4 resize-y"} rows={2} placeholder="Descripción (aparece completa en el PDF)" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+        <div className="sm:col-span-2 lg:col-span-2">
+          <input className={INPUT} placeholder="Material a intervenir (metal, madera, piedra…)" list="mat-interv-list" value={form.materialIntervencion} onChange={(e) => setForm({ ...form, materialIntervencion: e.target.value })} />
+          <datalist id="mat-interv-list">
+            {["Metal", "Madera", "Piedra", "Textil", "Papel", "Pintura de caballete", "Pintura mural", "Cerámica", "Vidrio", "Yeso"].map((m) => <option key={m} value={m} />)}
+          </datalist>
+        </div>
         <label className="text-xs text-[#7A7A7A]">Indirectos<input className={INPUT} type="number" step="0.01" value={form.factorIndirectos} onChange={(e) => setForm({ ...form, factorIndirectos: e.target.value })} /></label>
         <label className="text-xs text-[#7A7A7A]">Utilidad<input className={INPUT} type="number" step="0.01" value={form.factorUtilidad} onChange={(e) => setForm({ ...form, factorUtilidad: e.target.value })} /></label>
         <label className="text-xs text-[#7A7A7A]">Jornadas / unidad<input className={INPUT} type="number" step="0.0001" placeholder="cronograma" value={form.tiempoPU} onChange={(e) => setForm({ ...form, tiempoPU: e.target.value })} /></label>
@@ -936,11 +994,21 @@ function ConceptoEditor({
 
       {/* Agregar insumo */}
       <div className="flex flex-wrap items-end gap-2 mb-5">
-        <select value={kind} onChange={(e) => { setKind(e.target.value as CostInputKind); setRefId(""); }} className={INPUT + " w-40"}>
+        <select value={kind} onChange={(e) => { setKind(e.target.value as CostInputKind); setRefId(""); setPq(""); setPcat(""); }} className={INPUT + " w-40"}>
           {KIND_OPTS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
         </select>
-        <select value={refId} onChange={(e) => setRefId(e.target.value)} className={INPUT + " flex-1 min-w-[220px]"}>
-          <option value="">Elegir del catálogo…</option>
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+          <input value={pq} onChange={(e) => setPq(e.target.value)} placeholder="Buscar insumo…" className={INPUT + " pl-9 w-full"} />
+        </div>
+        {kindCats.length > 0 && (
+          <select value={pcat} onChange={(e) => setPcat(e.target.value)} className={INPUT + " w-40"}>
+            <option value="">Todas las categorías</option>
+            {kindCats.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        <select value={refId} onChange={(e) => setRefId(e.target.value)} className={INPUT + " flex-1 min-w-[200px]"}>
+          <option value="">{opciones.length ? `Elegir del catálogo… (${opciones.length})` : "Sin resultados"}</option>
           {opciones.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </select>
         <input type="number" step="0.0001" value={cant} onChange={(e) => setCant(e.target.value)} placeholder="Cant." className={INPUT + " w-24"} />

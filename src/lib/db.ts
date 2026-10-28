@@ -1,6 +1,7 @@
 import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fichaCompleta, cleanFicha, type BudgetFicha } from "./budget-ficha";
 
 /**
  * Base de datos ligera de la plataforma: un archivo JSON en un volumen del NAS.
@@ -428,6 +429,8 @@ export interface Concept {
   concepto: string;
   descripcion: string;
   unidad: string;
+  /** Material a intervenir (metal, madera, piedra…) para filtrar/agrupar. */
+  materialIntervencion?: string;
   insumos: ConceptInput[];
   factorIndirectos: number;
   factorUtilidad: number;
@@ -464,6 +467,11 @@ export interface BudgetLine {
  */
 export type BudgetEstado = "borrador" | "enviado" | "aprobado" | "rechazado";
 
+// La ficha de registro vive en un módulo puro (sin server-only) para poder
+// compartirse con los componentes cliente; aquí se re-exporta por comodidad.
+export { fichaCompleta, cleanFicha };
+export type { BudgetFicha };
+
 /** Presupuesto/cotización (hojas `COTIZACIÓN`/`CRONO`). */
 export interface Budget {
   id: string;
@@ -476,6 +484,8 @@ export interface Budget {
   cliente: string;
   /** Nombre de la obra propuesta (cuando aún no hay proyecto). */
   obra?: string;
+  /** Ficha de registro del bien (obligatoria antes de capturar precios). */
+  ficha?: BudgetFicha;
   /** Estado del ciclo de vida; por defecto "borrador". */
   estado?: BudgetEstado;
   lineas: BudgetLine[];
