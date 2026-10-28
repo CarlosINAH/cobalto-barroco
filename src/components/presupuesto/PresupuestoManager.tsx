@@ -4,11 +4,13 @@ import { useMemo, useState } from "react";
 import {
   Plus, Trash2, Save, FileText, Download, Send, Check, Ban,
   ClipboardList, Layers, ArrowLeft, Search, ShoppingCart, Package, FlaskConical, Coins,
+  Lock, ClipboardCheck,
 } from "lucide-react";
 import type {
   Budget, BudgetLine, BudgetEstado, Project,
   CostMaterial, Recipe, LaborRate,
 } from "@/lib/db";
+import { fichaCompleta, type BudgetFicha } from "@/lib/budget-ficha";
 import CatalogosManager from "@/components/costos/CatalogosManager";
 
 const mxn = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 });
@@ -209,12 +211,19 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
   onBack?: () => void; onChange: (b: Budget) => void;
 }) {
   const [lineas, setLineas] = useState<BudgetLine[]>(budget.lineas);
-  const [cliente, setCliente] = useState(budget.cliente);
-  const [obra, setObra] = useState(budget.obra || "");
+  const [ficha, setFicha] = useState<BudgetFicha>(
+    budget.ficha || { bien: budget.obra || "" },
+  );
   const [busy, setBusy] = useState(false);
   const [guardado, setGuardado] = useState(true);
   const [catTab, setCatTab] = useState<CatTab>("conceptos");
   const [q, setQ] = useState("");
+
+  const completa = fichaCompleta(ficha);
+  const setF = (k: keyof BudgetFicha, v: string) => {
+    setFicha((f) => ({ ...f, [k]: v }));
+    setGuardado(false);
+  };
 
   const iva = budget.factorIva ?? 0.16;
   const subtotal = lineas.reduce((a, l) => a + l.pu * l.cantidad, 0);
@@ -237,7 +246,13 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
     setBusy(true);
     const res = await fetch(`/api/costos/budgets/${budget.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lineas, cliente, obra }),
+      body: JSON.stringify({
+        lineas,
+        ficha,
+        // Mantiene coherentes los campos que ya usan tabla y PDF.
+        obra: (ficha.bien || "").trim(),
+        cliente: (ficha.institucion || ficha.contacto || "").trim(),
+      }),
     });
     setBusy(false);
     if (!res.ok) return;
@@ -281,11 +296,40 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
         </div>
       </div>
 
-      <div className={`${CARD} p-5 mb-4 grid gap-3 sm:grid-cols-2`}>
-        <div><label className={LABEL}>Obra / trabajo</label><input className={INPUT} value={obra} onChange={(e) => { setObra(e.target.value); setGuardado(false); }} /></div>
-        <div><label className={LABEL}>Cliente</label><input className={INPUT} value={cliente} onChange={(e) => { setCliente(e.target.value); setGuardado(false); }} /></div>
+      {/* Ficha de registro (primera hoja) — obligatoria antes de capturar precios */}
+      <div className={`${CARD} p-5 mb-4`}>
+        <div className="flex items-center gap-2 mb-1">
+          <ClipboardCheck size={16} className={completa ? "text-green-600" : "text-[#C9A84C]"} />
+          <h3 className="text-sm uppercase tracking-wider text-[#1B2A5E] font-semibold">Ficha de registro</h3>
+          {completa
+            ? <span className="text-[11px] text-green-700 flex items-center gap-1"><Check size={12} /> Completa</span>
+            : <span className="text-[11px] text-[#C9A84C]">Obligatoria para capturar precios</span>}
+        </div>
+        <p className="text-xs text-[#7A7A7A] mb-4">Datos del bien a intervenir. Los campos con <span className="text-[#C9A84C]">*</span> son obligatorios.</p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div><label className={LABEL}>Nombre del bien *</label><input className={INPUT} value={ficha.bien || ""} onChange={(e) => setF("bien", e.target.value)} placeholder="p. ej. Retablo mayor" /></div>
+          <div><label className={LABEL}>Tipo de bien *</label><input className={INPUT} value={ficha.tipoBien || ""} onChange={(e) => setF("tipoBien", e.target.value)} placeholder="escultura, caballete, mural…" /></div>
+          <div><label className={LABEL}>Material *</label><input className={INPUT} value={ficha.material || ""} onChange={(e) => setF("material", e.target.value)} placeholder="metal, madera, piedra…" /></div>
+          <div><label className={LABEL}>Recinto / inmueble</label><input className={INPUT} value={ficha.recinto || ""} onChange={(e) => setF("recinto", e.target.value)} placeholder="Templo de San Francisco" /></div>
+          <div><label className={LABEL}>Ciudad *</label><input className={INPUT} value={ficha.ciudad || ""} onChange={(e) => setF("ciudad", e.target.value)} /></div>
+          <div><label className={LABEL}>Estado *</label><input className={INPUT} value={ficha.entidad || ""} onChange={(e) => setF("entidad", e.target.value)} placeholder="Entidad federativa" /></div>
+          <div><label className={LABEL}>Contacto *</label><input className={INPUT} value={ficha.contacto || ""} onChange={(e) => setF("contacto", e.target.value)} placeholder="Nombre del contacto" /></div>
+          <div><label className={LABEL}>Institución / empresa *</label><input className={INPUT} value={ficha.institucion || ""} onChange={(e) => setF("institucion", e.target.value)} placeholder="En caso de trabajo en conjunto" /></div>
+        </div>
+        <div className="mt-3">
+          <label className={LABEL}>Breve descripción del proyecto</label>
+          <textarea className={INPUT + " resize-y"} rows={2} value={ficha.descripcion || ""} onChange={(e) => setF("descripcion", e.target.value)} placeholder="Aparece en el PDF de la cotización." />
+        </div>
+        <p className="text-[11px] text-[#7A7A7A] mt-2">* Contacto o institución: basta uno.</p>
       </div>
 
+      {!completa ? (
+        <div className={`${CARD} p-10 text-center`}>
+          <Lock size={22} className="mx-auto mb-3 text-[#C9A84C]" />
+          <p className="text-[#1B2A5E] font-semibold mb-1">Completa la ficha de registro</p>
+          <p className="text-sm text-[#7A7A7A]">No se pueden capturar precios hasta llenar los datos obligatorios del bien. Recuerda <span className="font-medium text-[#2C2C2C]">guardar</span> los cambios.</p>
+        </div>
+      ) : (
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Catálogo (tienda) */}
         <div className={`${CARD} p-4 lg:col-span-3`}>
@@ -357,6 +401,7 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

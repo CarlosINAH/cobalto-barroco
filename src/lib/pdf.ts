@@ -202,38 +202,73 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   const p = new Painter();
   p.newPage();
 
+  // Ajuste de texto a un ancho dado (para descripciones largas).
+  const wrapL = (s: string, size: number, maxw: number): string[] => {
+    const out: string[] = [];
+    let cur = "";
+    for (const w of (s || "").split(/\s+/)) {
+      const t = cur ? `${cur} ${w}` : w;
+      if (textWidth(t, size) > maxw && cur) { out.push(cur); cur = w; } else cur = t;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+
   // Encabezado
+  const f = budget.ficha;
+  const cliente = f?.institucion || f?.contacto || budget.cliente;
+  const ubic = [f?.recinto, f?.ciudad, f?.entidad].filter(Boolean).join(", ");
   p.text(56, 744, 20, "Cobalto Barroco", true);
   p.text(56, 728, 9, "Propuesta técnica y económica");
-  p.rtext(556, 744, 9, `Proyecto: ${proyecto.nombre}`);
-  if (budget.cliente) p.rtext(556, 732, 9, `Cliente: ${budget.cliente}`);
-  p.rtext(556, 720, 9, new Date().toLocaleDateString("es-MX"));
-  p.line(56, 710, 556, 710);
+  p.rtext(556, 744, 9, `Proyecto: ${trunc(proyecto.nombre, 46)}`);
+  let ry = 731;
+  if (cliente) { p.rtext(556, ry, 9, `Cliente: ${trunc(cliente, 46)}`); ry -= 11; }
+  if (ubic) { p.rtext(556, ry, 9, trunc(ubic, 52)); ry -= 11; }
+  p.rtext(556, ry, 9, new Date().toLocaleDateString("es-MX"));
+  const ruleY = Math.min(710, ry - 7);
+  p.line(56, ruleY, 556, ruleY);
 
+  // Descripción del proyecto (de la ficha de registro), si existe.
+  let topY = ruleY - 14;
+  const desc = (f?.descripcion || proyecto.desc || "").trim();
+  const bienTipo = [f?.bien, f?.tipoBien, f?.material].filter(Boolean).join(" · ");
+  if (bienTipo) { p.text(56, topY, 8.5, bienTipo, true); topY -= 13; }
+  if (desc) {
+    for (const ln of wrapL(desc, 8.5, 500)) { p.text(56, topY, 8.5, ln, false, "#555555"); topY -= 11; }
+  }
+  if (bienTipo || desc) { topY -= 6; p.line(56, topY, 556, topY); topY -= 14; }
+
+  const CX = 118; // inicio de la columna CONCEPTO (deja aire para la clave)
   const header = (yy: number) => {
     p.text(56, yy, 8, "CLAVE", true);
-    p.text(100, yy, 8, "CONCEPTO", true);
+    p.text(CX, yy, 8, "CONCEPTO", true);
     p.rtext(350, yy, 8, "UNIDAD", true);
     p.rtext(420, yy, 8, "CANT.", true);
     p.rtext(490, yy, 8, "P.U.", true);
     p.rtext(556, yy, 8, "IMPORTE", true);
     p.line(56, yy - 4, 556, yy - 4);
   };
-  header(694);
-  let y = 678;
+  header(topY);
+  let y = topY - 16;
   for (const l of lineas) {
-    if (y < 96) {
+    const dsc = (l.descripcion || "").trim();
+    const dlines = dsc && dsc !== (l.concepto || "").trim() ? wrapL(dsc, 7.5, 345 - CX) : [];
+    const cLines = wrapL(l.concepto || l.descripcion || "", 8.5, 345 - CX);
+    const blockH = cLines.length * 11 + dlines.length * 9 + 8;
+    if (y - blockH < 70) {
       p.newPage();
       header(730);
       y = 714;
     }
-    p.text(56, y, 8.5, l.clave || "-");
-    p.text(100, y, 8.5, trunc(l.concepto || l.descripcion || "", 56));
+    p.text(56, y, 8, l.clave || "-");
+    // Importe/unidad/cantidad se alinean con la primera línea del concepto.
     p.rtext(350, y, 8.5, l.unidad || "");
     p.rtext(420, y, 8.5, num(l.cantidad));
     p.rtext(490, y, 8.5, money(l.pu));
     p.rtext(556, y, 8.5, money(l.pu * l.cantidad));
-    y -= 16;
+    for (const cl of cLines) { p.text(CX, y, 8.5, cl, true); y -= 11; }
+    for (const dl of dlines) { p.text(CX, y, 7.5, dl, false, "#6E7480"); y -= 9; }
+    y -= 8;
   }
   p.line(56, y + 4, 556, y + 4);
   y -= 16;

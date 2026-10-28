@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireWorkAreaWrite } from "@/lib/auth-server";
-import { mutate, newId, type Budget, type Project } from "@/lib/db";
+import { mutate, newId, cleanFicha, type Budget, type Project } from "@/lib/db";
 import { cleanBudgetLines } from "@/lib/costos";
 
 const ESTADOS = ["borrador", "enviado", "aprobado", "rechazado"] as const;
@@ -30,6 +30,7 @@ export async function PATCH(
     if (b.nombre !== undefined) p.nombre = b.nombre.trim();
     if (b.cliente !== undefined) p.cliente = b.cliente.trim();
     if (b.obra !== undefined) p.obra = b.obra.trim() || undefined;
+    if (b.ficha !== undefined) p.ficha = cleanFicha(b.ficha);
     if (b.lineas !== undefined) p.lineas = cleanBudgetLines(b.lineas);
     if (b.factorIva !== undefined) p.factorIva = Number(b.factorIva) || 0;
     if (b.factorIndirectos !== undefined)
