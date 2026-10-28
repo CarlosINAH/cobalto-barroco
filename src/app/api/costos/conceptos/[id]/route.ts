@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireWorkAreaWrite } from "@/lib/auth-server";
 import { mutate, type Concept } from "@/lib/db";
 import { buildCatalogs, recomputeConcept } from "@/lib/pu";
-import { cleanInputs } from "@/lib/costos";
+import { cleanInputs, cleanCuadrilla } from "@/lib/costos";
 
 export const runtime = "nodejs";
 
@@ -32,6 +32,7 @@ export async function PATCH(
     if (b.unidad !== undefined) c.unidad = b.unidad.trim();
     if (b.materialIntervencion !== undefined) c.materialIntervencion = b.materialIntervencion.trim() || undefined;
     if (b.insumos !== undefined) c.insumos = cleanInputs(b.insumos);
+    if (b.cuadrilla !== undefined) c.cuadrilla = cleanCuadrilla(b.cuadrilla);
     if (b.factorIndirectos !== undefined)
       c.factorIndirectos = Number(b.factorIndirectos) || 0;
     if (b.factorUtilidad !== undefined)

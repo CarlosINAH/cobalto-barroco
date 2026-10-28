@@ -9,7 +9,7 @@ import {
   type Concept,
 } from "@/lib/db";
 import { buildCatalogs, recomputeConcept } from "@/lib/pu";
-import { cleanInputs } from "@/lib/costos";
+import { cleanInputs, cleanCuadrilla } from "@/lib/costos";
 
 export const runtime = "nodejs";
 
@@ -47,6 +47,7 @@ export async function POST(req: Request) {
     unidad: (b.unidad || "").trim(),
     materialIntervencion: (b.materialIntervencion || "").trim() || undefined,
     insumos: cleanInputs(b.insumos),
+    cuadrilla: cleanCuadrilla(b.cuadrilla),
     factorIndirectos:
       b.factorIndirectos != null ? Number(b.factorIndirectos) : FACTOR_INDIRECTOS,
     factorUtilidad:
