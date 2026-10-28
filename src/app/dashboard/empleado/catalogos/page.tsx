@@ -2,7 +2,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import EmpleadoCatalogos from "@/components/empleado/EmpleadoCatalogos";
 import { requireSession } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
-import { buildCatalogs, recipeCost } from "@/lib/pu";
+import { buildCatalogs, recipeCost, conceptBreakdown } from "@/lib/pu";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +19,15 @@ export default async function CatalogosEmpleado() {
     costo: recipeCost(r, catalogs),
     componentes: r.componentes.map((c) => ({ nombre: c.nombre, precio: c.precio, cantidad: c.cantidad })),
   }));
+  // Conceptos en modo lectura: solo el precio unitario final (sin el desglose
+  // interno de indirectos ni utilidad). Útil para residentes.
+  const conceptos = db.concepts.map((c) => ({
+    id: c.id, clave: c.clave, concepto: c.concepto, descripcion: c.descripcion,
+    unidad: c.unidad, pu: conceptBreakdown(c, catalogs).pu,
+  }));
   return (
     <DashboardShell role="empleado" title="Materiales y recetas">
-      <EmpleadoCatalogos materiales={materiales} recetas={recetas} />
+      <EmpleadoCatalogos materiales={materiales} recetas={recetas} conceptos={conceptos} />
     </DashboardShell>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Package, FlaskConical } from "lucide-react";
+import { Search, Package, FlaskConical, Layers } from "lucide-react";
 
 interface Mat { id: string; nombre: string; kind: "material" | "herramienta" | "equipo"; categoria: string; precio: number; unidad: string; url: string }
 interface Comp { nombre: string; precio: number; cantidad: number }
 interface Rec { id: string; nombre: string; rendimiento: string; unidad: string; costo: number; componentes: Comp[] }
+interface Con { id: string; clave: string; concepto: string; descripcion: string; unidad: string; pu: number }
 
 const mxn = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 const money = (n: number) => mxn.format(Number.isFinite(n) ? n : 0);
@@ -13,19 +14,77 @@ const KIND: Record<Mat["kind"], string> = { material: "Material", herramienta: "
 
 function rendQty(r: string) { const m = (r || "").match(/([\d]+(?:[.,][\d]+)?)/); const q = m ? parseFloat(m[1].replace(",", ".")) : 0; return q > 0 ? q : 1; }
 
-export default function EmpleadoCatalogos({ materiales, recetas }: { materiales: Mat[]; recetas: Rec[] }) {
-  const [tab, setTab] = useState<"materiales" | "recetas">("materiales");
+export default function EmpleadoCatalogos({ materiales, recetas, conceptos = [] }: { materiales: Mat[]; recetas: Rec[]; conceptos?: Con[] }) {
+  const [tab, setTab] = useState<"materiales" | "recetas" | "conceptos">("materiales");
+  const counts = { materiales: materiales.length, recetas: recetas.length, conceptos: conceptos.length };
+  const tabs = [
+    ["materiales", "Materiales", Package],
+    ["recetas", "Recetas", FlaskConical],
+    ["conceptos", "Precios unitarios", Layers],
+  ] as const;
   return (
     <div>
       <div className="flex gap-1 border-b border-[#EDE9E0] mb-6">
-        {([["materiales", "Materiales", Package], ["recetas", "Recetas", FlaskConical]] as const).map(([id, label, Icon]) => (
+        {tabs.map(([id, label, Icon]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs tracking-wider uppercase font-semibold border-b-2 -mb-px ${tab === id ? "border-[#C9A84C] text-[#1B2A5E]" : "border-transparent text-[#7A7A7A] hover:text-[#1B2A5E]"}`}>
-            <Icon size={14} /> {label} <span className="text-[#7A7A7A] font-normal">({id === "materiales" ? materiales.length : recetas.length})</span>
+            <Icon size={14} /> {label} <span className="text-[#7A7A7A] font-normal">({counts[id]})</span>
           </button>
         ))}
       </div>
-      {tab === "materiales" ? <Materiales materiales={materiales} /> : <Recetas recetas={recetas} />}
+      {tab === "materiales" && <Materiales materiales={materiales} />}
+      {tab === "recetas" && <Recetas recetas={recetas} />}
+      {tab === "conceptos" && <Conceptos conceptos={conceptos} />}
+    </div>
+  );
+}
+
+/** Catálogo de precios unitarios en modo lectura: solo el P.U. final, sin el
+ *  desglose de indirectos ni utilidad (vista para residentes). */
+function Conceptos({ conceptos }: { conceptos: Con[] }) {
+  const [q, setQ] = useState("");
+  const filtered = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    return conceptos.filter((c) => !n || `${c.clave} ${c.concepto} ${c.descripcion}`.toLowerCase().includes(n));
+  }, [conceptos, q]);
+  return (
+    <div>
+      <div className="relative mb-4 max-w-md">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar concepto…" className="w-full border border-[#EDE9E0] bg-white pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#C9A84C]" />
+      </div>
+      {conceptos.length === 0 ? (
+        <p className="py-10 text-center text-sm text-[#7A7A7A]">Aún no hay conceptos en el catálogo.</p>
+      ) : (
+        <div className="bg-white border border-[#EDE9E0] overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+                <th className="px-4 py-3 font-semibold">Clave</th>
+                <th className="px-4 py-3 font-semibold">Concepto</th>
+                <th className="px-4 py-3 font-semibold">Unidad</th>
+                <th className="px-4 py-3 font-semibold text-right">Precio unitario</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr key={c.id} className="border-t border-[#F5F2EC] align-top">
+                  <td className="px-4 py-3 data-label text-[#7A7A7A] whitespace-nowrap">{c.clave || "—"}</td>
+                  <td className="px-4 py-3 text-[#2C2C2C]">
+                    <p className="font-medium">{c.concepto || "—"}</p>
+                    {c.descripcion && <p className="text-xs text-[#7A7A7A] mt-0.5">{c.descripcion}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-[#7A7A7A] whitespace-nowrap">{c.unidad || "u"}</td>
+                  <td className="px-4 py-3 text-right data-label text-[#C9A84C] font-semibold whitespace-nowrap">{money(c.pu)}</td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-10 text-center text-[#7A7A7A]">Sin resultados.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
