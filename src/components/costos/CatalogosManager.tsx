@@ -648,6 +648,43 @@ const KIND_OPTS: { value: CostInputKind; label: string }[] = [
   { value: "mano_obra", label: "Mano de obra" },
 ];
 
+// Clave automática: FASE[-BIEN]-###. DOC/PRE son generales (sin bien); REST
+// lleva el tipo de bien. El consecutivo continúa el último del mismo prefijo.
+const FASES: { code: string; label: string; bien: boolean }[] = [
+  { code: "DOC", label: "Documentación", bien: false },
+  { code: "PRE", label: "Preliminares", bien: false },
+  { code: "REST", label: "Restauración", bien: true },
+];
+const TIPOS_BIEN: { code: string; label: string }[] = [
+  { code: "RET", label: "Retablo" },
+  { code: "PIN", label: "Pintura de caballete" },
+  { code: "ESC", label: "Escultura" },
+  { code: "MUR", label: "Mural" },
+  { code: "POR", label: "Portón / puerta" },
+  { code: "ORN", label: "Orfebrería / metal" },
+  { code: "MOB", label: "Mobiliario" },
+];
+
+// Orden de los insumos dentro del concepto: material, herramienta, equipo,
+// mano de obra, receta (como los organiza el cliente).
+const KIND_RANK: Record<CostInputKind, number> = {
+  material: 0, herramienta: 1, equipo: 2, mano_obra: 3, receta: 4,
+};
+function ordenarInsumos(xs: ConceptInput[]): ConceptInput[] {
+  return [...xs].sort((a, b) => (KIND_RANK[a.kind] ?? 9) - (KIND_RANK[b.kind] ?? 9));
+}
+
+/** Siguiente clave libre de un prefijo (p. ej. "REST-ESC" → "REST-ESC-015"). */
+function nextClave(prefix: string, claves: string[]): string {
+  const re = new RegExp(`^${prefix}-(\\d{1,4})$`, "i");
+  let max = 0;
+  for (const c of claves) {
+    const m = (c || "").trim().match(re);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
+}
+
 function Conceptos({
   initial,
   materiales,
@@ -709,6 +746,7 @@ function Conceptos({
         recetas={recetas}
         salarios={salarios}
         catalogs={catalogs}
+        existingClaves={items.map((c) => c.clave)}
         onCancel={() => { setEditing(null); setCreating(false); }}
         onSaved={onSaved}
       />
@@ -781,6 +819,7 @@ function ConceptoEditor({
   recetas,
   salarios,
   catalogs,
+  existingClaves,
   onCancel,
   onSaved,
 }: {
@@ -789,6 +828,7 @@ function ConceptoEditor({
   recetas: Recipe[];
   salarios: LaborRate[];
   catalogs: ReturnType<typeof buildCatalogs>;
+  existingClaves: string[];
   onCancel: () => void;
   onSaved: (c: Concept) => void;
 }) {
@@ -802,7 +842,16 @@ function ConceptoEditor({
     factorUtilidad: String(concept?.factorUtilidad ?? 0.3),
     tiempoPU: concept?.tiempoPU != null ? String(concept.tiempoPU) : "",
   });
-  const [insumos, setInsumos] = useState<ConceptInput[]>(concept?.insumos ?? []);
+  // Generador de clave FASE[-BIEN]-###.
+  const [claveFase, setClaveFase] = useState("REST");
+  const [claveBien, setClaveBien] = useState("ESC");
+  const faseDef = FASES.find((f) => f.code === claveFase);
+  const generarClave = () => {
+    const prefix = faseDef?.bien ? `${claveFase}-${claveBien}` : claveFase;
+    setForm((f) => ({ ...f, clave: nextClave(prefix, existingClaves) }));
+  };
+
+  const [insumos, setInsumos] = useState<ConceptInput[]>(ordenarInsumos(concept?.insumos ?? []));
   const [kind, setKind] = useState<CostInputKind>("material");
   const [refId, setRefId] = useState("");
   const [cant, setCant] = useState("1");
@@ -872,7 +921,7 @@ function ConceptoEditor({
     // La depreciación solo aplica a equipo/herramienta/material (fracción 0..1).
     const esDepreciable = kind === "material" || kind === "herramienta" || kind === "equipo";
     const depreciacion = esDepreciable ? Math.min(1, Math.max(0, (Number(depr) || 0) / 100)) : undefined;
-    setInsumos((xs) => [...xs, { kind, refId, nombre, unidad, precio, cantidad, depreciacion }]);
+    setInsumos((xs) => ordenarInsumos([...xs, { kind, refId, nombre, unidad, precio, cantidad, depreciacion }]));
     setRefId("");
     setCant("1");
     setDepr("100");
@@ -921,6 +970,21 @@ function ConceptoEditor({
           {concept ? "Editar concepto" : "Nuevo concepto"}
         </h3>
         <button onClick={onCancel} className="text-[#7A7A7A] hover:text-[#1B2A5E]"><X size={18} /></button>
+      </div>
+
+      {/* Generador de clave automática */}
+      <div className="bg-[#F5F2EC] border border-[#EDE9E0] p-3 mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-[#7A7A7A] uppercase tracking-wider">Clave automática</span>
+        <select value={claveFase} onChange={(e) => setClaveFase(e.target.value)} className={INPUT + " w-auto"} title="Fase / proceso">
+          {FASES.map((f) => <option key={f.code} value={f.code}>{f.code} · {f.label}</option>)}
+        </select>
+        {faseDef?.bien && (
+          <select value={claveBien} onChange={(e) => setClaveBien(e.target.value)} className={INPUT + " w-auto"} title="Tipo de bien">
+            {TIPOS_BIEN.map((t) => <option key={t.code} value={t.code}>{t.code} · {t.label}</option>)}
+          </select>
+        )}
+        <span className="data-label text-xs text-[#7A7A7A]">→ {faseDef?.bien ? `${claveFase}-${claveBien}` : claveFase}-###</span>
+        <button type="button" onClick={generarClave} className="ml-auto flex items-center gap-2 border border-[#1B2A5E] text-[#1B2A5E] px-3 py-2 text-xs tracking-wider uppercase font-semibold hover:bg-[#1B2A5E] hover:text-[#F5F2EC]">Generar clave</button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-5">
