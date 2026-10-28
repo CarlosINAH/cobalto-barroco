@@ -45,6 +45,7 @@ export async function POST(req: Request) {
     concepto,
     descripcion: (b.descripcion || "").trim(),
     unidad: (b.unidad || "").trim(),
+    materialIntervencion: (b.materialIntervencion || "").trim() || undefined,
     insumos: cleanInputs(b.insumos),
     factorIndirectos:
       b.factorIndirectos != null ? Number(b.factorIndirectos) : FACTOR_INDIRECTOS,

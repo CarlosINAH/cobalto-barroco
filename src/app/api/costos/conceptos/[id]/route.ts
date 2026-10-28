@@ -30,6 +30,7 @@ export async function PATCH(
     if (b.concepto !== undefined) c.concepto = b.concepto.trim();
     if (b.descripcion !== undefined) c.descripcion = b.descripcion.trim();
     if (b.unidad !== undefined) c.unidad = b.unidad.trim();
+    if (b.materialIntervencion !== undefined) c.materialIntervencion = b.materialIntervencion.trim() || undefined;
     if (b.insumos !== undefined) c.insumos = cleanInputs(b.insumos);
     if (b.factorIndirectos !== undefined)
       c.factorIndirectos = Number(b.factorIndirectos) || 0;

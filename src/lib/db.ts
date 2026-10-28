@@ -429,6 +429,8 @@ export interface Concept {
   concepto: string;
   descripcion: string;
   unidad: string;
+  /** Material a intervenir (metal, madera, piedra…) para filtrar/agrupar. */
+  materialIntervencion?: string;
   insumos: ConceptInput[];
   factorIndirectos: number;
   factorUtilidad: number;

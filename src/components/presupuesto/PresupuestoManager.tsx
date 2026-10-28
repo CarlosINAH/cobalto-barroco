@@ -36,6 +36,7 @@ const ESTADO_LABEL: Record<BudgetEstado, string> = {
 export type ConceptoPick = {
   id: string; clave: string; concepto: string; descripcion: string;
   unidad: string; pu: number; tiempoPU?: number | null;
+  materialIntervencion?: string;
 };
 
 export type CatalogProps = React.ComponentProps<typeof CatalogosManager>;
@@ -218,6 +219,7 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
   const [guardado, setGuardado] = useState(true);
   const [catTab, setCatTab] = useState<CatTab>("conceptos");
   const [q, setQ] = useState("");
+  const [cmat, setCmat] = useState(""); // filtro de conceptos por material a intervenir
 
   const completa = fichaCompleta(ficha);
   const setF = (k: keyof BudgetFicha, v: string) => {
@@ -262,9 +264,16 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
 
   // ── Catálogo filtrado por búsqueda ──
   const nq = q.trim().toLowerCase();
+  const matsInterv = useMemo(
+    () => [...new Set(conceptos.map((c) => c.materialIntervencion).filter(Boolean))].sort() as string[],
+    [conceptos],
+  );
   const fConceptos = useMemo(
-    () => conceptos.filter((c) => !nq || `${c.clave} ${c.concepto} ${c.descripcion}`.toLowerCase().includes(nq)),
-    [conceptos, nq],
+    () => conceptos.filter((c) =>
+      (!cmat || c.materialIntervencion === cmat) &&
+      (!nq || `${c.clave} ${c.concepto} ${c.descripcion} ${c.materialIntervencion || ""}`.toLowerCase().includes(nq)),
+    ),
+    [conceptos, nq, cmat],
   );
   const fMateriales = useMemo(
     () => catalog.materiales.filter((m) => !nq || `${m.nombre} ${m.categoria}`.toLowerCase().includes(nq)),
@@ -348,9 +357,17 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
               );
             })}
           </div>
-          <div className="relative mb-3">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className={INPUT + " pl-9"} />
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className={INPUT + " pl-9 w-full"} />
+            </div>
+            {catTab === "conceptos" && matsInterv.length > 0 && (
+              <select value={cmat} onChange={(e) => setCmat(e.target.value)} className={INPUT + " w-48"} title="Filtrar por material a intervenir">
+                <option value="">Todos los materiales</option>
+                {matsInterv.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            )}
           </div>
           <div className="max-h-[22rem] overflow-y-auto divide-y divide-[#F5F2EC]">
             {catTab === "conceptos" && fConceptos.map((c) => (
