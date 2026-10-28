@@ -4,6 +4,7 @@ import type {
   ConceptInput,
   CostInputKind,
   CuadrillaRol,
+  ProrrateoItem,
   RecipeComponent,
 } from "@/lib/db";
 
@@ -41,6 +42,31 @@ export function cleanInputs(raw: unknown): ConceptInput[] {
           : Math.min(1, Math.max(0, Number(o.depreciacion))),
     };
   });
+}
+
+/** Normaliza los prorrateos de un presupuesto. */
+export function cleanProrrateos(raw: unknown): ProrrateoItem[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out = raw
+    .map((p, i): ProrrateoItem => {
+      const o = (p ?? {}) as Partial<ProrrateoItem>;
+      const reparto = Array.isArray(o.reparto)
+        ? o.reparto
+            .map((r) => ({
+              lineKey: String((r as { lineKey?: unknown }).lineKey ?? "").trim(),
+              porcentaje: Math.max(0, Math.min(100, Number((r as { porcentaje?: unknown }).porcentaje) || 0)),
+            }))
+            .filter((r) => r.lineKey)
+        : [];
+      return {
+        id: (o.id || `PRO-${i + 1}`).trim(),
+        nombre: (o.nombre || "").trim(),
+        monto: Number(o.monto) || 0,
+        reparto,
+      };
+    })
+    .filter((p) => p.nombre || p.monto || p.reparto.length);
+  return out.length ? out : undefined;
 }
 
 /** Normaliza la cuadrilla de un concepto (rol × personas × jornadas). */
@@ -89,6 +115,8 @@ export function cleanBudgetLines(raw: unknown): BudgetLine[] {
       pu: Number(o.pu) || 0,
       cantidad: Number(o.cantidad) || 0,
       tiempoPU: o.tiempoPU != null ? Number(o.tiempoPU) : null,
+      cuadrillaPersonas:
+        o.cuadrillaPersonas != null ? Math.max(1, Number(o.cuadrillaPersonas) || 1) : undefined,
     };
   });
 }

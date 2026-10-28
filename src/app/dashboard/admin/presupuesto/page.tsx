@@ -26,6 +26,7 @@ export default async function PresupuestoAdmin() {
     id: c.id, clave: c.clave, concepto: c.concepto, descripcion: c.descripcion,
     unidad: c.unidad, pu: c.pu, tiempoPU: c.tiempoPU ?? null,
     materialIntervencion: c.materialIntervencion,
+    cuadrillaPersonas: c.cuadrillaPersonas,
   }));
 
   return (
