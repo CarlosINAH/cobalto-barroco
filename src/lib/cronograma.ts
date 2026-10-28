@@ -1,4 +1,4 @@
-import type { Budget } from "@/lib/db";
+import type { Budget, CuadrillaRol } from "@/lib/db";
 
 /** Días de la semana en orden laboral (lunes→domingo). getDay(): 0=Dom … 6=Sáb. */
 export const DIAS_SEMANA: { d: number; label: string }[] = [
@@ -35,6 +35,8 @@ export interface GanttFila {
   jornales: number;
   /** Personas en paralelo usadas como divisor para este concepto. */
   personas: number;
+  /** Cuadrilla del concepto (rol × jornadas) para el desglose. */
+  cuadrilla?: CuadrillaRol[];
   dur: number;
   ini: Date;
   fin: Date;
@@ -82,6 +84,7 @@ export function computeCronograma(budget: Budget, override?: { personas?: number
       concepto: l.concepto || l.descripcion || "",
       jornales: (l.tiempoPU ?? 0) * l.cantidad,
       personas: divisor(l),
+      cuadrilla: l.cuadrilla,
       dur,
       ini: diaLaborable(inicio, restSet, Math.floor(so)),
       fin: diaLaborable(inicio, restSet, Math.max(Math.floor(so), Math.ceil(so + dur) - 1)),

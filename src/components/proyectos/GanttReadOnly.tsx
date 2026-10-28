@@ -37,7 +37,14 @@ export default function GanttReadOnly({ budget }: { budget: Budget | null }) {
         <div className="space-y-1.5">
           {c.filas.map((f, i) => (
             <div key={i} className="flex items-center gap-3">
-              <div className="w-40 shrink-0 truncate text-xs text-[#2C2C2C]" title={f.concepto}>{f.concepto}</div>
+              <div className="w-44 shrink-0 min-w-0">
+                <p className="truncate text-xs text-[#2C2C2C]" title={f.concepto}>{f.concepto}</p>
+                {f.cuadrilla && f.cuadrilla.length > 0 && (
+                  <p className="truncate text-[10px] text-[#7A7A7A]" title={f.cuadrilla.map((r) => `${r.rol}: ${r.jornadas} jor`).join(" · ")}>
+                    {f.cuadrilla.map((r) => `${r.rol} (${r.jornadas} jor)`).join(" · ")}
+                  </p>
+                )}
+              </div>
               <div className="flex-1 relative h-6 bg-[#F5F2EC]">
                 <div className="absolute top-0 h-6 bg-[#C9A84C]" style={{ left: `${f.left}%`, width: `${f.width}%` }}
                   title={`${f.jornales.toFixed(2)} jornales · cuadrilla ${f.personas} · ${fmtDia(f.ini)} – ${fmtDia(f.fin)}`} />

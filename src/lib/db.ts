@@ -473,6 +473,8 @@ export interface BudgetLine {
   tiempoPU?: number | null;
   /** Personas en paralelo de la cuadrilla (divisor del cronograma). */
   cuadrillaPersonas?: number;
+  /** Cuadrilla del concepto (rol × jornadas), para el desglose del cronograma. */
+  cuadrilla?: CuadrillaRol[];
 }
 
 /**
