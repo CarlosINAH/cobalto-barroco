@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import {
   Plus, Trash2, Save, FileText, Download, Send, Check, Ban,
   ClipboardList, Layers, ArrowLeft, Search, ShoppingCart, Package, FlaskConical, Coins,
-  Lock, ClipboardCheck,
+  Lock, ClipboardCheck, Scale,
 } from "lucide-react";
 import type {
   Budget, BudgetLine, BudgetEstado, Project,
-  CostMaterial, Recipe, LaborRate,
+  CostMaterial, Recipe, LaborRate, ProrrateoItem,
 } from "@/lib/db";
 import { fichaCompleta, type BudgetFicha } from "@/lib/budget-ficha";
 import CatalogosManager from "@/components/costos/CatalogosManager";
@@ -221,6 +221,7 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
   const [catTab, setCatTab] = useState<CatTab>("conceptos");
   const [q, setQ] = useState("");
   const [cmat, setCmat] = useState(""); // filtro de conceptos por material a intervenir
+  const [prorrateos, setProrrateos] = useState<ProrrateoItem[]>(budget.prorrateos ?? []);
 
   const completa = fichaCompleta(ficha);
   const setF = (k: keyof BudgetFicha, v: string) => {
@@ -252,6 +253,7 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
       body: JSON.stringify({
         lineas,
         ficha,
+        prorrateos,
         // Mantiene coherentes los campos que ya usan tabla y PDF.
         obra: (ficha.bien || "").trim(),
         cliente: (ficha.institucion || ficha.contacto || "").trim(),
@@ -340,6 +342,7 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
           <p className="text-sm text-[#7A7A7A]">No se pueden capturar precios hasta llenar los datos obligatorios del bien. Recuerda <span className="font-medium text-[#2C2C2C]">guardar</span> los cambios.</p>
         </div>
       ) : (
+      <>
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Catálogo (tienda) */}
         <div className={`${CARD} p-4 lg:col-span-3`}>
@@ -419,6 +422,149 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
           </div>
         </div>
       </div>
+
+      {lineas.length > 0 && (
+        <Prorrateo
+          lineas={lineas}
+          prorrateos={prorrateos}
+          onChange={(p) => { setProrrateos(p); setGuardado(false); }}
+        />
+      )}
+      </>
+      )}
+    </div>
+  );
+}
+
+/** Reparte montos (viáticos, comisión, un material/equipo no aceptado) entre
+ *  los conceptos elegidos, en el porcentaje deseado, absorbiéndolos en su P.U. */
+function Prorrateo({ lineas, prorrateos, onChange }: {
+  lineas: BudgetLine[]; prorrateos: ProrrateoItem[];
+  onChange: (p: ProrrateoItem[]) => void;
+}) {
+  const [open, setOpen] = useState(prorrateos.length > 0);
+
+  // Asignado a cada línea por todos los prorrateos (monto × %).
+  const asignadoDe = (lk: string) =>
+    prorrateos.reduce((a, p) => a + p.reparto.reduce((b, r) => b + (r.lineKey === lk ? p.monto * (r.porcentaje / 100) : 0), 0), 0);
+  const subtotalOrig = lineas.reduce((a, l) => a + l.pu * l.cantidad, 0);
+  const totalProrrateado = prorrateos.reduce((a, p) => a + p.monto, 0);
+
+  const upd = (id: string, patch: Partial<ProrrateoItem>) =>
+    onChange(prorrateos.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const addItem = () =>
+    onChange([...prorrateos, { id: `PRO-${Date.now()}`, nombre: "", monto: 0, reparto: [] }]);
+  const delItem = (id: string) => onChange(prorrateos.filter((p) => p.id !== id));
+
+  const toggleLinea = (p: ProrrateoItem, lk: string) => {
+    const has = p.reparto.some((r) => r.lineKey === lk);
+    const reparto = has ? p.reparto.filter((r) => r.lineKey !== lk) : [...p.reparto, { lineKey: lk, porcentaje: 0 }];
+    upd(p.id, { reparto });
+  };
+  const setPct = (p: ProrrateoItem, lk: string, v: number) =>
+    upd(p.id, { reparto: p.reparto.map((r) => (r.lineKey === lk ? { ...r, porcentaje: v } : r)) });
+  const repartirIgual = (p: ProrrateoItem) => {
+    if (p.reparto.length === 0) return;
+    const pct = Math.round((100 / p.reparto.length) * 100) / 100;
+    upd(p.id, { reparto: p.reparto.map((r) => ({ ...r, porcentaje: pct })) });
+  };
+
+  return (
+    <div className={`${CARD} p-5 mt-4`}>
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center justify-between w-full">
+        <span className="flex items-center gap-2 text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold">
+          <Scale size={15} className="text-[#C9A84C]" /> Prorrateo {prorrateos.length > 0 && <span className="text-[#7A7A7A]">({prorrateos.length})</span>}
+        </span>
+        <span className="text-xs text-[#7A7A7A]">{open ? "ocultar" : "mostrar"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-4 space-y-5">
+          <p className="text-xs text-[#7A7A7A]">Reparte un monto (viáticos, comisión, un material/equipo que no te aceptan comprar directo) entre los conceptos elegidos, en el % que quieras. El total del presupuesto sube en ese monto; cada P.U. lo absorbe.</p>
+
+          {prorrateos.map((p) => {
+            const sumPct = p.reparto.reduce((a, r) => a + r.porcentaje, 0);
+            return (
+            <div key={p.id} className="border border-[#EDE9E0] p-4">
+              <div className="flex flex-wrap items-end gap-3 mb-3">
+                <div className="flex-1 min-w-[160px]"><label className={LABEL}>Concepto a repartir</label>
+                  <input className={INPUT} value={p.nombre} onChange={(e) => upd(p.id, { nombre: e.target.value })} placeholder="Viáticos, comisión…" /></div>
+                <div className="w-40"><label className={LABEL}>Monto (MXN)</label>
+                  <input type="number" step="0.01" className={INPUT} value={p.monto || ""} onChange={(e) => upd(p.id, { monto: Number(e.target.value) || 0 })} /></div>
+                <button onClick={() => repartirIgual(p)} className="px-3 py-2 text-xs tracking-wider uppercase border border-[#EDE9E0] text-[#1B2A5E] hover:border-[#C9A84C]">Repartir igual</button>
+                <button onClick={() => delItem(p.id)} className="text-[#7A7A7A] hover:text-red-500 p-2"><Trash2 size={15} /></button>
+              </div>
+              <div className="border border-[#EDE9E0]">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#F5F2EC] text-[11px] uppercase tracking-wider text-[#7A7A7A]">
+                  <span className="w-5" /><span className="flex-1">Concepto</span><span className="w-16 text-right">%</span><span className="w-24 text-right">Asignado</span>
+                </div>
+                <div className="max-h-56 overflow-y-auto divide-y divide-[#F5F2EC]">
+                  {lineas.map((l) => {
+                    const lk = lineKey(l);
+                    const r = p.reparto.find((x) => x.lineKey === lk);
+                    const on = !!r;
+                    return (
+                      <div key={lk} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                        <input type="checkbox" checked={on} onChange={() => toggleLinea(p, lk)} className="w-5" />
+                        <span className="flex-1 truncate text-[#2C2C2C]" title={l.concepto}>{l.clave ? l.clave + " · " : ""}{l.concepto}</span>
+                        <input type="number" step="0.01" disabled={!on} value={on ? (r!.porcentaje || "") : ""} onChange={(e) => setPct(p, lk, Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                          className="w-16 border border-[#EDE9E0] px-2 py-1 text-right disabled:bg-[#F5F2EC]" />
+                        <span className="w-24 text-right data-label text-[#7A7A7A]">{on ? money(p.monto * (r!.porcentaje / 100)) : "—"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className={`text-[11px] mt-1 ${Math.abs(sumPct - 100) < 0.01 ? "text-emerald-600" : "text-[#C9A84C]"}`}>Suma de porcentajes: {sumPct.toFixed(2)}%{Math.abs(sumPct - 100) >= 0.01 ? " (debería ser 100%)" : ""}</p>
+            </div>
+            );
+          })}
+
+          <button onClick={addItem} className={BTN_GHOST}><Plus size={14} /> Agregar monto a prorratear</button>
+
+          {/* Resultado: P.U. original → prorrateado por concepto */}
+          {totalProrrateado > 0 && (
+            <div className="border border-[#EDE9E0] overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+                    <th className="px-3 py-2 font-semibold">Concepto</th>
+                    <th className="px-3 py-2 font-semibold text-right">Cant.</th>
+                    <th className="px-3 py-2 font-semibold text-right">P.U. original</th>
+                    <th className="px-3 py-2 font-semibold text-right">Asignado</th>
+                    <th className="px-3 py-2 font-semibold text-right">P.U. prorrateado</th>
+                    <th className="px-3 py-2 font-semibold text-right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineas.map((l) => {
+                    const lk = lineKey(l);
+                    const asig = asignadoDe(lk);
+                    const puPro = l.cantidad > 0 ? l.pu + asig / l.cantidad : l.pu;
+                    return (
+                      <tr key={lk} className="border-b border-[#F5F2EC]">
+                        <td className="px-3 py-2 text-[#2C2C2C] truncate max-w-[220px]" title={l.concepto}>{l.concepto}</td>
+                        <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{l.cantidad}</td>
+                        <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{money(l.pu)}</td>
+                        <td className="px-3 py-2 text-right data-label">{asig > 0 ? money(asig) : "—"}</td>
+                        <td className="px-3 py-2 text-right data-label text-[#1B2A5E] font-medium">{money(puPro)}</td>
+                        <td className="px-3 py-2 text-right data-label">{money(puPro * l.cantidad)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-[#EDE9E0] text-[#1B2A5E] font-semibold">
+                    <td className="px-3 py-2" colSpan={3}>Total (original {money(subtotalOrig)} + prorrateado {money(totalProrrateado)})</td>
+                    <td className="px-3 py-2 text-right data-label">{money(totalProrrateado)}</td>
+                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2 text-right data-label">{money(subtotalOrig + totalProrrateado)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
