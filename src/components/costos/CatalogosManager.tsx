@@ -665,6 +665,17 @@ const TIPOS_BIEN: { code: string; label: string }[] = [
   { code: "MOB", label: "Mobiliario" },
 ];
 
+// Equivalencia de tiempo ↔ fracción de jornada (1 jornada = 8 h), igual que la
+// tabla del Excel de P.U.
+const JORNADA_EQUIV: { label: string; jor: number }[] = [
+  { label: "8 h", jor: 1 },
+  { label: "4 h", jor: 0.5 },
+  { label: "2 h", jor: 0.25 },
+  { label: "1 h", jor: 0.125 },
+  { label: "30 min", jor: 0.0625 },
+  { label: "15 min", jor: 0.0313 },
+];
+
 // Orden de los insumos dentro del concepto: material, herramienta, equipo,
 // mano de obra, receta (como los organiza el cliente).
 const KIND_RANK: Record<CostInputKind, number> = {
@@ -863,6 +874,21 @@ function ConceptoEditor({
   const [pq, setPq] = useState("");
   const [pcat, setPcat] = useState("");
 
+  // Cuadrilla = los renglones de mano de obra agrupados por rol (rol × jornadas).
+  // JOR TOTALES = suma de jornadas (como E74 en el Excel); alimenta el cronograma.
+  const cuadrilla = useMemo(() => {
+    const porRol = new Map<string, number>();
+    for (const i of insumos) {
+      if (i.kind !== "mano_obra") continue;
+      porRol.set(i.nombre, (porRol.get(i.nombre) ?? 0) + i.cantidad);
+    }
+    return [...porRol].map(([rol, jornadas]) => ({ rol, jornadas }));
+  }, [insumos]);
+  const jorTotales = useMemo(
+    () => insumos.filter((i) => i.kind === "mano_obra").reduce((a, i) => a + i.cantidad, 0),
+    [insumos],
+  );
+
   // Categorías disponibles para el tipo elegido (solo materiales/herramienta/equipo).
   const kindCats = useMemo(() => {
     if (kind === "receta" || kind === "mano_obra") return [];
@@ -942,7 +968,8 @@ function ConceptoEditor({
       materialIntervencion: form.materialIntervencion,
       factorIndirectos: Number(form.factorIndirectos) || 0,
       factorUtilidad: Number(form.factorUtilidad) || 0,
-      tiempoPU: form.tiempoPU === "" ? null : Number(form.tiempoPU),
+      // Si no capturan "jornadas/unidad", se usa JOR TOTALES de la cuadrilla.
+      tiempoPU: form.tiempoPU === "" ? (jorTotales > 0 ? jorTotales : null) : Number(form.tiempoPU),
       insumos,
       global: true,
     };
@@ -1000,7 +1027,7 @@ function ConceptoEditor({
         </div>
         <label className="text-xs text-[#7A7A7A]">Indirectos<input className={INPUT} type="number" step="0.01" value={form.factorIndirectos} onChange={(e) => setForm({ ...form, factorIndirectos: e.target.value })} /></label>
         <label className="text-xs text-[#7A7A7A]">Utilidad<input className={INPUT} type="number" step="0.01" value={form.factorUtilidad} onChange={(e) => setForm({ ...form, factorUtilidad: e.target.value })} /></label>
-        <label className="text-xs text-[#7A7A7A]">Jornadas / unidad<input className={INPUT} type="number" step="0.0001" placeholder="cronograma" value={form.tiempoPU} onChange={(e) => setForm({ ...form, tiempoPU: e.target.value })} /></label>
+        <label className="text-xs text-[#7A7A7A]">Jornadas / unidad (cronograma)<input className={INPUT} type="number" step="0.0001" placeholder={jorTotales > 0 ? `auto: ${jorTotales.toFixed(4)}` : "cronograma"} value={form.tiempoPU} onChange={(e) => setForm({ ...form, tiempoPU: e.target.value })} /></label>
       </div>
 
       {/* Matriz de insumos */}
@@ -1083,6 +1110,43 @@ function ConceptoEditor({
         )}
         <button onClick={addInsumo} disabled={!refId} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
       </div>
+
+      {/* Equivalencia de tiempo para mano de obra (1 jornada = 8 h) */}
+      {kind === "mano_obra" && (
+        <div className="flex flex-wrap items-center gap-2 -mt-3 mb-5">
+          <span className="text-xs text-[#7A7A7A] uppercase tracking-wider">Equivalencia (1 jor = 8 h)</span>
+          {JORNADA_EQUIV.map((e) => (
+            <button key={e.label} type="button" onClick={() => setCant(String(e.jor))}
+              className="bg-[#F5F2EC] border border-[#EDE9E0] px-2.5 py-1 text-xs hover:border-[#C9A84C]">
+              {e.label} <span className="data-label text-[#1B2A5E]">= {e.jor}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Cuadrilla: resumen de la mano de obra y jornadas totales */}
+      {cuadrilla.length > 0 && (
+        <div className="bg-white border border-[#EDE9E0] p-4 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold">Cuadrilla</span>
+            <span className="text-xs text-[#7A7A7A]">JOR TOTALES: <span className="data-label text-[#1B2A5E] font-semibold">{jorTotales.toFixed(4)}</span> jornadas / unidad</span>
+          </div>
+          <div className="space-y-1">
+            {cuadrilla.map((c, i) => (
+              <div key={i} className="flex items-center justify-between text-sm">
+                <span className="text-[#2C2C2C]">{c.rol}</span>
+                <span className="data-label text-[#7A7A7A]">{c.jornadas} jor · {(c.jornadas * 8).toFixed(1)} h</span>
+              </div>
+            ))}
+          </div>
+          {form.tiempoPU !== String(jorTotales) && (
+            <button type="button" onClick={() => setForm((f) => ({ ...f, tiempoPU: String(jorTotales) }))}
+              className="mt-3 text-xs text-[#1B2A5E] underline hover:text-[#C9A84C]">
+              Usar {jorTotales.toFixed(4)} jornadas en el cronograma →
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Totales en vivo */}
       <div className="bg-[#1B2A5E] text-[#F5F2EC] p-4 flex flex-wrap items-center justify-between gap-4 mb-5">
