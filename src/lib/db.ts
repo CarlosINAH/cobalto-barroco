@@ -444,6 +444,9 @@ export interface Concept {
   insumos: ConceptInput[];
   /** Cuadrilla que ejecuta el concepto (rol × personas × jornadas). */
   cuadrilla?: CuadrillaRol[];
+  /** Personas que trabajan en paralelo este concepto (divisor del cronograma,
+   *  como el "/2", "/3" del CRONO del Excel). Por defecto 1. */
+  cuadrillaPersonas?: number;
   factorIndirectos: number;
   factorUtilidad: number;
   /** Jornadas por unidad de obra (para el cronograma); null si no aplica. */
@@ -468,6 +471,8 @@ export interface BudgetLine {
   cantidad: number;
   /** Jornadas por unidad (cronograma). */
   tiempoPU?: number | null;
+  /** Personas en paralelo de la cuadrilla (divisor del cronograma). */
+  cuadrillaPersonas?: number;
 }
 
 /**

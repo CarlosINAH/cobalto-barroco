@@ -40,7 +40,7 @@ export default function GanttReadOnly({ budget }: { budget: Budget | null }) {
               <div className="w-40 shrink-0 truncate text-xs text-[#2C2C2C]" title={f.concepto}>{f.concepto}</div>
               <div className="flex-1 relative h-6 bg-[#F5F2EC]">
                 <div className="absolute top-0 h-6 bg-[#C9A84C]" style={{ left: `${f.left}%`, width: `${f.width}%` }}
-                  title={`${f.jornales.toFixed(2)} jornales · ${fmtDia(f.ini)} – ${fmtDia(f.fin)}`} />
+                  title={`${f.jornales.toFixed(2)} jornales · cuadrilla ${f.personas} · ${fmtDia(f.ini)} – ${fmtDia(f.fin)}`} />
               </div>
               <div className="w-36 shrink-0 text-right text-[11px] text-[#7A7A7A] data-label">{fmtDia(f.ini)} – {fmtDia(f.fin)}</div>
             </div>

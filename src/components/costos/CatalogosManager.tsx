@@ -852,6 +852,7 @@ function ConceptoEditor({
     factorIndirectos: String(concept?.factorIndirectos ?? 0.25),
     factorUtilidad: String(concept?.factorUtilidad ?? 0.3),
     tiempoPU: concept?.tiempoPU != null ? String(concept.tiempoPU) : "",
+    cuadrillaPersonas: concept?.cuadrillaPersonas != null ? String(concept.cuadrillaPersonas) : "",
   });
   // Generador de clave FASE[-BIEN]-###.
   const [claveFase, setClaveFase] = useState("REST");
@@ -970,6 +971,7 @@ function ConceptoEditor({
       factorUtilidad: Number(form.factorUtilidad) || 0,
       // Si no capturan "jornadas/unidad", se usa JOR TOTALES de la cuadrilla.
       tiempoPU: form.tiempoPU === "" ? (jorTotales > 0 ? jorTotales : null) : Number(form.tiempoPU),
+      cuadrillaPersonas: form.cuadrillaPersonas === "" ? undefined : Math.max(1, Number(form.cuadrillaPersonas) || 1),
       insumos,
       global: true,
     };
@@ -1028,6 +1030,7 @@ function ConceptoEditor({
         <label className="text-xs text-[#7A7A7A]">Indirectos<input className={INPUT} type="number" step="0.01" value={form.factorIndirectos} onChange={(e) => setForm({ ...form, factorIndirectos: e.target.value })} /></label>
         <label className="text-xs text-[#7A7A7A]">Utilidad<input className={INPUT} type="number" step="0.01" value={form.factorUtilidad} onChange={(e) => setForm({ ...form, factorUtilidad: e.target.value })} /></label>
         <label className="text-xs text-[#7A7A7A]">Jornadas / unidad (cronograma)<input className={INPUT} type="number" step="0.0001" placeholder={jorTotales > 0 ? `auto: ${jorTotales.toFixed(4)}` : "cronograma"} value={form.tiempoPU} onChange={(e) => setForm({ ...form, tiempoPU: e.target.value })} /></label>
+        <label className="text-xs text-[#7A7A7A]">Personas en cuadrilla (paralelo)<input className={INPUT} type="number" step="1" min="1" placeholder="divisor del cronograma (p. ej. 2)" value={form.cuadrillaPersonas} onChange={(e) => setForm({ ...form, cuadrillaPersonas: e.target.value })} /></label>
       </div>
 
       {/* Matriz de insumos */}

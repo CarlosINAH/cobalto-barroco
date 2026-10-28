@@ -48,6 +48,8 @@ export async function POST(req: Request) {
     materialIntervencion: (b.materialIntervencion || "").trim() || undefined,
     insumos: cleanInputs(b.insumos),
     cuadrilla: cleanCuadrilla(b.cuadrilla),
+    cuadrillaPersonas:
+      b.cuadrillaPersonas != null ? Math.max(1, Number(b.cuadrillaPersonas) || 1) : undefined,
     factorIndirectos:
       b.factorIndirectos != null ? Number(b.factorIndirectos) : FACTOR_INDIRECTOS,
     factorUtilidad:

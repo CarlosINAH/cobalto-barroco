@@ -33,6 +33,8 @@ export const fmtDia = (d: Date) =>
 export interface GanttFila {
   concepto: string;
   jornales: number;
+  /** Personas en paralelo usadas como divisor para este concepto. */
+  personas: number;
   dur: number;
   ini: Date;
   fin: Date;
@@ -64,7 +66,10 @@ export function computeCronograma(budget: Budget, override?: { personas?: number
   const diasLaborSem = Math.max(1, 7 - restSet.size);
   const inicio = new Date(inicioStr + "T00:00:00");
 
-  const durs = budget.lineas.map((l) => ((l.tiempoPU ?? 0) * l.cantidad) / personas);
+  // Divisor por concepto si lo trae la línea (personas en paralelo de su
+  // cuadrilla); si no, la cuadrilla general del presupuesto.
+  const divisor = (l: (typeof budget.lineas)[number]) => Math.max(1, l.cuadrillaPersonas ?? personas);
+  const durs = budget.lineas.map((l) => ((l.tiempoPU ?? 0) * l.cantidad) / divisor(l));
   const starts = offsetsAcumulados(durs);
   const totalDias = durs.reduce((a, d) => a + d, 0);
   const totalJornales = budget.lineas.reduce((a, l) => a + (l.tiempoPU ?? 0) * l.cantidad, 0);
@@ -76,6 +81,7 @@ export function computeCronograma(budget: Budget, override?: { personas?: number
     return {
       concepto: l.concepto || l.descripcion || "",
       jornales: (l.tiempoPU ?? 0) * l.cantidad,
+      personas: divisor(l),
       dur,
       ini: diaLaborable(inicio, restSet, Math.floor(so)),
       fin: diaLaborable(inicio, restSet, Math.max(Math.floor(so), Math.ceil(so + dur) - 1)),

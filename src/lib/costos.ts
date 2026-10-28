@@ -89,6 +89,8 @@ export function cleanBudgetLines(raw: unknown): BudgetLine[] {
       pu: Number(o.pu) || 0,
       cantidad: Number(o.cantidad) || 0,
       tiempoPU: o.tiempoPU != null ? Number(o.tiempoPU) : null,
+      cuadrillaPersonas:
+        o.cuadrillaPersonas != null ? Math.max(1, Number(o.cuadrillaPersonas) || 1) : undefined,
     };
   });
 }

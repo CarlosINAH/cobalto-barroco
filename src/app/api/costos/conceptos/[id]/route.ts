@@ -33,6 +33,8 @@ export async function PATCH(
     if (b.materialIntervencion !== undefined) c.materialIntervencion = b.materialIntervencion.trim() || undefined;
     if (b.insumos !== undefined) c.insumos = cleanInputs(b.insumos);
     if (b.cuadrilla !== undefined) c.cuadrilla = cleanCuadrilla(b.cuadrilla);
+    if (b.cuadrillaPersonas !== undefined)
+      c.cuadrillaPersonas = b.cuadrillaPersonas != null ? Math.max(1, Number(b.cuadrillaPersonas) || 1) : undefined;
     if (b.factorIndirectos !== undefined)
       c.factorIndirectos = Number(b.factorIndirectos) || 0;
     if (b.factorUtilidad !== undefined)
