@@ -117,6 +117,7 @@ export function cleanBudgetLines(raw: unknown): BudgetLine[] {
       tiempoPU: o.tiempoPU != null ? Number(o.tiempoPU) : null,
       cuadrillaPersonas:
         o.cuadrillaPersonas != null ? Math.max(1, Number(o.cuadrillaPersonas) || 1) : undefined,
+      cuadrilla: cleanCuadrilla(o.cuadrilla),
     };
   });
 }

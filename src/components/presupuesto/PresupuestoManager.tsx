@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type {
   Budget, BudgetLine, BudgetEstado, Project,
-  CostMaterial, Recipe, LaborRate, ProrrateoItem,
+  CostMaterial, Recipe, LaborRate, ProrrateoItem, CuadrillaRol,
 } from "@/lib/db";
 import { fichaCompleta, type BudgetFicha } from "@/lib/budget-ficha";
 import CatalogosManager from "@/components/costos/CatalogosManager";
@@ -38,6 +38,7 @@ export type ConceptoPick = {
   unidad: string; pu: number; tiempoPU?: number | null;
   materialIntervencion?: string;
   cuadrillaPersonas?: number;
+  cuadrilla?: CuadrillaRol[];
 };
 
 export type CatalogProps = React.ComponentProps<typeof CatalogosManager>;
@@ -291,7 +292,7 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
     [catalog.salarios, nq],
   );
 
-  const addConcepto = (c: ConceptoPick) => addLine({ conceptId: c.id, clave: c.clave, concepto: c.concepto, descripcion: c.descripcion, unidad: c.unidad, pu: c.pu, cantidad: 1, tiempoPU: c.tiempoPU ?? null, cuadrillaPersonas: c.cuadrillaPersonas });
+  const addConcepto = (c: ConceptoPick) => addLine({ conceptId: c.id, clave: c.clave, concepto: c.concepto, descripcion: c.descripcion, unidad: c.unidad, pu: c.pu, cantidad: 1, tiempoPU: c.tiempoPU ?? null, cuadrillaPersonas: c.cuadrillaPersonas, cuadrilla: c.cuadrilla });
   const addMaterial = (m: CostMaterial) => addLine({ conceptId: null, clave: "MAT", concepto: m.nombre, descripcion: m.categoria || "", unidad: m.unidad, pu: m.precio, cantidad: 1, tiempoPU: null });
   const addReceta = (r: Recipe) => addLine({ conceptId: null, clave: "REC", concepto: r.nombre, descripcion: "", unidad: r.unidad, pu: r.costo, cantidad: 1, tiempoPU: null });
   const addSalario = (s: LaborRate) => addLine({ conceptId: null, clave: "M.O.", concepto: s.rol, descripcion: "Mano de obra", unidad: "jornada", pu: s.jornada, cantidad: 1, tiempoPU: null });

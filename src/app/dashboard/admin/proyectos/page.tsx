@@ -45,6 +45,7 @@ export default async function ProyectosAdmin() {
     unidad: c.unidad, pu: c.pu, tiempoPU: c.tiempoPU ?? null,
     materialIntervencion: c.materialIntervencion,
     cuadrillaPersonas: c.cuadrillaPersonas,
+    cuadrilla: c.cuadrilla,
   }));
   const recetas = db.recipes.map((r) => ({ ...r, costo: recipeCost(r, catalogs) }));
 
