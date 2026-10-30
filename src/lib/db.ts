@@ -638,6 +638,19 @@ export interface CVEntry {
   createdAt: number;
 }
 
+/**
+ * Próxima fecha de pago de nómina. Un solo valor global que la administración
+ * fija y todos los empleados ven en "Mi nómina". null = sin fecha definida.
+ */
+export interface ProximoPago {
+  /** Fecha del próximo pago (YYYY-MM-DD). */
+  fecha: string;
+  /** Nota opcional (p. ej. "Quincena del 15"). */
+  nota?: string;
+  /** Marca de tiempo de la última actualización. */
+  actualizado: number;
+}
+
 export interface DBShape {
   projects: Project[];
   employees: Employee[];
@@ -661,6 +674,8 @@ export interface DBShape {
   ledgerEntries: LedgerEntry[];
   payrollEntries: PayrollEntry[];
   cvEntries: CVEntry[];
+  /** Próxima fecha de pago de nómina (global, la fija administración). */
+  proximoPago?: ProximoPago | null;
   seededEmployees?: boolean;
 }
 
