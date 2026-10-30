@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MapPin, Pencil, Save, X, Loader2, LayoutGrid } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
+import CarpetaArchivos from "@/components/proyectos/CarpetaArchivos";
 
 interface Proyecto {
   id: string;
@@ -112,12 +113,15 @@ export default function ProyectoEmpleadoHeader({ proyecto, canEdit }: { proyecto
       <p className="text-xs text-[#7A7A7A] mt-1 data-label">{p.avance}% avance</p>
       {p.desc && <p className="text-sm text-[#555] mt-3">{p.desc}</p>}
 
-      {canEdit ? (
+      {canEdit && (
         <div className="mt-4 pt-4 border-t border-[#EDE9E0]">
           <CarpetaInformesPicker projectId={p.id} projectNombre={p.nombre} initial={p.carpetaInformes || ""} />
         </div>
-      ) : p.carpetaInformes ? (
-        <p className="text-xs text-[#7A7A7A] mt-3">Informes: <span className="text-[#2C2C2C]">{p.carpetaInformes}</span></p>
+      )}
+      {p.carpetaInformes ? (
+        <CarpetaArchivos path={p.carpetaInformes} canUpload={true} />
+      ) : !canEdit ? (
+        <p className="text-xs text-[#7A7A7A] mt-3">Aún no hay carpeta de informes asignada.</p>
       ) : null}
     </div>
   );
