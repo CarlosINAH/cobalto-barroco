@@ -16,9 +16,12 @@ export async function POST(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
-  // Empleados pueden registrar proyectos, pero los montos de dinero solo los
-  // captura quien tenga acceso de escritura al área (admin o nivel "total").
+  // Crear proyectos es del área de trabajo: admin o nivel "total" en proyectos
+  // o administración. El resto participa en los proyectos que se le asignan.
   const puedeMontos = await canWriteWorkArea(session);
+  if (!puedeMontos) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  }
   let b: Partial<Project>;
   try {
     b = await req.json();

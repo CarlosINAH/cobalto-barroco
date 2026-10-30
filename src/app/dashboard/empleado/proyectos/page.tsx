@@ -6,8 +6,9 @@ import { getDB } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 /**
- * Proyectos para empleados: pueden registrarlos y agregar recetas como gasto.
- * NO se exponen montos de dinero del proyecto (eso es solo administración).
+ * Proyectos para empleados: ven los proyectos que la administración les asigna
+ * y pueden agregar recetas como gasto. NO se exponen montos de dinero del
+ * proyecto (eso es solo administración) ni pueden crear proyectos.
  */
 export default async function ProyectosEmpleado() {
   const session = await requireSession();
