@@ -1,6 +1,7 @@
+import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ProyectosYPresupuesto from "@/components/proyectos/ProyectosYPresupuesto";
-import { requireSectionView, sectionLevel, canWriteSection } from "@/lib/auth-server";
+import { getSession, sectionLevel, canWriteSection, editableProjectIds } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
 import { buildCatalogs, recipeCost, conceptBreakdown } from "@/lib/pu";
 
@@ -17,8 +18,21 @@ export const dynamic = "force-dynamic";
  * en Configuración.
  */
 export default async function ProyectosAdmin() {
-  const session = await requireSectionView("proyectos");
+  const session = await getSession();
+  if (!session) redirect("/login");
   const db = await getDB();
+  // Acceso: completo (admin o sección "proyectos" habilitada) → ve todas las
+  // obras y el armador/catálogo. Editor de proyecto (proyectoEdita) → solo sus
+  // obras, con sus hojas (presupuesto, cronograma, administración, nómina…).
+  const nivelProy = await sectionLevel(session, "proyectos");
+  const full = session.role === "admin" || nivelProy !== "oculto";
+  const editables = full ? [] : await editableProjectIds(session);
+  if (!full && editables.length === 0) redirect("/dashboard/empleado");
+  const puedeTodo = (id: string | null) => full || (!!id && editables.includes(id));
+  const projectsVis = full ? db.projects : db.projects.filter((p) => editables.includes(p.id));
+  const budgetsVis = full ? db.budgets : db.budgets.filter((b) => puedeTodo(b.projectId));
+  const ledgerVis = full ? db.ledgerEntries : db.ledgerEntries.filter((e) => puedeTodo(e.projectId));
+  const payrollVis = full ? db.payrollEntries : db.payrollEntries.filter((e) => puedeTodo(e.projectId));
   const catalogs = buildCatalogs(db);
 
   // Currículum concatenado a Proyectos: solo si el usuario tiene la sección "cv".
@@ -52,12 +66,13 @@ export default async function ProyectosAdmin() {
   return (
     <DashboardShell role={session.role} title="Proyectos">
       <ProyectosYPresupuesto
+        alcance={full ? "completo" : "editor"}
         proyectos={{
-          proyectos: db.projects,
-          budgets: db.budgets,
+          proyectos: projectsVis,
+          budgets: budgetsVis,
           conceptos,
-          ledger: db.ledgerEntries,
-          payroll: db.payrollEntries,
+          ledger: ledgerVis,
+          payroll: payrollVis,
           empleados: db.employees.map((e) => ({
             id: e.id, nombre: e.nombre, rol: e.rol,
             proyectoIds: e.proyectoIds?.length ? e.proyectoIds : (e.proyectoId ? [e.proyectoId] : []),
@@ -71,9 +86,9 @@ export default async function ProyectosAdmin() {
           },
         }}
         presupuesto={{
-          budgets: db.budgets,
+          budgets: budgetsVis,
           conceptos: conceptosPick,
-          projects: db.projects,
+          projects: projectsVis,
           catalog: {
             materiales: db.costMaterials,
             recetas,

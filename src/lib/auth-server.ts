@@ -89,6 +89,27 @@ export async function canEditProject(session: Session, projectId: string): Promi
   return !!emp?.proyectoEdita?.includes(projectId);
 }
 
+/** Proyectos que la persona puede editar (vacío si ninguno). */
+export async function editableProjectIds(session: Session): Promise<string[]> {
+  const db = await getDB();
+  const emp = db.employees.find(
+    (e) => e.username.toLowerCase() === session.username.toLowerCase(),
+  );
+  return emp?.proyectoEdita ? [...emp.proyectoEdita] : [];
+}
+
+/**
+ * ¿Puede operar sobre los datos de un proyecto (presupuesto, movimientos,
+ * nómina)? El área de trabajo (admin/total) sí sobre cualquiera; un editor de
+ * proyecto solo sobre el suyo. Sin proyecto concreto (datos de empresa), solo
+ * el área de trabajo.
+ */
+export async function canWorkOnProject(session: Session, projectId: string | null): Promise<boolean> {
+  if (await canWriteWorkArea(session)) return true;
+  if (!projectId) return false;
+  return canEditProject(session, projectId);
+}
+
 /**
  * Exige al menos ver la sección (nivel "lectura" o "total"). Si no, redirige al
  * panel que sí puede ver. Permite que un residente/superintendente entre a las

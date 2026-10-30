@@ -1,21 +1,25 @@
 import { NextResponse } from "next/server";
-import { requireWorkAreaWrite } from "@/lib/auth-server";
-import { mutate, type LedgerEntry } from "@/lib/db";
+import { getSession, canWorkOnProject } from "@/lib/auth-server";
+import { getDB, mutate, type LedgerEntry } from "@/lib/db";
 import { cleanComprobante } from "@/lib/costos";
 
 export const runtime = "nodejs";
 
-async function requireAdmin() {
-  return requireWorkAreaWrite();
+async function autorizado(id: string): Promise<boolean> {
+  const session = await getSession();
+  if (!session) return false;
+  const db = await getDB();
+  const e = db.ledgerEntries.find((x) => x.id === id);
+  return canWorkOnProject(session, e?.projectId ?? null);
 }
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireAdmin()))
-    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const { id } = await params;
+  if (!(await autorizado(id)))
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   let b: Partial<LedgerEntry>;
   try {
     b = await req.json();
@@ -43,9 +47,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireAdmin()))
-    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const { id } = await params;
+  if (!(await autorizado(id)))
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   await mutate((db) => {
     db.ledgerEntries = db.ledgerEntries.filter((x) => x.id !== id);
   });

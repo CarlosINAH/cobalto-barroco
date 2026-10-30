@@ -20,20 +20,25 @@ type Tab = "activos" | "presupuesto" | "catalogo" | "cv";
  * sección.
  */
 export default function ProyectosYPresupuesto({
-  proyectos, presupuesto, cv,
+  proyectos, presupuesto, cv, alcance = "completo",
 }: {
   proyectos: ProyProps;
   presupuesto: PresProps;
   cv: CVProps | null;
+  /** "editor": el residente ve solo sus obras (sin armador suelto ni catálogo). */
+  alcance?: "completo" | "editor";
 }) {
   const [tab, setTab] = useState<Tab>("activos");
+  const editor = alcance === "editor";
 
-  const tabs = [
-    ["activos", "Proyectos", FolderKanban],
-    ["presupuesto", "Presupuesto", ClipboardList],
-    ["catalogo", "Catálogo", Layers],
-    ...(cv ? [["cv", "Currículum", Award] as const] : []),
-  ] as const;
+  const tabs = editor
+    ? ([["activos", "Proyectos", FolderKanban]] as const)
+    : ([
+        ["activos", "Proyectos", FolderKanban],
+        ["presupuesto", "Presupuesto", ClipboardList],
+        ["catalogo", "Catálogo", Layers],
+        ...(cv ? [["cv", "Currículum", Award] as const] : []),
+      ] as const);
 
   return (
     <div>
@@ -49,7 +54,7 @@ export default function ProyectosYPresupuesto({
         })}
       </div>
 
-      {tab === "activos" && <ProyectosManager {...proyectos} />}
+      {tab === "activos" && <ProyectosManager {...proyectos} alcance={alcance} />}
       {tab === "presupuesto" && <PresupuestoManager {...presupuesto} />}
       {tab === "catalogo" && <CatalogosManager {...presupuesto.catalog} />}
       {tab === "cv" && cv && <CVManager {...cv} />}
