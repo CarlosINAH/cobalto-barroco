@@ -42,6 +42,14 @@ export async function PATCH(
         : [];
       // Mantener proyectoId (principal) en sintonía con el primero.
       e.proyectoId = e.proyectoIds[0] ?? e.proyectoId ?? null;
+      // Sanea proyectoEdita: solo proyectos en los que participa.
+      if (e.proyectoEdita) e.proyectoEdita = e.proyectoEdita.filter((id) => e.proyectoIds!.includes(id));
+    }
+    if (b.proyectoEdita !== undefined) {
+      const vis = e.proyectoIds ?? (e.proyectoId ? [e.proyectoId] : []);
+      e.proyectoEdita = Array.isArray(b.proyectoEdita)
+        ? b.proyectoEdita.map((s) => String(s)).filter((id) => vis.includes(id))
+        : [];
     }
     if (b.habilidades !== undefined) {
       e.habilidades = Array.isArray(b.habilidades)

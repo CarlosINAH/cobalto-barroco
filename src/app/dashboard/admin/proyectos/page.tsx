@@ -61,6 +61,7 @@ export default async function ProyectosAdmin() {
           empleados: db.employees.map((e) => ({
             id: e.id, nombre: e.nombre, rol: e.rol,
             proyectoIds: e.proyectoIds?.length ? e.proyectoIds : (e.proyectoId ? [e.proyectoId] : []),
+            proyectoEdita: e.proyectoEdita || [],
           })),
           catalog: {
             materiales: db.costMaterials,
