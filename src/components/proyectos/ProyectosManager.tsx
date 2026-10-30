@@ -22,6 +22,7 @@ import {
   Pencil,
 } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
+import CarpetaArchivos from "@/components/proyectos/CarpetaArchivos";
 import type {
   Project,
   Budget,
@@ -226,6 +227,7 @@ function ProyectoDetalle({
           <span className={`text-xs px-2 py-1 border ${est.cls}`}>{est.label}</span>
         </div>
         <CarpetaInformesPicker projectId={proyecto.id} projectNombre={proyecto.nombre} initial={proyecto.carpetaInformes || ""} />
+        {proyecto.carpetaInformes && <CarpetaArchivos path={proyecto.carpetaInformes} canUpload={true} />}
       </div>
 
       <div className="flex gap-1 border-b border-[#EDE9E0] mb-6 overflow-x-auto" data-no-print>
