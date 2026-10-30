@@ -44,6 +44,16 @@ export function cleanInputs(raw: unknown): ConceptInput[] {
   });
 }
 
+/** Normaliza el comprobante (factura/nota) de un movimiento. */
+export function cleanComprobante(raw: unknown): { path: string; nombre: string } | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as { path?: unknown; nombre?: unknown };
+  const path = typeof o.path === "string" ? o.path.trim() : "";
+  if (!path) return undefined;
+  const nombre = typeof o.nombre === "string" && o.nombre.trim() ? o.nombre.trim() : path.split("/").pop() || path;
+  return { path, nombre };
+}
+
 /** Normaliza los prorrateos de un presupuesto. */
 export function cleanProrrateos(raw: unknown): ProrrateoItem[] | undefined {
   if (!Array.isArray(raw)) return undefined;

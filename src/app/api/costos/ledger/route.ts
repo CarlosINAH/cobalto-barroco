@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireWorkAreaWrite } from "@/lib/auth-server";
 import { getDB, mutate, newId, type LedgerEntry } from "@/lib/db";
+import { cleanComprobante } from "@/lib/costos";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
     tipo: b.tipo === "ingreso" ? "ingreso" : "egreso",
     concepto: (b.concepto || "").trim(),
     monto: Number(b.monto) || 0,
+    comprobante: cleanComprobante(b.comprobante),
     createdAt: Date.now(),
   };
   await mutate((db) => db.ledgerEntries.push(entry));

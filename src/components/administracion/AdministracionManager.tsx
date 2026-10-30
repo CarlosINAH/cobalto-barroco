@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   Plus, Trash2, Save, Pencil, X, Building2,
-  Banknote, Receipt, Package, PiggyBank, Landmark,
+  Banknote, Receipt, Package, PiggyBank, Landmark, Paperclip,
 } from "lucide-react";
 import type { Project, LedgerEntry, PayrollEntry } from "@/lib/db";
 
@@ -246,14 +246,16 @@ function ObrasTab({ initial, ledger, payroll }: { initial: Project[]; ledger: Le
 // Egresos de empresa (categoria fija), agrupados por subcategoría, con filtro
 // por mes y total. Editable.
 // ─────────────────────────────────────────────────────────────────────────────
-type GForm = { id: string | null; fecha: string; subcategoria: string; concepto: string; monto: string };
+type GForm = { id: string | null; fecha: string; subcategoria: string; concepto: string; monto: string; comprobante?: { path: string; nombre: string } };
 const G_EMPTY = (): GForm => ({ id: null, fecha: new Date().toISOString().slice(0, 10), subcategoria: "", concepto: "", monto: "" });
+const COMPROBANTES_DIR = "Archivos compartidos/COMPROBANTES";
 
 function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEntry[] }) {
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
   const [mes, setMes] = useState("");
   const [sub, setSub] = useState("");
   const [form, setForm] = useState<GForm>(G_EMPTY());
+  const [file, setFile] = useState<File | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -283,25 +285,54 @@ function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEn
   }, [visibles]);
   const total = visibles.reduce((a, e) => a + e.monto, 0);
 
-  function nuevo() { const f = G_EMPTY(); f.subcategoria = subcats[0] || ""; setForm(f); setOpen(true); }
+  function nuevo() { const f = G_EMPTY(); f.subcategoria = subcats[0] || ""; setForm(f); setFile(null); setOpen(true); }
   function editar(e: LedgerEntry) {
-    setForm({ id: e.id, fecha: e.fecha || "", subcategoria: e.subcategoria || "", concepto: e.concepto, monto: String(e.monto) });
+    setForm({ id: e.id, fecha: e.fecha || "", subcategoria: e.subcategoria || "", concepto: e.concepto, monto: String(e.monto), comprobante: e.comprobante });
+    setFile(null);
     setOpen(true);
+  }
+  /** Sube la factura/nota al NAS y devuelve su ruta y nombre. */
+  async function subirComprobante(entryId: string): Promise<{ path: string; nombre: string } | null> {
+    if (!file) return null;
+    // Asegura la carpeta de comprobantes (idempotente).
+    await fetch("/api/files/folder", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "COMPROBANTES", path: "Archivos compartidos" }),
+    }).catch(() => {});
+    const safe = `${entryId}__${file.name}`.replace(/[^\w.\- ]+/g, "_");
+    const fd = new FormData();
+    fd.append("path", COMPROBANTES_DIR);
+    fd.append("files", new File([file], safe, { type: file.type }));
+    const up = await fetch("/api/files/upload", { method: "POST", body: fd });
+    if (!up.ok) return null;
+    return { path: `${COMPROBANTES_DIR}/${safe}`, nombre: file.name };
   }
   async function guardar() {
     setBusy(true);
-    const payload = {
+    const payload: Record<string, unknown> = {
       categoria, tipo: "egreso",
       fecha: form.fecha, subcategoria: form.subcategoria.trim(),
       concepto: form.concepto.trim(), monto: Number(form.monto) || 0,
     };
-    const res = await fetch(form.id ? `/api/costos/ledger/${form.id}` : "/api/costos/ledger", {
+    if (!file && form.comprobante) payload.comprobante = form.comprobante;
+    let res = await fetch(form.id ? `/api/costos/ledger/${form.id}` : "/api/costos/ledger", {
       method: form.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
     });
+    if (!res.ok) { setBusy(false); return; }
+    let { entry } = await res.json();
+    // Si hay archivo nuevo, se sube al NAS y se enlaza al movimiento.
+    if (file) {
+      const comp = await subirComprobante(entry.id);
+      if (comp) {
+        res = await fetch(`/api/costos/ledger/${entry.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ comprobante: comp }),
+        });
+        if (res.ok) entry = (await res.json()).entry;
+      }
+    }
     setBusy(false);
-    if (!res.ok) return;
-    const { entry } = await res.json();
     setItems((xs) => (form.id ? xs.map((x) => (x.id === entry.id ? entry : x)) : [entry, ...xs]));
     setOpen(false);
   }
@@ -346,6 +377,14 @@ function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEn
             <div><label className={LABEL}>Concepto</label><input className={INPUT} value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} /></div>
             <div><label className={LABEL}>Monto</label><input type="number" step="0.01" className={INPUT} value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value })} /></div>
           </div>
+          <div className="mt-3">
+            <label className={LABEL}>Comprobante (factura / nota)</label>
+            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-[#2C2C2C] file:mr-3 file:border file:border-[#EDE9E0] file:bg-[#F5F2EC] file:px-3 file:py-1.5 file:text-xs file:uppercase file:tracking-wider file:text-[#1B2A5E]" />
+            {file
+              ? <p className="text-[11px] text-[#7A7A7A] mt-1 flex items-center gap-1"><Paperclip size={11} /> {file.name}</p>
+              : form.comprobante && <p className="text-[11px] text-[#7A7A7A] mt-1 flex items-center gap-1"><Paperclip size={11} /> Adjunto: {form.comprobante.nombre} (elige otro para reemplazar)</p>}
+          </div>
           <div className="flex gap-2 mt-4">
             <button onClick={guardar} disabled={busy} className={BTN}><Save size={14} /> Guardar</button>
             <button onClick={() => setOpen(false)} className="px-4 py-2.5 text-xs tracking-widest uppercase text-[#7A7A7A] hover:text-[#1B2A5E]">Cancelar</button>
@@ -368,7 +407,15 @@ function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEn
                 {entries.map((e) => (
                   <tr key={e.id} className="border-b border-[#F5F2EC] hover:bg-[#F5F2EC]/40">
                     <td className="px-3 py-2 text-[#7A7A7A] whitespace-nowrap w-28">{e.fecha || "—"}</td>
-                    <td className="px-3 py-2 text-[#2C2C2C]">{e.concepto || "—"}</td>
+                    <td className="px-3 py-2 text-[#2C2C2C]">
+                      {e.concepto || "—"}
+                      {e.comprobante && (
+                        <a href={`/api/files/download?path=${encodeURIComponent(e.comprobante.path)}&inline=1`} target="_blank" rel="noopener noreferrer"
+                          title={`Comprobante: ${e.comprobante.nombre}`} className="inline-flex items-center gap-1 ml-2 text-[11px] text-[#1B2A5E] hover:text-[#C9A84C] align-middle">
+                          <Paperclip size={11} /> comprobante
+                        </a>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right data-label whitespace-nowrap">{money(e.monto)}</td>
                     <td className="px-3 py-2 text-right whitespace-nowrap w-20">
                       <button onClick={() => editar(e)} className="text-[#7A7A7A] hover:text-[#1B2A5E] mr-2"><Pencil size={14} /></button>

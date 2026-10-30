@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireWorkAreaWrite } from "@/lib/auth-server";
 import { mutate, type LedgerEntry } from "@/lib/db";
+import { cleanComprobante } from "@/lib/costos";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ export async function PATCH(
     if (b.tipo !== undefined) e.tipo = b.tipo === "ingreso" ? "ingreso" : "egreso";
     if (b.concepto !== undefined) e.concepto = b.concepto.trim();
     if (b.monto !== undefined) e.monto = Number(b.monto) || 0;
+    if (b.comprobante !== undefined) e.comprobante = cleanComprobante(b.comprobante);
     return e;
   });
   if (!updated)

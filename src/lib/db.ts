@@ -566,6 +566,8 @@ export interface LedgerEntry {
   tipo: LedgerKind;
   concepto: string;
   monto: number;
+  /** Comprobante (factura/nota) adjunto en el NAS: ruta y nombre para descarga. */
+  comprobante?: { path: string; nombre: string };
   createdAt: number;
 }
 
