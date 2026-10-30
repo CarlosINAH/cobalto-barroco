@@ -16,10 +16,11 @@ type Tab = "permisos" | "empleados";
  * "Empleados" el alta y edición del personal—.
  */
 export default function ConfiguracionManager({
-  accesos, personal, folders, folderPerms,
+  accesos, personal, folders, folderPerms, projects,
 }: {
   accesos: Employee[];
   personal: React.ComponentProps<typeof PersonalManager>;
+  projects?: { id: string; nombre: string }[];
   folders: { name: string; path: string }[];
   folderPerms: Record<string, FolderPerms>;
 }) {
@@ -77,7 +78,7 @@ export default function ConfiguracionManager({
         })}
       </div>
 
-      {tab === "permisos" && <AccesosManager initial={accesos} folders={folders} folderPerms={folderPerms} />}
+      {tab === "permisos" && <AccesosManager initial={accesos} folders={folders} folderPerms={folderPerms} projects={projects} />}
       {tab === "empleados" && <PersonalManager {...personal} />}
     </div>
   );
