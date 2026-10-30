@@ -18,6 +18,8 @@ import {
   Download,
   Scale,
   Clock,
+  Eye,
+  Pencil,
 } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
 import type {
@@ -36,6 +38,7 @@ export interface EmpleadoLite {
   nombre: string;
   rol: string;
   proyectoIds: string[];
+  proyectoEdita?: string[];
 }
 
 /** Concepto de la biblioteca, con su P.U. y desglose por tipo ya calculados. */
@@ -776,24 +779,34 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
   const participantes = emps.filter(participa);
   const disponibles = emps.filter((e) => !participa(e));
 
-  async function guardarIds(emp: EmpleadoLite, ids: string[]) {
+  const puedeEditar = (e: EmpleadoLite) => (e.proyectoEdita || []).includes(proyecto.id);
+
+  async function patchEmp(emp: EmpleadoLite, body: Partial<EmpleadoLite>) {
     setBusy(true);
     const res = await fetch(`/api/employees/${emp.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ proyectoIds: ids }),
+      body: JSON.stringify(body),
     });
     setBusy(false);
-    if (res.ok) setEmps((xs) => xs.map((x) => (x.id === emp.id ? { ...x, proyectoIds: ids } : x)));
+    if (res.ok) setEmps((xs) => xs.map((x) => (x.id === emp.id ? { ...x, ...body } : x)));
   }
   function agregar() {
     const emp = emps.find((e) => e.id === sel);
     if (!emp || participa(emp)) return;
-    guardarIds(emp, [...emp.proyectoIds, proyecto.id]);
+    patchEmp(emp, { proyectoIds: [...emp.proyectoIds, proyecto.id] });
     setSel("");
   }
   function quitar(emp: EmpleadoLite) {
     if (!confirm(`¿Quitar a ${emp.nombre} de este proyecto?`)) return;
-    guardarIds(emp, emp.proyectoIds.filter((id) => id !== proyecto.id));
+    patchEmp(emp, {
+      proyectoIds: emp.proyectoIds.filter((id) => id !== proyecto.id),
+      proyectoEdita: (emp.proyectoEdita || []).filter((id) => id !== proyecto.id),
+    });
+  }
+  function toggleEdita(emp: EmpleadoLite) {
+    const cur = emp.proyectoEdita || [];
+    const next = puedeEditar(emp) ? cur.filter((id) => id !== proyecto.id) : [...cur, proyecto.id];
+    patchEmp(emp, { proyectoEdita: next });
   }
 
   return (
@@ -814,6 +827,7 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
             <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
               <th className="px-3 py-3 font-semibold">Participante</th>
               <th className="px-3 py-3 font-semibold">Rol</th>
+              <th className="px-3 py-3 font-semibold text-center">Acceso</th>
               <th className="px-3 py-3 font-semibold text-right">Tarifa diaria</th>
               <th className="px-3 py-3" />
             </tr>
@@ -821,16 +835,24 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
           <tbody>
             {participantes.map((e) => {
               const diaria = tarifaDiaria(e.rol, catalog.salarios);
+              const edita = puedeEditar(e);
               return (
                 <tr key={e.id} className="border-b border-[#F5F2EC]">
                   <td className="px-3 py-2 text-[#2C2C2C]">{e.nombre}</td>
                   <td className="px-3 py-2 text-[#7A7A7A]">{e.rol || "—"}</td>
+                  <td className="px-3 py-2 text-center">
+                    <button onClick={() => toggleEdita(e)} disabled={busy}
+                      title={edita ? "Puede editar — clic para dejar solo lectura" : "Solo lectura — clic para permitir editar"}
+                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs border ${edita ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "bg-white text-[#7A7A7A] border-[#EDE9E0] hover:border-[#C9A84C]"}`}>
+                      {edita ? <><Pencil size={12} /> Edita</> : <><Eye size={12} /> Ve</>}
+                    </button>
+                  </td>
                   <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{diaria != null ? money(diaria) : "—"}</td>
                   <td className="px-3 py-2 text-right"><button onClick={() => quitar(e)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
                 </tr>
               );
             })}
-            {participantes.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-[#7A7A7A]">Sin participantes. Agrega empleados para que vean este proyecto y entren a la nómina quincenal.</td></tr>}
+            {participantes.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-[#7A7A7A]">Sin participantes. Agrega empleados para que vean este proyecto y entren a la nómina quincenal.</td></tr>}
           </tbody>
         </table>
       </div>

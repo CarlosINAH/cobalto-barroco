@@ -10,10 +10,17 @@ export const dynamic = "force-dynamic";
  * NO se exponen montos de dinero del proyecto (eso es solo administración).
  */
 export default async function ProyectosEmpleado() {
-  await requireSession();
+  const session = await requireSession();
   const db = await getDB();
+  // Solo los proyectos en los que la persona participa (asignados por
+  // administración). El admin ve todos.
+  const emp = db.employees.find(
+    (e) => e.username.toLowerCase() === session.username.toLowerCase(),
+  );
+  const misIds = emp?.proyectoIds?.length ? emp.proyectoIds : emp?.proyectoId ? [emp.proyectoId] : [];
+  const visibles = session.role === "admin" ? db.projects : db.projects.filter((p) => misIds.includes(p.id));
   // Solo campos no sensibles (sin montos).
-  const proyectos = db.projects.map((p) => ({
+  const proyectos = visibles.map((p) => ({
     id: p.id,
     nombre: p.nombre,
     ubicacion: p.ubicacion,

@@ -96,6 +96,11 @@ export interface Employee {
    * usa `proyectoId` como respaldo.
    */
   proyectoIds?: string[];
+  /**
+   * Subconjunto de `proyectoIds` que la persona puede EDITAR (no solo ver).
+   * Administración lo decide por persona y proyecto. El resto es solo lectura.
+   */
+  proyectoEdita?: string[];
   createdAt: number;
 }
 
