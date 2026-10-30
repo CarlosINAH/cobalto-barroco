@@ -118,6 +118,14 @@ class Painter {
   ctext(xCenter: number, y: number, size: number, str: string, bold = false, color = "#000000", italic = false) {
     this.text(xCenter - textWidth(str, size) / 2, y, size, str, bold, color, italic);
   }
+  /** Texto justificado a un ancho `maxw` repartiendo el sobrante entre espacios. */
+  textJust(x: number, y: number, size: number, str: string, maxw: number, color = "#000000") {
+    const spaces = (str.match(/ /g) || []).length;
+    const w = textWidth(str, size);
+    const extra = spaces > 0 && w < maxw ? (maxw - w) / spaces : 0;
+    const [r, g, b] = rgb(color);
+    this.cur += `${f3(r)} ${f3(g)} ${f3(b)} rg BT ${f3(extra)} Tw /F1 ${size} Tf ${x} ${y} Td (${esc(str)}) Tj 0 Tw ET\n`;
+  }
   line(x1: number, y1: number, x2: number, y2: number, color = "#000000", w = 0.5) {
     const [r, g, b] = rgb(color);
     this.cur += `${f3(r)} ${f3(g)} ${f3(b)} RG ${w} w ${x1} ${y1} m ${x2} ${y2} l S\n`;
@@ -214,12 +222,13 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
     return out;
   };
 
-  // Encabezado
+  // Encabezado con membrete (logo Cobalto Barroco)
   const f = budget.ficha;
   const cliente = f?.institucion || f?.contacto || budget.cliente;
   const ubic = [f?.recinto, f?.ciudad, f?.entidad].filter(Boolean).join(", ");
-  p.text(56, 744, 20, "Cobalto Barroco", true);
-  p.text(56, 728, 9, "Propuesta técnica y económica");
+  const logoH = 40, logoW = (logoH * LOGO_W) / LOGO_H;
+  p.image(LOGO_JPEG_B64, 56, 722, logoW, logoH);
+  p.text(56, 712, 9, "Propuesta técnica y económica", false, NAVY);
   p.rtext(556, 744, 9, `Proyecto: ${trunc(proyecto.nombre, 46)}`);
   let ry = 731;
   if (cliente) { p.rtext(556, ry, 9, `Cliente: ${trunc(cliente, 46)}`); ry -= 11; }
@@ -267,7 +276,12 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
     p.rtext(490, y, 8.5, money(l.pu));
     p.rtext(556, y, 8.5, money(l.pu * l.cantidad));
     for (const cl of cLines) { p.text(CX, y, 8.5, cl, true); y -= 11; }
-    for (const dl of dlines) { p.text(CX, y, 7.5, dl, false, "#6E7480"); y -= 9; }
+    // Descripción justificada (la última línea queda al natural).
+    dlines.forEach((dl, k) => {
+      if (k < dlines.length - 1) p.textJust(CX, y, 7.5, dl, 345 - CX, "#6E7480");
+      else p.text(CX, y, 7.5, dl, false, "#6E7480");
+      y -= 9;
+    });
     y -= 8;
   }
   p.line(56, y + 4, 556, y + 4);
@@ -281,7 +295,16 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   p.rtext(490, y, 11, "TOTAL", true);
   p.rtext(556, y, 11, money(t.total), true);
   y -= 28;
-  p.text(56, Math.max(y, 60), 8, "El presupuesto tiene una vigencia de 15 días. Precios en pesos mexicanos (MXN).");
+  const vy = Math.max(y, 96);
+  p.text(56, vy, 8, "El presupuesto tiene una vigencia de 15 días. Precios en pesos mexicanos (MXN).");
+
+  // Espacio de firma (para enviar el presupuesto firmado). Nueva página si no cabe.
+  let sy = vy - 54;
+  if (sy < 96) { p.newPage(); sy = 680; }
+  p.line(84, sy, 258, sy, GRAY, 0.6);
+  p.ctext(171, sy - 12, 8.5, "Por Cobalto Barroco", false, NAVY);
+  p.line(354, sy, 528, sy, GRAY, 0.6);
+  p.ctext(441, sy - 12, 8.5, "Nombre y firma — de conformidad", false, NAVY);
 
   return serialize(p.end(), p.images);
 }
