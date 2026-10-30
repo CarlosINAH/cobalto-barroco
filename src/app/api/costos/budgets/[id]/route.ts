@@ -1,23 +1,28 @@
 import { NextResponse } from "next/server";
-import { requireWorkAreaWrite } from "@/lib/auth-server";
-import { mutate, newId, cleanFicha, type Budget, type Project } from "@/lib/db";
+import { getSession, canWorkOnProject } from "@/lib/auth-server";
+import { getDB, mutate, newId, cleanFicha, type Budget, type Project } from "@/lib/db";
 import { cleanBudgetLines, cleanProrrateos } from "@/lib/costos";
 
 const ESTADOS = ["borrador", "enviado", "aprobado", "rechazado"] as const;
 
 export const runtime = "nodejs";
 
-async function requireAdmin() {
-  return requireWorkAreaWrite();
+/** Autoriza sobre el presupuesto `id` según el proyecto al que pertenece. */
+async function autorizado(id: string): Promise<boolean> {
+  const session = await getSession();
+  if (!session) return false;
+  const db = await getDB();
+  const bud = db.budgets.find((x) => x.id === id);
+  return canWorkOnProject(session, bud?.projectId ?? null);
 }
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireAdmin()))
-    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const { id } = await params;
+  if (!(await autorizado(id)))
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   let b: Partial<Budget>;
   try {
     b = await req.json();
@@ -89,9 +94,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireAdmin()))
-    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const { id } = await params;
+  if (!(await autorizado(id)))
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   await mutate((db) => {
     db.budgets = db.budgets.filter((x) => x.id !== id);
   });

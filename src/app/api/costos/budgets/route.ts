@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireWorkAreaWrite } from "@/lib/auth-server";
+import { getSession, canWriteWorkArea, canWorkOnProject, editableProjectIds } from "@/lib/auth-server";
 import {
   getDB,
   mutate,
@@ -14,24 +14,25 @@ import { cleanBudgetLines } from "@/lib/costos";
 
 export const runtime = "nodejs";
 
-async function requireAdmin() {
-  return requireWorkAreaWrite();
-}
-
 export async function GET(req: Request) {
-  if (!(await requireAdmin()))
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  const full = await canWriteWorkArea(session);
+  const editables = full ? [] : await editableProjectIds(session);
+  if (!full && editables.length === 0)
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const db = await getDB();
   const projectId = new URL(req.url).searchParams.get("projectId");
-  const budgets = projectId
+  let budgets = projectId
     ? db.budgets.filter((b) => b.projectId === projectId)
     : db.budgets;
+  // Un editor solo ve los presupuestos de sus proyectos.
+  if (!full) budgets = budgets.filter((b) => b.projectId && editables.includes(b.projectId));
   return NextResponse.json({ budgets });
 }
 
 export async function POST(req: Request) {
-  if (!(await requireAdmin()))
-    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  const session = await getSession();
   let b: Partial<Budget>;
   try {
     b = await req.json();
@@ -40,6 +41,8 @@ export async function POST(req: Request) {
   }
   // projectId opcional: un presupuesto puede existir solo (aún no aprobado).
   const projectId = (b.projectId || "").trim() || null;
+  if (!session || !(await canWorkOnProject(session, projectId)))
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const now = Date.now();
   const budget: Budget = {
     id: newId("PRE"),

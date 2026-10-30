@@ -103,6 +103,7 @@ export default function ProyectosManager({
   payroll,
   empleados,
   catalog,
+  alcance = "completo",
 }: {
   proyectos: Project[];
   budgets: Budget[];
@@ -111,6 +112,9 @@ export default function ProyectosManager({
   payroll: PayrollEntry[];
   empleados: EmpleadoLite[];
   catalog: CatalogProps;
+  /** "editor": residente que solo gestiona sus obras (participantes se asignan
+   *  desde el panel de permisos, no aquí). */
+  alcance?: "completo" | "editor";
 }) {
   const [selId, setSelId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<"todos" | Project["estado"]>("todos");
@@ -126,6 +130,7 @@ export default function ProyectosManager({
         empleados={empleados}
         ledgerInicial={ledger.filter((e) => e.projectId === sel.id)}
         payrollInicial={payroll.filter((e) => e.projectId === sel.id)}
+        alcance={alcance}
         onBack={() => setSelId(null)}
       />
     );
@@ -187,6 +192,7 @@ function ProyectoDetalle({
   empleados,
   ledgerInicial,
   payrollInicial,
+  alcance = "completo",
   onBack,
 }: {
   proyecto: Project;
@@ -196,11 +202,14 @@ function ProyectoDetalle({
   empleados: EmpleadoLite[];
   ledgerInicial: LedgerEntry[];
   payrollInicial: PayrollEntry[];
+  alcance?: "completo" | "editor";
   onBack: () => void;
 }) {
   const [tab, setTab] = useState<SubTab>("presupuesto");
   const [budget, setBudget] = useState<Budget | null>(budgetInicial);
   const est = ESTADO[proyecto.estado] ?? ESTADO.activo;
+  // Un editor (residente) no asigna participantes aquí (se hace desde permisos).
+  const subtabs = alcance === "editor" ? SUBTABS.filter((s) => s.id !== "participantes") : SUBTABS;
 
   return (
     <div>
@@ -220,7 +229,7 @@ function ProyectoDetalle({
       </div>
 
       <div className="flex gap-1 border-b border-[#EDE9E0] mb-6 overflow-x-auto" data-no-print>
-        {SUBTABS.map((s) => {
+        {subtabs.map((s) => {
           const Icon = s.icon;
           const on = tab === s.id;
           return (

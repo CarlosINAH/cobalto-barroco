@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Pencil, Save, X, Loader2 } from "lucide-react";
+import { MapPin, Pencil, Save, X, Loader2, LayoutGrid } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
 
 interface Proyecto {
@@ -92,12 +92,17 @@ export default function ProyectoEmpleadoHeader({ proyecto, canEdit }: { proyecto
           <h2 className="text-[#1B2A5E] text-2xl" style={{ fontFamily: "var(--font-playfair)" }}>{p.nombre}</h2>
           {p.ubicacion && <p className="flex items-center gap-1 text-sm text-[#7A7A7A] mt-1"><MapPin size={13} /> {p.ubicacion}</p>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <span className={`text-xs px-2 py-1 border ${est}`}>{p.estado}</span>
           {canEdit && (
-            <button onClick={() => { setForm(p); setEdit(true); }} className="flex items-center gap-1 text-xs text-[#7A7A7A] hover:text-[#1B2A5E] border border-[#EDE9E0] px-2 py-1 hover:border-[#C9A84C]">
-              <Pencil size={12} /> Editar
-            </button>
+            <>
+              <button onClick={() => { setForm(p); setEdit(true); }} className="flex items-center gap-1 text-xs text-[#7A7A7A] hover:text-[#1B2A5E] border border-[#EDE9E0] px-2 py-1 hover:border-[#C9A84C]">
+                <Pencil size={12} /> Editar
+              </button>
+              <a href="/dashboard/admin/proyectos" className="flex items-center gap-1 text-xs bg-[#1B2A5E] text-[#F5F2EC] px-2.5 py-1 hover:bg-[#243470]">
+                <LayoutGrid size={12} /> Espacio de trabajo
+              </a>
+            </>
           )}
         </div>
       </div>
