@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { requireWorkAreaWrite } from "@/lib/auth-server";
+import { getSession, canWriteWorkArea, canEditProject, requireWorkAreaWrite } from "@/lib/auth-server";
 import { mutate, newId, type Project, type CVEntry } from "@/lib/db";
 
 export const runtime = "nodejs";
-
-async function requireAdmin() {
-  return requireWorkAreaWrite();
-}
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireAdmin())) {
+  const session = await getSession();
+  const { id } = await params;
+  // Permite editar al área de trabajo (admin/total) y a los editores del
+  // proyecto (proyectoEdita). Solo el área de trabajo toca los montos.
+  if (!session || !(await canEditProject(session, id))) {
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   }
-  const { id } = await params;
+  const conMontos = await canWriteWorkArea(session);
   let b: Partial<Project>;
   try {
     b = await req.json();
@@ -35,11 +35,15 @@ export async function PATCH(
     if (b.cliente !== undefined) p.cliente = b.cliente.trim() || undefined;
     if (b.tipo !== undefined) p.tipo = b.tipo.trim() || undefined;
     if (b.carpetaInformes !== undefined) p.carpetaInformes = b.carpetaInformes.trim() || undefined;
-    const num = (v: unknown) => (v == null || v === "" ? undefined : Number(v) || 0);
-    if (b.montoTotal !== undefined) p.montoTotal = num(b.montoTotal);
-    if (b.anticipo !== undefined) p.anticipo = num(b.anticipo);
-    if (b.egresos !== undefined) p.egresos = num(b.egresos);
-    if (b.utilidad !== undefined) p.utilidad = num(b.utilidad);
+    // Los montos solo los toca el área de trabajo (admin/total); un editor por
+    // proyecto no los ve ni los modifica.
+    if (conMontos) {
+      const num = (v: unknown) => (v == null || v === "" ? undefined : Number(v) || 0);
+      if (b.montoTotal !== undefined) p.montoTotal = num(b.montoTotal);
+      if (b.anticipo !== undefined) p.anticipo = num(b.anticipo);
+      if (b.egresos !== undefined) p.egresos = num(b.egresos);
+      if (b.utilidad !== undefined) p.utilidad = num(b.utilidad);
+    }
     // Al marcarse FINALIZADO, el proyecto se suma al CV de la empresa (una sola
     // vez: no se duplica si ya tiene su entrada de currículum).
     if (b.estado === "finalizado" && !db.cvEntries.some((c) => c.projectId === p.id)) {
@@ -68,7 +72,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireAdmin())) {
+  if (!(await requireWorkAreaWrite())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   }
   const { id } = await params;

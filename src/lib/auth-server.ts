@@ -75,6 +75,21 @@ export async function requireWorkAreaWrite(): Promise<Session | null> {
 }
 
 /**
+ * ¿Puede EDITAR un proyecto en concreto? admin o quien tenga escritura en el
+ * área de trabajo (acceso total), o un editor del proyecto asignado por
+ * administración (Employee.proyectoEdita). Los editores por proyecto no ven ni
+ * tocan montos de dinero (lo controla la ruta).
+ */
+export async function canEditProject(session: Session, projectId: string): Promise<boolean> {
+  if (await canWriteWorkArea(session)) return true;
+  const db = await getDB();
+  const emp = db.employees.find(
+    (e) => e.username.toLowerCase() === session.username.toLowerCase(),
+  );
+  return !!emp?.proyectoEdita?.includes(projectId);
+}
+
+/**
  * Exige al menos ver la sección (nivel "lectura" o "total"). Si no, redirige al
  * panel que sí puede ver. Permite que un residente/superintendente entre a las
  * páginas de Administración/Proyectos sin ser admin.

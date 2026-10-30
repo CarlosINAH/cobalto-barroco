@@ -13,7 +13,6 @@ import {
   LogOut,
   Settings,
   CalendarDays,
-  Calculator,
   FolderKanban,
   Award,
   Wallet,
@@ -70,16 +69,16 @@ export default function DashboardShell({
   const pathname = usePathname();
   const roleLabel = role === "empleado" ? "Empleado" : "Administrador";
 
-  // Menú: el admin ve todo; un empleado con secciones habilitadas (residente,
-  // superintendente) ve además Administración y/o Proyectos (empresa).
+  // Menú: el admin ve todo; un empleado con secciones habilitadas ve además
+  // Administración y/o Currículum. Los proyectos se gestionan dentro de la
+  // propia pestaña "Proyectos" (sin una pestaña aparte): la persona ve y edita
+  // los proyectos que administración le asignó.
   const nav = useMemo<NavItem[]>(() => {
     if (role === "admin") return adminNav;
     const acc = me?.acceso || {};
     const extra: NavItem[] = [];
     if (acc.administracion && acc.administracion !== "oculto")
       extra.push({ icon: Wallet, label: "Administración", href: "/dashboard/admin/administracion" });
-    if (acc.proyectos && acc.proyectos !== "oculto")
-      extra.push({ icon: Calculator, label: "Proyectos (empresa)", href: "/dashboard/admin/proyectos" });
     if (acc.cv && acc.cv !== "oculto")
       extra.push({ icon: Award, label: "Currículum", href: "/dashboard/admin/cv" });
     return extra.length ? [...empleadoNav, ...extra] : empleadoNav;
