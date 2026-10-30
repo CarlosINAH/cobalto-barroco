@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   Calculator,
@@ -20,6 +20,7 @@ import {
   Clock,
   Eye,
   Pencil,
+  Paperclip,
 } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
 import CarpetaArchivos from "@/components/proyectos/CarpetaArchivos";
@@ -647,11 +648,14 @@ function Stat({ label, val }: { label: string; val: string }) {
 // ─── Administración (movimientos del proyecto) ───────────────────────────────
 // Categorías alineadas a los rubros del balance (presupuestado vs real).
 const CATEGORIAS = ["anticipo", "finiquito", "pago", "mano de obra", "material", "herramienta", "equipo", "viáticos", "indirectos", "impuestos", "otro"];
+const COMPROBANTES_DIR = "Archivos compartidos/COMPROBANTES";
 
 function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[]; catalog: CatalogProps }) {
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ fecha: new Date().toISOString().slice(0, 10), categoria: "anticipo", tipo: "ingreso" as LedgerEntry["tipo"], concepto: "", monto: "" });
+  const [file, setFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [verCat, setVerCat] = useState(""); // filtro de la tabla por categoría
 
   // Enlace con el catálogo: en Administración solo se jalan CONCEPTOS (los
@@ -666,14 +670,45 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
     setF((prev) => (hit ? { ...prev, concepto: v, tipo: "egreso", monto: String(hit.pu) } : { ...prev, concepto: v }));
   }
 
+  // Sube el comprobante (factura/nota) a la carpeta compartida de COMPROBANTES,
+  // con el id del movimiento como prefijo para que no colisione.
+  async function subirComprobante(entryId: string): Promise<{ path: string; nombre: string } | null> {
+    if (!file) return null;
+    await fetch("/api/files/folder", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "COMPROBANTES", path: "Archivos compartidos" }),
+    });
+    const safe = `${entryId}__${file.name}`;
+    const fd = new FormData();
+    fd.append("path", COMPROBANTES_DIR);
+    fd.append("files", file, safe);
+    const up = await fetch("/api/files/upload", { method: "POST", body: fd });
+    if (!up.ok) return null;
+    return { path: `${COMPROBANTES_DIR}/${safe}`, nombre: file.name };
+  }
+
   async function crear() {
     setBusy(true);
     const res = await fetch("/api/costos/ledger", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...f, projectId: proyecto.id, monto: Number(f.monto) || 0 }),
     });
+    if (!res.ok) { setBusy(false); return; }
+    const { entry } = await res.json();
+    // Si se adjuntó comprobante, se sube y se liga al movimiento recién creado.
+    const comp = await subirComprobante(entry.id);
+    if (comp) {
+      const r = await fetch(`/api/costos/ledger/${entry.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comprobante: comp }),
+      });
+      if (r.ok) entry.comprobante = comp;
+    }
     setBusy(false);
-    if (res.ok) { const { entry } = await res.json(); setItems((xs) => [...xs, entry]); setF({ ...f, concepto: "", monto: "" }); }
+    setItems((xs) => [...xs, entry]);
+    setF({ ...f, concepto: "", monto: "" });
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
   }
   async function borrar(id: string) {
     if (!confirm("¿Eliminar movimiento?")) return;
@@ -706,6 +741,10 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
           {catalog.conceptos.map((c) => <option key={c.id} value={conceptoLabel(c)}>{money(c.pu)}</option>)}
         </datalist>
         <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
+        <label className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-2 text-xs text-[#7A7A7A] cursor-pointer hover:border-[#C9A84C] whitespace-nowrap" title="Adjuntar factura o nota (opcional)">
+          <Paperclip size={13} /> {file ? file.name : "Comprobante"}
+          <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        </label>
         <button onClick={crear} disabled={busy} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
       </div>
       {/* Barra de filtro por categoría */}
@@ -749,7 +788,15 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
                   <tr key={e.id} className="border-b border-[#F5F2EC]">
                     <td className="px-3 py-2 data-label text-[#7A7A7A]">{e.fecha}</td>
                     <td className="px-3 py-2 text-[#7A7A7A]">{e.categoria}</td>
-                    <td className="px-3 py-2 text-[#2C2C2C]">{e.concepto || "—"}</td>
+                    <td className="px-3 py-2 text-[#2C2C2C]">
+                      {e.concepto || "—"}
+                      {e.comprobante && (
+                        <a href={`/api/files/download?path=${encodeURIComponent(e.comprobante.path)}&inline=1`} target="_blank" rel="noopener noreferrer"
+                          title={`Comprobante: ${e.comprobante.nombre}`} className="inline-flex items-center gap-1 ml-2 text-[11px] text-[#1B2A5E] hover:text-[#C9A84C] align-middle">
+                          <Paperclip size={11} /> comprobante
+                        </a>
+                      )}
+                    </td>
                     <td className={`px-3 py-2 text-right data-label ${e.tipo === "ingreso" ? "text-green-700" : "text-[#2C2C2C]"}`}>{e.tipo === "egreso" ? "−" : ""}{money(e.monto)}</td>
                     <td className="px-3 py-2 text-right"><button onClick={() => borrar(e.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
                   </tr>
