@@ -1,6 +1,6 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import AdministracionManager from "@/components/administracion/AdministracionManager";
-import { requireSectionView } from "@/lib/auth-server";
+import { requireSectionView, canWriteSection } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,12 +12,15 @@ export const dynamic = "force-dynamic";
 export default async function AdministracionAdmin() {
   const session = await requireSectionView("administracion");
   const db = await getDB();
+  const canEditPago = await canWriteSection(session, "administracion");
   return (
     <DashboardShell role={session.role} title="Administración">
       <AdministracionManager
         projects={db.projects}
         ledger={db.ledgerEntries}
         payroll={db.payrollEntries}
+        proximoPago={db.proximoPago ?? null}
+        canEditPago={canEditPago}
       />
     </DashboardShell>
   );

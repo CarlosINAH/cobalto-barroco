@@ -5,7 +5,8 @@ import {
   Plus, Trash2, Save, Pencil, X, Building2,
   Banknote, Receipt, Package, PiggyBank, Landmark, Paperclip,
 } from "lucide-react";
-import type { Project, LedgerEntry, PayrollEntry } from "@/lib/db";
+import type { Project, LedgerEntry, PayrollEntry, ProximoPago } from "@/lib/db";
+import ProximoPagoCard from "@/components/administracion/ProximoPagoCard";
 
 const mxn0 = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 });
 const mxn2 = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 });
@@ -36,11 +37,13 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function AdministracionManager({
-  projects, ledger, payroll,
+  projects, ledger, payroll, proximoPago = null, canEditPago = false,
 }: {
   projects: Project[];
   ledger: LedgerEntry[];
   payroll: PayrollEntry[];
+  proximoPago?: ProximoPago | null;
+  canEditPago?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("obras");
   // Solo movimientos de empresa (sin obra) viven en estas pestañas.
@@ -63,7 +66,7 @@ export default function AdministracionManager({
       </div>
 
       {tab === "obras" && <ObrasTab initial={projects} ledger={ledgerEmpresa} payroll={payrollEmpresa} />}
-      {tab === "nomina" && <NominaTab inicial={payrollEmpresa} />}
+      {tab === "nomina" && <NominaTab inicial={payrollEmpresa} proximoPago={proximoPago} canEditPago={canEditPago} />}
       {tab === "indirectos" && <GastoTab categoria="indirectos" inicial={ledgerEmpresa.filter((e) => e.categoria === "indirectos")} />}
       {tab === "utilidades" && <GastoTab categoria="utilidades" inicial={ledgerEmpresa.filter((e) => e.categoria === "utilidades")} />}
       {tab === "impuestos" && <GastoTab categoria="impuestos" inicial={ledgerEmpresa.filter((e) => e.categoria === "impuestos")} />}
@@ -439,7 +442,7 @@ function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEn
 type NForm = { id: string | null; fecha: string; categoria: string; persona: string; monto: string };
 const N_EMPTY = (): NForm => ({ id: null, fecha: new Date().toISOString().slice(0, 10), categoria: "nómina", persona: "", monto: "" });
 
-function NominaTab({ inicial }: { inicial: PayrollEntry[] }) {
+function NominaTab({ inicial, proximoPago = null, canEditPago = false }: { inicial: PayrollEntry[]; proximoPago?: ProximoPago | null; canEditPago?: boolean }) {
   const [items, setItems] = useState<PayrollEntry[]>(inicial);
   const [mes, setMes] = useState("");
   const [cat, setCat] = useState("");
@@ -492,6 +495,7 @@ function NominaTab({ inicial }: { inicial: PayrollEntry[] }) {
 
   return (
     <div>
+      <ProximoPagoCard inicial={proximoPago} canEdit={canEditPago} />
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <div className="flex flex-wrap items-center gap-3">
           <select value={mes} onChange={(e) => setMes(e.target.value)} className={INPUT + " w-40"}>
