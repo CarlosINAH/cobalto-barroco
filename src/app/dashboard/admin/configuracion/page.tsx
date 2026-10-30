@@ -69,6 +69,7 @@ export default async function ConfiguracionAdmin() {
         }}
         folders={folders}
         folderPerms={initialPerms}
+        projects={db.projects.map((p) => ({ id: p.id, nombre: p.nombre }))}
       />
     </DashboardShell>
   );

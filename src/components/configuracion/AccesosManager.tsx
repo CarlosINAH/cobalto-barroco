@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ShieldCheck, FolderLock, ChevronDown, ChevronUp, Loader2, Check } from "lucide-react";
+import { ShieldCheck, FolderLock, ChevronDown, ChevronUp, Loader2, Check, Eye, Pencil, FolderKanban } from "lucide-react";
 import type { Employee, PerfilSistema, AccesoNivel, SeccionSistema, FolderPermLevel } from "@/lib/db";
 import type { FolderPerms } from "@/components/permisos/PermisosManager";
 
@@ -33,11 +33,12 @@ const CARPETA_NIVELES: { id: FolderPermLevel; label: string }[] = [
 const INPUT = "border border-[#EDE9E0] bg-white px-2 py-1.5 text-sm text-[#2C2C2C] focus:outline-none focus:border-[#C9A84C]";
 
 export default function AccesosManager({
-  initial, folders, folderPerms,
+  initial, folders, folderPerms, projects = [],
 }: {
   initial: Employee[];
   folders: { name: string; path: string }[];
   folderPerms: Record<string, FolderPerms>;
+  projects?: { id: string; nombre: string }[];
 }) {
   const [items, setItems] = useState<Employee[]>(initial);
   const [perms, setPerms] = useState<Record<string, FolderPerms>>(folderPerms);
@@ -62,6 +63,24 @@ export default function AccesosManager({
     const acceso = { ...(e.acceso || {}), [sec]: nivel };
     save(e.id, { acceso });
   }
+  // Asignación de proyectos por persona (👁 ver = participante, ✎ editar).
+  const ve = (e: Employee, pid: string) => (e.proyectoIds || []).includes(pid);
+  const edita = (e: Employee, pid: string) => (e.proyectoEdita || []).includes(pid);
+  function toggleVer(e: Employee, pid: string) {
+    const ids = ve(e, pid) ? (e.proyectoIds || []).filter((x) => x !== pid) : [...(e.proyectoIds || []), pid];
+    const ed = ve(e, pid) ? (e.proyectoEdita || []).filter((x) => x !== pid) : e.proyectoEdita || [];
+    save(e.id, { proyectoIds: ids, proyectoEdita: ed });
+  }
+  function toggleEdita(e: Employee, pid: string) {
+    if (edita(e, pid)) {
+      save(e.id, { proyectoEdita: (e.proyectoEdita || []).filter((x) => x !== pid) });
+    } else {
+      // Editar implica ver: asegura participación.
+      const ids = ve(e, pid) ? (e.proyectoIds || []) : [...(e.proyectoIds || []), pid];
+      save(e.id, { proyectoIds: ids, proyectoEdita: [...(e.proyectoEdita || []), pid] });
+    }
+  }
+  const proyectosAsignados = (e: Employee) => (e.proyectoIds || []).length;
 
   // Nivel efectivo de una persona en una carpeta.
   function nivelCarpeta(path: string, username: string): FolderPermLevel {
@@ -114,6 +133,7 @@ export default function AccesosManager({
               <th className="px-2 py-2 font-semibold">Perfil</th>
               {SECCIONES.map((s) => <th key={s.id} className="px-2 py-2 font-semibold">{s.label}</th>)}
               <th className="px-2 py-2 font-semibold text-center">Papelera</th>
+              <th className="px-2 py-2 font-semibold text-center">Proyectos</th>
               <th className="px-2 py-2 font-semibold text-center">Carpetas</th>
             </tr>
           </thead>
@@ -146,6 +166,13 @@ export default function AccesosManager({
                     <td className="px-2 py-2 text-center">
                       <button onClick={() => setOpenId(abierto ? null : e.id)}
                         className="inline-flex items-center gap-1 border border-[#EDE9E0] px-2 py-1 text-xs text-[#1B2A5E] hover:border-[#C9A84C]">
+                        <FolderKanban size={13} /> {proyectosAsignados(e)}/{projects.length}
+                        {abierto ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      <button onClick={() => setOpenId(abierto ? null : e.id)}
+                        className="inline-flex items-center gap-1 border border-[#EDE9E0] px-2 py-1 text-xs text-[#1B2A5E] hover:border-[#C9A84C]">
                         <FolderLock size={13} /> {carpetasConAcceso(e.username)}/{folders.length}
                         {abierto ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       </button>
@@ -153,7 +180,34 @@ export default function AccesosManager({
                   </tr>
                   {abierto && (
                     <tr className="bg-[#F5F2EC]/40">
-                      <td colSpan={SECCIONES.length + 4} className="px-4 py-3">
+                      <td colSpan={SECCIONES.length + 5} className="px-4 py-3 space-y-4">
+                        {/* Proyectos de la persona: 👁 ver (participante) · ✎ editar */}
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold mb-2 flex items-center gap-1.5"><FolderKanban size={13} className="text-[#C9A84C]" /> Proyectos</p>
+                          {projects.length === 0 ? (
+                            <p className="text-xs text-[#7A7A7A]">Aún no hay proyectos.</p>
+                          ) : (
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                              {projects.map((pr) => {
+                                const puedeVer = ve(e, pr.id), puedeEditar = edita(e, pr.id);
+                                return (
+                                  <div key={pr.id} className="flex items-center justify-between gap-2 bg-white border border-[#EDE9E0] px-3 py-2">
+                                    <span className="text-sm text-[#2C2C2C] truncate" title={pr.nombre}>{pr.nombre}</span>
+                                    <span className="flex items-center gap-1 shrink-0">
+                                      <button onClick={() => toggleVer(e, pr.id)} title={puedeVer ? "Visible — clic para ocultar" : "Oculto — clic para mostrar"}
+                                        className={`p-1 border ${puedeVer ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "bg-white text-[#7A7A7A] border-[#EDE9E0] hover:border-[#C9A84C]"}`}><Eye size={13} /></button>
+                                      <button onClick={() => toggleEdita(e, pr.id)} title={puedeEditar ? "Puede editar — clic para solo lectura" : "Solo lectura — clic para permitir editar"}
+                                        className={`p-1 border ${puedeEditar ? "bg-[#C9A84C] text-white border-[#C9A84C]" : "bg-white text-[#7A7A7A] border-[#EDE9E0] hover:border-[#C9A84C]"}`}><Pencil size={13} /></button>
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        {/* Carpetas compartidas */}
+                        <div>
+                        <p className="text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold mb-2 flex items-center gap-1.5"><FolderLock size={13} className="text-[#C9A84C]" /> Carpetas</p>
                         {folders.length === 0 ? (
                           <p className="text-xs text-[#7A7A7A]">No hay carpetas en «Archivos compartidos» todavía, o el NAS no respondió.</p>
                         ) : (
@@ -175,6 +229,7 @@ export default function AccesosManager({
                             })}
                           </div>
                         )}
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -182,7 +237,7 @@ export default function AccesosManager({
               );
             })}
             {items.length === 0 && (
-              <tr><td colSpan={SECCIONES.length + 4} className="px-2 py-10 text-center text-[#7A7A7A]">Sin personal registrado.</td></tr>
+              <tr><td colSpan={SECCIONES.length + 5} className="px-2 py-10 text-center text-[#7A7A7A]">Sin personal registrado.</td></tr>
             )}
           </tbody>
         </table>
