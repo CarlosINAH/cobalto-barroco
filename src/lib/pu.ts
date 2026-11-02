@@ -112,10 +112,11 @@ export function inputUnitPrice(i: ConceptInput, catalogs: CostCatalogs): number 
 
 /**
  * Importe de un renglón de insumo = precio × cantidad × depreciación.
- * La depreciación (0..1) aplica a equipo/herramienta/material; undefined = 1.
+ * La depreciación (0..1) aplica SOLO a equipo y herramienta. Los materiales son
+ * consumibles: se cargan al 100% (factor 1), sin depreciación.
  */
 export function inputAmount(i: ConceptInput, catalogs: CostCatalogs): number {
-  const depr = i.depreciacion == null ? 1 : i.depreciacion;
+  const depr = i.kind === "material" ? 1 : (i.depreciacion == null ? 1 : i.depreciacion);
   return inputUnitPrice(i, catalogs) * i.cantidad * depr;
 }
 
