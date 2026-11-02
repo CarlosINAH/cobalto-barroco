@@ -28,6 +28,7 @@ export default function SolicitudMaterial() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
 
+  // Trae las solicitudes y actualiza el estado (recarga tras crear una).
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -39,9 +40,20 @@ export default function SolicitudMaterial() {
     }
   }, []);
 
+  // Carga inicial: sin setState síncrono en el efecto (solo tras el await).
   useEffect(() => {
-    load();
-  }, [load]);
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/materials");
+        const data = await res.json();
+        if (vivo && res.ok) setItems(data.materials);
+      } finally {
+        if (vivo) setLoading(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   return (
     <>

@@ -119,9 +119,24 @@ export default function CalendarManager() {
     }
   }, []);
 
+  // Carga inicial: sin setState síncrono en el efecto (solo tras el await).
   useEffect(() => {
-    load();
-  }, [load]);
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/events");
+        const data = await res.json();
+        if (!vivo) return;
+        if (!res.ok) { setError(data.error || "No se pudo cargar el calendario."); return; }
+        setEvents(data.events);
+      } catch {
+        if (vivo) setError("Error de conexión.");
+      } finally {
+        if (vivo) setLoading(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   // Rejilla de 6 semanas que empieza en lunes.
   const cells = useMemo(() => {

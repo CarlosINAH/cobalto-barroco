@@ -35,6 +35,7 @@ export default function PapeleraManager({ role }: { role: "admin" | "empleado" }
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
+  // Trae la papelera y actualiza el estado (recarga tras una acción).
   const load = useCallback(async () => {
     setError("");
     try {
@@ -52,9 +53,22 @@ export default function PapeleraManager({ role }: { role: "admin" | "empleado" }
     }
   }, []);
 
+  // Carga inicial: sin setState síncrono en el efecto (solo tras el await).
   useEffect(() => {
-    load();
-  }, [load]);
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/files/trash");
+        const data = await res.json();
+        if (!vivo) return;
+        if (!res.ok) { setError(data.error || "No se pudo cargar."); setItems([]); return; }
+        setItems(data.items);
+      } catch {
+        if (vivo) { setError("Error de conexión."); setItems([]); }
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   const act = async (
     action: "restore" | "delete" | "empty",

@@ -31,11 +31,12 @@ export default function GastosManager({ initial, proyectos }: { initial: LedgerE
   const filtered = items.filter((e) => (!fMes || mesKey(e.fecha) === fMes) && (!fCat || e.categoria === fCat));
   const total = filtered.reduce((a, e) => a + e.monto, 0);
   const totalGeneral = items.reduce((a, e) => a + e.monto, 0);
-  const porCat = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const e of filtered) m[e.categoria || "otro"] = (m[e.categoria || "otro"] || 0) + e.monto;
-    return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [filtered]);
+  // Agregado por categoría del conjunto filtrado. Cálculo plano: React Compiler
+  // memoiza el componente (un useMemo sobre `filtered`, que es un array nuevo
+  // en cada render, no se podía preservar).
+  const porCatMap: Record<string, number> = {};
+  for (const e of filtered) porCatMap[e.categoria || "otro"] = (porCatMap[e.categoria || "otro"] || 0) + e.monto;
+  const porCat = Object.entries(porCatMap).sort((a, b) => b[1] - a[1]);
 
   async function crear() {
     setBusy(true);

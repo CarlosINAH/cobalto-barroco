@@ -16,6 +16,7 @@ export default function Asistencia() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Trae los registros y actualiza el estado (recarga tras una acción).
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -30,9 +31,21 @@ export default function Asistencia() {
     }
   }, []);
 
+  // Carga inicial: sin setState síncrono en el efecto (solo tras el await).
   useEffect(() => {
-    load();
-  }, [load]);
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/attendance");
+        const data = await res.json();
+        if (!vivo) return;
+        if (res.ok) { setRegistros(data.registros); setUltimo(data.ultimo); }
+      } finally {
+        if (vivo) setLoading(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   const registrar = async (tipo: "entrada" | "salida") => {
     setSaving(true);

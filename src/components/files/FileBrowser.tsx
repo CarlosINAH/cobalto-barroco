@@ -182,9 +182,35 @@ export default function FileBrowser({
     }
   }, []);
 
+  // Navegación: muestra el spinner de inmediato y cambia de ruta; el efecto de
+  // abajo trae el contenido (así el feedback no exige setState síncrono en el
+  // efecto).
+  const navegar = useCallback((p: string) => {
+    setLoading(true);
+    setError("");
+    setPath(p);
+  }, []);
+
+  // Carga al montar y al cambiar de ruta: fetch inline y setState solo tras el
+  // await (cumple la regla de React Compiler), con guarda de desmontaje.
   useEffect(() => {
-    load(path);
-  }, [path, load]);
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        if (!vivo) return;
+        if (!res.ok) { setError(data.error || "No se pudo cargar."); setEntries([]); return; }
+        setEntries(data.entries);
+        setCanWrite(data.canWrite !== false);
+      } catch {
+        if (vivo) setError("Error de conexión.");
+      } finally {
+        if (vivo) setLoading(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [path]);
 
   // Auto-actualización en segundo plano (p. ej. para ver archivos nuevos que
   // subió otra persona). Se omite mientras el usuario está en medio de algo
@@ -197,7 +223,11 @@ export default function FileBrowser({
     publishFor,
     viewFor,
   });
-  refreshState.current = { path, busy, historyFor, shareFor, publishFor, viewFor };
+  // El ref se actualiza en un efecto (no durante el render) para que el
+  // intervalo de auto-actualización lea siempre el estado vigente.
+  useEffect(() => {
+    refreshState.current = { path, busy, historyFor, shareFor, publishFor, viewFor };
+  });
   useEffect(() => {
     if (!autoRefreshMs) return;
     const id = setInterval(() => {
@@ -293,7 +323,7 @@ export default function FileBrowser({
       : path;
   const crumbs = rel ? rel.split("/").filter(Boolean) : [];
   const goCrumb = (i: number) =>
-    setPath([basePath, ...crumbs.slice(0, i + 1)].filter(Boolean).join("/"));
+    navegar([basePath, ...crumbs.slice(0, i + 1)].filter(Boolean).join("/"));
 
   return (
     <div>
@@ -301,7 +331,7 @@ export default function FileBrowser({
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 text-sm text-[#7A7A7A] flex-wrap">
           <button
-            onClick={() => setPath(basePath)}
+            onClick={() => navegar(basePath)}
             className="flex items-center gap-1.5 hover:text-[#1B2A5E] transition-colors"
           >
             <Home size={14} className="text-[#C9A84C]" />
@@ -407,7 +437,7 @@ export default function FileBrowser({
                   </span>
                 ) : e.isDir ? (
                   <button
-                    onClick={() => setPath(e.path)}
+                    onClick={() => navegar(e.path)}
                     className="text-[#2C2C2C] text-sm truncate hover:text-[#1B2A5E] hover:underline text-left"
                   >
                     {e.name}
