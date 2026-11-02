@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth-server";
+import { getSession, canWorkOnProject } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
 import { buildCotizacionPdf } from "@/lib/pdf";
 
@@ -9,12 +9,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getSession();
-  if (!session || session.role !== "admin")
-    return new Response("No autorizado.", { status: 403 });
+  if (!session) return new Response("No autorizado.", { status: 403 });
   const { id } = await params;
   const db = await getDB();
   const budget = db.budgets.find((b) => b.id === id);
   if (!budget) return new Response("No encontrado.", { status: 404 });
+  // Lo descarga el área de trabajo o quien puede trabajar ese proyecto
+  // (editor del proyecto). Un presupuesto sin proyecto solo lo ve el área.
+  if (!(await canWorkOnProject(session, budget.projectId ?? null)))
+    return new Response("No autorizado.", { status: 403 });
   const proyecto = db.projects.find((p) => p.id === budget.projectId) ?? {
     id: budget.projectId ?? budget.id,
     nombre: budget.obra || budget.nombre,

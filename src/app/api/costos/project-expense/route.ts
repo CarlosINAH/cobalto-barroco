@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-server";
+import { getSession, canWriteWorkArea } from "@/lib/auth-server";
 import { getDB, mutate, newId, type LedgerEntry } from "@/lib/db";
 import { buildCatalogs, recipeCost } from "@/lib/pu";
 
@@ -13,10 +13,11 @@ function rendQty(r: string): number {
 }
 
 /**
- * Registra una receta como gasto (egreso) de un proyecto. Accesible a cualquier
- * sesión (los empleados pueden ir sumando gastos por proyecto). El monto se
- * calcula del costo de la receta × la cantidad a preparar; alimenta la
- * Administración/Balance del proyecto (que solo ve admin).
+ * Registra una receta como gasto (egreso) de un proyecto. Lo puede hacer el
+ * área de trabajo (admin / nivel total) o quien participa en ese proyecto
+ * (está asignado o lo edita) — no cualquier sesión sobre cualquier proyecto.
+ * El monto se calcula del costo de la receta × la cantidad a preparar; alimenta
+ * la Administración/Balance del proyecto (que solo ve admin).
  */
 export async function POST(req: Request) {
   const session = await getSession();
@@ -35,6 +36,18 @@ export async function POST(req: Request) {
   const recipe = db.recipes.find((r) => r.id === b.recipeId);
   if (!project || !recipe)
     return NextResponse.json({ error: "Proyecto o receta no encontrados." }, { status: 404 });
+
+  // Autorización: área de trabajo, o participante/editor del proyecto.
+  const emp = db.employees.find(
+    (e) => e.username.toLowerCase() === session.username.toLowerCase(),
+  );
+  const participa = !!emp && (
+    (emp.proyectoIds ?? []).includes(project.id) ||
+    (emp.proyectoEdita ?? []).includes(project.id) ||
+    emp.proyectoId === project.id
+  );
+  if (!participa && !(await canWriteWorkArea(session)))
+    return NextResponse.json({ error: "No autorizado para este proyecto." }, { status: 403 });
 
   const cantidad = Number(b.cantidad) || 0;
   if (cantidad <= 0)
