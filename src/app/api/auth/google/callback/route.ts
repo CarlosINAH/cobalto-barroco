@@ -8,7 +8,7 @@ import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
 } from "@/lib/session";
-import { googleConfigured, googleExchangeCode, googleUserInfo } from "@/lib/google";
+import { googleConfigured, googleExchangeCode, googleUserInfo, googlePublicOrigin } from "@/lib/google";
 import { getDB, mutate } from "@/lib/db";
 import { evaluateAccess } from "@/lib/access";
 
@@ -28,7 +28,9 @@ function dashboardFor(username: string): string {
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const base = url.origin;
+  // Detrás de un proxy inverso (Tailscale Serve) la petición llega con la
+  // dirección interna del contenedor; usamos el origen público configurado.
+  const base = googlePublicOrigin() || url.origin;
   const fail = (code: string) => NextResponse.redirect(`${base}/login?gerror=${code}`);
 
   if (!googleConfigured()) return fail("config");

@@ -29,6 +29,22 @@ export function googleConfigured(): boolean {
   );
 }
 
+/**
+ * Origen público de la app, derivado de GOOGLE_REDIRECT_URI. Se usa para armar
+ * las redirecciones del flujo OAuth, porque detrás de un proxy inverso (p. ej.
+ * Tailscale Serve) la URL de la petición trae la dirección interna del
+ * contenedor (0.0.0.0:3000) y no el dominio real. null si no está configurado.
+ */
+export function googlePublicOrigin(): string | null {
+  const uri = process.env.GOOGLE_REDIRECT_URI;
+  if (!uri) return null;
+  try {
+    return new URL(uri).origin;
+  } catch {
+    return null;
+  }
+}
+
 /** URL de consentimiento de Google a la que se redirige al usuario. */
 export function googleAuthUrl(
   state: string,
