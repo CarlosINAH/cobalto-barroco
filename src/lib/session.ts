@@ -59,6 +59,32 @@ export async function createSessionToken(session: Session): Promise<string> {
     .encrypt(key);
 }
 
+/**
+ * Sella un objeto pequeño (JWE, AES-256-GCM, vigencia 10 min) para usarlo como
+ * parámetro `state` del flujo OAuth de Google: va cifrado y firmado con la clave
+ * de sesión, así no se puede falsificar ni manipular (intención, usuario a
+ * vincular, nonce). Caduca solo.
+ */
+export async function sealOAuthState(data: Record<string, unknown>): Promise<string> {
+  const key = await getKey();
+  return await new EncryptJWT(data)
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+    .setIssuedAt()
+    .setExpirationTime("10m")
+    .encrypt(key);
+}
+
+/** Abre y valida un `state` sellado con `sealOAuthState`; null si es inválido o caducó. */
+export async function openOAuthState(token: string): Promise<Record<string, unknown> | null> {
+  try {
+    const key = await getKey();
+    const { payload } = await jwtDecrypt(token, key);
+    return payload as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 /** Descifra y valida el token; devuelve la sesión o null. */
 export async function readSessionToken(
   token: string,

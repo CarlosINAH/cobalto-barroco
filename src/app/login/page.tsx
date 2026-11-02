@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, User, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -13,6 +13,21 @@ function LoginForm() {
   const [pass, setPass] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleOn, setGoogleOn] = useState(false);
+
+  // ¿Está habilitado "Entrar con Google"? Se consulta al servidor (runtime),
+  // no por variable de build. setState solo tras el await.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/google/status");
+        const data = res.ok ? await res.json() : null;
+        if (vivo && data?.enabled) setGoogleOn(true);
+      } catch { /* sin Google */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +60,18 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  // Mensaje de error del flujo de Google (?gerror=...).
+  const GERR: Record<string, string> = {
+    config: "La integración con Google no está configurada.",
+    denied: "Cancelaste el acceso con Google.",
+    nolink: "Esa cuenta de Google no está vinculada a ningún usuario. Pide a administración que la vincule.",
+    rejected: "Tu acceso a la plataforma no está autorizado.",
+    pending: "Tu acceso está pendiente de aprobación por un administrador.",
+    session: "Inicia sesión primero para vincular Google.",
+  };
+  const gmsg = GERR[searchParams.get("gerror") || ""] ||
+    (searchParams.get("gerror") ? "No se pudo completar el inicio con Google. Intenta de nuevo." : "");
 
   return (
     <div className="min-h-screen bg-[#1B2A5E] flex flex-col items-center justify-center px-6 py-12">
@@ -79,6 +106,13 @@ function LoginForm() {
           <p className="text-[#7A7A7A] text-xs leading-relaxed mb-6 text-center">
             Ingresa con tu cuenta del servidor Cobalto Barroco.
           </p>
+
+          {gmsg && (
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-3 py-2.5 text-amber-700 text-xs mb-5">
+              <AlertCircle size={13} className="shrink-0" />
+              <span>{gmsg}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* User */}
@@ -149,6 +183,22 @@ function LoginForm() {
               {loading ? "Verificando…" : "Ingresar"}
             </button>
           </form>
+
+          {googleOn && (
+            <>
+              <div className="flex items-center gap-3 my-5">
+                <div className="h-px flex-1 bg-[#EDE9E0]" />
+                <span className="text-[10px] uppercase tracking-widest text-[#C0BDB8]">o</span>
+                <div className="h-px flex-1 bg-[#EDE9E0]" />
+              </div>
+              <a
+                href="/api/auth/google/start?intent=login"
+                className="w-full flex items-center justify-center gap-2 border border-[#EDE9E0] bg-white text-[#2C2C2C] py-3 text-xs tracking-widest uppercase font-semibold hover:border-[#C9A84C] transition-colors"
+              >
+                <span className="text-[#4285F4] font-bold text-sm">G</span> Entrar con Google
+              </a>
+            </>
+          )}
         </div>
 
         <p className="text-center text-[#F5F2EC]/30 text-xs mt-6">
