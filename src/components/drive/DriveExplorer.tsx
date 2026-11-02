@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   HardDrive, Folder, FileText, Download, Upload, FolderPlus, RefreshCw,
   Loader2, ChevronRight, Home, Link2, AlertCircle, CheckCircle2,
+  FileType, Sheet,
 } from "lucide-react";
 
 type Entry = {
@@ -129,6 +130,25 @@ export default function DriveExplorer() {
     }
   }
 
+  async function crearGoogle(kind: "document" | "spreadsheet") {
+    const def = kind === "spreadsheet" ? "Nueva hoja" : "Nuevo documento";
+    const name = window.prompt(`Nombre del ${kind === "spreadsheet" ? "la hoja" : "documento"}:`, def);
+    if (name === null) return;
+    setBusy(true); setError("");
+    try {
+      const r = await fetch("/api/drive/create-doc", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, name: name.trim() || def, parentId: folderId }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(d.error || "No se pudo crear."); return; }
+      if (d.entry?.webViewLink) window.open(d.entry.webViewLink, "_blank", "noopener");
+      await recargar();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function desconectar() {
     if (!window.confirm("¿Desconectar el Drive central? Habrá que volver a conectarlo para usarlo.")) return;
     await fetch("/api/drive/disconnect", { method: "POST" });
@@ -198,6 +218,14 @@ export default function DriveExplorer() {
           <button onClick={crearCarpeta} disabled={busy}
             className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60">
             <FolderPlus size={13} /> Carpeta
+          </button>
+          <button onClick={() => crearGoogle("document")} disabled={busy}
+            className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60" title="Nuevo Google Doc">
+            <FileType size={13} /> Doc
+          </button>
+          <button onClick={() => crearGoogle("spreadsheet")} disabled={busy}
+            className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60" title="Nueva Hoja de cálculo">
+            <Sheet size={13} /> Hoja
           </button>
           <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => subir(e.target.files)} />
           <button onClick={() => inputRef.current?.click()} disabled={busy}

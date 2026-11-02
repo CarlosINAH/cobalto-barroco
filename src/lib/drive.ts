@@ -80,12 +80,30 @@ export async function driveList(accessToken: string, folderId = "root"): Promise
 
 /** Crea una carpeta dentro de `parentId`. */
 export async function driveCreateFolder(accessToken: string, name: string, parentId = "root"): Promise<DriveEntry> {
+  return driveCreateNative(accessToken, name, "application/vnd.google-apps.folder", parentId);
+}
+
+/** Tipo de documento nativo de Google que se puede crear en blanco. */
+export type GoogleDocKind = "document" | "spreadsheet";
+
+/** Crea un Google Doc u Hoja de cálculo en blanco dentro de `parentId`. Solo
+ *  requiere el scope de Drive (no las APIs de Docs/Sheets), ya que se crea el
+ *  archivo; editar su contenido programáticamente sería otro paso. */
+export async function driveCreateGoogleFile(accessToken: string, name: string, kind: GoogleDocKind, parentId = "root"): Promise<DriveEntry> {
+  const mimeType = kind === "spreadsheet"
+    ? "application/vnd.google-apps.spreadsheet"
+    : "application/vnd.google-apps.document";
+  return driveCreateNative(accessToken, name, mimeType, parentId);
+}
+
+/** Crea un archivo nativo de Google (carpeta/doc/hoja) por metadatos. */
+async function driveCreateNative(accessToken: string, name: string, mimeType: string, parentId: string): Promise<DriveEntry> {
   const res = await fetch(`${FILES_URL}?fields=id,name,mimeType,modifiedTime,webViewLink&supportsAllDrives=true`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parentId] }),
+    body: JSON.stringify({ name, mimeType, parents: [parentId] }),
   });
-  if (!res.ok) throw new Error(`Drive folder ${res.status}`);
+  if (!res.ok) throw new Error(`Drive create ${res.status}`);
   return toEntry(await res.json());
 }
 
