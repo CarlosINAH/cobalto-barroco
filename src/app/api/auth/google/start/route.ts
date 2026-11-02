@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { sealOAuthState } from "@/lib/session";
-import { googleConfigured, googleAuthUrl, DRIVE_SCOPES } from "@/lib/google";
+import { googleConfigured, googleAuthUrl, googlePublicOrigin, DRIVE_SCOPES } from "@/lib/google";
 
 export const runtime = "nodejs";
 
@@ -13,7 +13,7 @@ export const runtime = "nodejs";
  * sellado (cifrado y con caducidad) para no poder falsificarse.
  */
 export async function GET(req: Request) {
-  const base = new URL(req.url).origin;
+  const base = googlePublicOrigin() || new URL(req.url).origin;
   if (!googleConfigured()) {
     return NextResponse.redirect(`${base}/login?gerror=config`);
   }
