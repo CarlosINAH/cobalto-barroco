@@ -27,6 +27,7 @@ import CarpetaArchivos from "@/components/proyectos/CarpetaArchivos";
 import type {
   Project,
   Budget,
+  BudgetLine,
   LedgerEntry,
   PayrollEntry,
   CostInputKind,
@@ -247,7 +248,7 @@ function ProyectoDetalle({
         <PresupuestoProyecto proyecto={proyecto} budget={budget} conceptos={conceptos} catalog={catalog} onChange={setBudget} />
       )}
       {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} />}
-      {tab === "cronograma" && <Cronograma budget={budget} onChange={setBudget} />}
+      {tab === "cronograma" && <Cronograma budget={budget} conceptosCatalogo={catalog.conceptos} onChange={setBudget} />}
       {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} />}
       {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} catalog={catalog} />}
       {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} />}
@@ -524,7 +525,7 @@ function quincenaDe(fechaISO: string): { periodo: string; diasQuincena: number; 
   };
 }
 
-function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b: Budget) => void }) {
+function Cronograma({ budget, conceptosCatalogo, onChange }: { budget: Budget | null; conceptosCatalogo: CatalogProps["conceptos"]; onChange: (b: Budget) => void }) {
   const [personas, setPersonas] = useState(budget?.personas ?? 2);
   const [inicioStr, setInicioStr] = useState(budget?.cronoInicio || new Date().toISOString().slice(0, 10));
   const [descanso, setDescanso] = useState<number[]>(budget?.cronoDescanso ?? [0]); // domingo por defecto
@@ -546,6 +547,17 @@ function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b:
   const totalDias = durs.reduce((a, d) => a + d, 0);
   const fechaFin = totalDias > 0 ? diaLaborable(inicio, restSet, Math.max(0, Math.ceil(totalDias) - 1)) : inicio;
 
+  // Respaldo de cuadrilla para presupuestos viejos: si la línea no guardó su
+  // cuadrilla (cotizaciones previas a este campo), se lee del concepto global
+  // del catálogo, buscando por id y, en su defecto, por clave.
+  const catPorId = new Map(conceptosCatalogo.map((c) => [c.id, c]));
+  const catPorClave = new Map(conceptosCatalogo.map((c) => [c.clave, c]));
+  const cuadrillaDe = (l: BudgetLine) => {
+    if (l.cuadrilla && l.cuadrilla.length > 0) return l.cuadrilla;
+    const c = (l.conceptId ? catPorId.get(l.conceptId) : undefined) ?? (l.clave ? catPorClave.get(l.clave) : undefined);
+    return c?.cuadrilla ?? [];
+  };
+
   const filas = b.lineas.map((l, i) => {
     const dur = durs[i];
     const so = starts[i];
@@ -554,7 +566,7 @@ function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b:
     const left = totalDias > 0 ? (so / totalDias) * 100 : 0;
     const width = totalDias > 0 ? Math.max(1.5, (dur / totalDias) * 100) : 0;
     const jornales = (l.tiempoPU ?? 0) * l.cantidad;
-    return { l, dur, jornales, ini, fin, left, width };
+    return { l, dur, jornales, ini, fin, left, width, cuad: cuadrillaDe(l) };
   });
 
   // Guarda los parámetros del cronograma en el presupuesto del proyecto, para
@@ -616,9 +628,9 @@ function Cronograma({ budget, onChange }: { budget: Budget | null; onChange: (b:
             <div key={i} className="flex items-center gap-3">
               <div className="w-44 shrink-0 min-w-0">
                 <p className="truncate text-xs text-[#2C2C2C]" title={f.l.concepto || f.l.descripcion}>{f.l.concepto || f.l.descripcion}</p>
-                {f.l.cuadrilla && f.l.cuadrilla.length > 0 && (
-                  <p className="truncate text-[10px] text-[#7A7A7A]" title={f.l.cuadrilla.map((r) => `${r.rol}: ${r.jornadas} jor`).join(" · ")}>
-                    {f.l.cuadrilla.map((r) => `${r.rol} (${r.jornadas} jor)`).join(" · ")}
+                {f.cuad.length > 0 && (
+                  <p className="truncate text-[10px] text-[#7A7A7A]" title={f.cuad.map((r) => `${r.rol}: ${r.jornadas} jor`).join(" · ")}>
+                    {f.cuad.map((r) => `${r.rol} (${r.jornadas} jor)`).join(" · ")}
                   </p>
                 )}
               </div>
