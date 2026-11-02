@@ -123,6 +123,7 @@ type MatDraft = {
   nombre: string;
   kind: CostMaterial["kind"];
   categoria: string;
+  subcategoria: string;
   precio: string;
   unidad: string;
   url: string;
@@ -133,6 +134,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
   const [items, setItems] = useState(initial);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
+  const [subcat, setSubcat] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<MatDraft | null>(null);
   const [adding, setAdding] = useState(false);
@@ -141,6 +143,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
     nombre: "",
     kind: "material" as CostMaterial["kind"],
     categoria: "",
+    subcategoria: "",
     precio: "",
     unidad: "",
     url: "",
@@ -150,14 +153,25 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
     () => [...new Set(items.map((m) => m.categoria).filter(Boolean))].sort(),
     [items],
   );
+  // Subcategorías existentes (todas, para el datalist) y las de la categoría
+  // seleccionada (para el filtro).
+  const subcategorias = useMemo(
+    () => [...new Set(items.map((m) => m.subcategoria || "").filter(Boolean))].sort(),
+    [items],
+  );
+  const subcatsDeCat = useMemo(
+    () => [...new Set(items.filter((m) => !cat || m.categoria === cat).map((m) => m.subcategoria || "").filter(Boolean))].sort(),
+    [items, cat],
+  );
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return items.filter(
       (m) =>
         (!cat || m.categoria === cat) &&
+        (!subcat || (m.subcategoria || "") === subcat) &&
         (!needle || m.nombre.toLowerCase().includes(needle)),
     );
-  }, [items, q, cat]);
+  }, [items, q, cat, subcat]);
 
   function startEdit(m: CostMaterial) {
     setEditing(m.id);
@@ -165,6 +179,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
       nombre: m.nombre,
       kind: m.kind,
       categoria: m.categoria || "",
+      subcategoria: m.subcategoria || "",
       precio: String(m.precio),
       unidad: m.unidad || "",
       url: m.url || "",
@@ -182,6 +197,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
         nombre: draft.nombre,
         kind: draft.kind,
         categoria: draft.categoria,
+        subcategoria: draft.subcategoria,
         precio: Number(draft.precio) || 0,
         unidad: draft.unidad,
         url: draft.url,
@@ -210,7 +226,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
       const { material } = await res.json();
       setItems((xs) => [...xs, material]);
       setAdding(false);
-      setNuevo({ nombre: "", kind: "material", categoria: "", precio: "", unidad: "", url: "" });
+      setNuevo({ nombre: "", kind: "material", categoria: "", subcategoria: "", precio: "", unidad: "", url: "" });
     }
   }
 
@@ -232,12 +248,18 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
             className="w-full border border-[#EDE9E0] bg-white pl-9 pr-4 py-2.5 text-sm text-[#2C2C2C] focus:outline-none focus:border-[#C9A84C]"
           />
         </div>
-        <select value={cat} onChange={(e) => setCat(e.target.value)} className="border border-[#EDE9E0] bg-white px-3 py-2.5 text-sm text-[#2C2C2C] focus:outline-none focus:border-[#C9A84C]">
+        <select value={cat} onChange={(e) => { setCat(e.target.value); setSubcat(""); }} className="border border-[#EDE9E0] bg-white px-3 py-2.5 text-sm text-[#2C2C2C] focus:outline-none focus:border-[#C9A84C]">
           <option value="">Todas las categorías</option>
           {categorias.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
+        {subcatsDeCat.length > 0 && (
+          <select value={subcat} onChange={(e) => setSubcat(e.target.value)} className="border border-[#EDE9E0] bg-white px-3 py-2.5 text-sm text-[#2C2C2C] focus:outline-none focus:border-[#C9A84C]">
+            <option value="">Todas las subcategorías</option>
+            {subcatsDeCat.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
         <button onClick={() => setAdding((v) => !v)} className={BTN_PRIMARY}>
           <Plus size={14} /> Nuevo
         </button>
@@ -253,6 +275,8 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
           </select>
           <input className={INPUT} placeholder="Categoría" value={nuevo.categoria} onChange={(e) => setNuevo({ ...nuevo, categoria: e.target.value })} list="cats" />
           <datalist id="cats">{categorias.map((c) => <option key={c} value={c} />)}</datalist>
+          <input className={INPUT} placeholder="Subcategoría (opcional)" value={nuevo.subcategoria} onChange={(e) => setNuevo({ ...nuevo, subcategoria: e.target.value })} list="subcats" />
+          <datalist id="subcats">{subcategorias.map((s) => <option key={s} value={s} />)}</datalist>
           <input className={INPUT} type="number" step="0.01" placeholder="Precio" value={nuevo.precio} onChange={(e) => setNuevo({ ...nuevo, precio: e.target.value })} />
           <input className={INPUT} placeholder="Unidad (p. ej. 1 L)" value={nuevo.unidad} onChange={(e) => setNuevo({ ...nuevo, unidad: e.target.value })} />
           <input className={INPUT} placeholder="URL de compra" value={nuevo.url} onChange={(e) => setNuevo({ ...nuevo, url: e.target.value })} />
@@ -270,6 +294,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
               <th className="px-4 py-3 font-semibold">Material</th>
               <th className="px-4 py-3 font-semibold">Tipo</th>
               <th className="px-4 py-3 font-semibold">Categoría</th>
+              <th className="px-4 py-3 font-semibold">Subcategoría</th>
               <th className="px-4 py-3 font-semibold text-right">Precio</th>
               <th className="px-4 py-3" />
             </tr>
@@ -278,7 +303,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
             {filtered.map((m) =>
               editing === m.id && draft ? (
                 <tr key={m.id} className="border-b border-[#F5F2EC] bg-[#F5F2EC]/40">
-                  <td colSpan={5} className="px-4 py-4">
+                  <td colSpan={6} className="px-4 py-4">
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       <label className="text-xs text-[#7A7A7A]">Nombre
                         <input className={INPUT} value={draft.nombre} onChange={(e) => setDraft({ ...draft, nombre: e.target.value })} />
@@ -292,6 +317,9 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
                       </label>
                       <label className="text-xs text-[#7A7A7A]">Categoría
                         <input className={INPUT} value={draft.categoria} onChange={(e) => setDraft({ ...draft, categoria: e.target.value })} list="cats" />
+                      </label>
+                      <label className="text-xs text-[#7A7A7A]">Subcategoría
+                        <input className={INPUT} value={draft.subcategoria} onChange={(e) => setDraft({ ...draft, subcategoria: e.target.value })} list="subcats" />
                       </label>
                       <label className="text-xs text-[#7A7A7A]">Precio (MXN)
                         <input className={INPUT} type="number" step="0.01" value={draft.precio} onChange={(e) => setDraft({ ...draft, precio: e.target.value })} />
@@ -324,6 +352,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
                   </td>
                   <td className="px-4 py-2.5 text-[#7A7A7A]">{KIND_LABEL[m.kind]}</td>
                   <td className="px-4 py-2.5 text-[#7A7A7A]">{m.categoria || "—"}</td>
+                  <td className="px-4 py-2.5 text-[#7A7A7A]">{m.subcategoria || "—"}</td>
                   <td className="px-4 py-2.5 text-right font-medium text-[#1B2A5E] data-label">{money(m.precio)}</td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     <button onClick={() => startEdit(m)} className="text-[#7A7A7A] hover:text-[#1B2A5E] mr-3" title="Editar material"><Pencil size={15} /></button>
@@ -333,7 +362,7 @@ function Materiales({ initial }: { initial: CostMaterial[] }) {
               ),
             )}
             {filtered.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-12 text-center text-[#7A7A7A]">Sin resultados.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-12 text-center text-[#7A7A7A]">Sin resultados.</td></tr>
             )}
           </tbody>
         </table>
@@ -826,6 +855,9 @@ function Conceptos({
   );
 }
 
+/** Unidades de medición del concepto (lista fija). */
+const UNIDADES_CONCEPTO = ["PIEZA", "M", "M2", "M3", "SERVICIO", "LOTE", "DOCUMENTO", "ARCHIVO"];
+
 function ConceptoEditor({
   concept,
   materiales,
@@ -849,7 +881,7 @@ function ConceptoEditor({
     clave: concept?.clave ?? "",
     concepto: concept?.concepto ?? "",
     descripcion: concept?.descripcion ?? "",
-    unidad: concept?.unidad ?? "PZA",
+    unidad: concept?.unidad ?? "PIEZA",
     materialIntervencion: concept?.materialIntervencion ?? "",
     factorIndirectos: String(concept?.factorIndirectos ?? 0.25),
     factorUtilidad: String(concept?.factorUtilidad ?? 0.3),
@@ -1056,7 +1088,10 @@ function ConceptoEditor({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-5">
         <input className={INPUT} placeholder="Clave" value={form.clave} onChange={(e) => setForm({ ...form, clave: e.target.value })} />
         <input className={INPUT + " sm:col-span-2 lg:col-span-2"} placeholder="Concepto" value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value.toUpperCase() })} />
-        <input className={INPUT} placeholder="Unidad (PZA, M2…)" value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} />
+        <select className={INPUT} value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} title="Unidad de medición">
+          {form.unidad && !UNIDADES_CONCEPTO.includes(form.unidad) && <option value={form.unidad}>{form.unidad}</option>}
+          {UNIDADES_CONCEPTO.map((u) => <option key={u} value={u}>{u}</option>)}
+        </select>
         <div className="sm:col-span-2 lg:col-span-4">
           <textarea className={INPUT + " w-full resize-y"} rows={2} placeholder="Descripción (aparece completa en el PDF)" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
           {iaOn && (

@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     nombre,
     kind,
     categoria: (b.categoria || "").trim(),
+    subcategoria: (b.subcategoria || "").trim() || undefined,
     precio: Number(b.precio) || 0,
     unidad: (b.unidad || "").trim(),
     url: (b.url || "").trim(),
