@@ -8,7 +8,29 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   const db = await getDB();
-  return NextResponse.json({ projects: db.projects });
+  // El área de trabajo (admin / nivel total) ve todo. El resto ve solo sus
+  // proyectos (asignados o editables) y SIN los montos de dinero (son solo del
+  // área): se devuelven únicamente los campos no sensibles.
+  if (await canWriteWorkArea(session)) {
+    return NextResponse.json({ projects: db.projects });
+  }
+  const emp = db.employees.find(
+    (e) => e.username.toLowerCase() === session.username.toLowerCase(),
+  );
+  const ids = new Set<string>([
+    ...(emp?.proyectoIds ?? []),
+    ...(emp?.proyectoEdita ?? []),
+    ...(emp?.proyectoId ? [emp.proyectoId] : []),
+  ]);
+  const projects = db.projects
+    .filter((p) => ids.has(p.id))
+    .map((p) => ({
+      id: p.id, nombre: p.nombre, ubicacion: p.ubicacion, inicio: p.inicio,
+      entrega: p.entrega, avance: p.avance, estado: p.estado, desc: p.desc,
+      createdAt: p.createdAt, cliente: p.cliente, tipo: p.tipo,
+      carpetaInformes: p.carpetaInformes,
+    }));
+  return NextResponse.json({ projects });
 }
 
 export async function POST(req: Request) {
