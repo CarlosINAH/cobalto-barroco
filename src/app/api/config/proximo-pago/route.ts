@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, canWriteSection } from "@/lib/auth-server";
 import { getDB, mutate, type ProximoPago } from "@/lib/db";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -31,5 +32,9 @@ export async function PATCH(req: Request) {
     ? { fecha, nota: (b.nota || "").trim() || undefined, actualizado: Date.now() }
     : null;
   await mutate((db) => { db.proximoPago = proximoPago; });
+  await registrarMovimiento(session, {
+    accion: "editar", entidad: "fecha de pago",
+    descripcion: proximoPago ? `Próximo pago: ${proximoPago.fecha}${proximoPago.nota ? ` (${proximoPago.nota})` : ""}` : "Fecha de pago borrada",
+  });
   return NextResponse.json({ ok: true, proximoPago });
 }

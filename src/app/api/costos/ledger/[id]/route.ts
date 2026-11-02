@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession, canWorkOnProject } from "@/lib/auth-server";
 import { getDB, mutate, type LedgerEntry } from "@/lib/db";
 import { cleanComprobante } from "@/lib/costos";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -50,8 +51,18 @@ export async function DELETE(
   const { id } = await params;
   if (!(await autorizado(id)))
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
-  await mutate((db) => {
+  const quitado = await mutate((db) => {
+    const e = db.ledgerEntries.find((x) => x.id === id) || null;
     db.ledgerEntries = db.ledgerEntries.filter((x) => x.id !== id);
+    return e;
   });
+  const session = await getSession();
+  if (session && quitado) {
+    await registrarMovimiento(session, {
+      accion: "borrar", entidad: "movimiento", entidadId: id,
+      descripcion: `${quitado.tipo} · ${quitado.categoria}${quitado.concepto ? ` — ${quitado.concepto}` : ""} (${quitado.monto})`,
+      projectId: quitado.projectId ?? null,
+    });
+  }
   return NextResponse.json({ ok: true });
 }

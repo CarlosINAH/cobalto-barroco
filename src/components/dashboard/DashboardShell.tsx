@@ -20,6 +20,7 @@ import {
   Boxes,
   Banknote,
   Cloud,
+  History,
 } from "lucide-react";
 
 type Role = "empleado" | "admin";
@@ -52,6 +53,7 @@ const adminNav: NavItem[] = [
   { icon: Award, label: "Constancias", href: "/dashboard/admin/constancias" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/admin/nas" },
   { icon: Cloud, label: "Drive", href: "/dashboard/admin/drive" },
+  { icon: History, label: "Bitácora", href: "/dashboard/admin/bitacora" },
   { icon: Trash2, label: "Papelera", href: "/dashboard/admin/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/admin/configuracion" },
 ];
