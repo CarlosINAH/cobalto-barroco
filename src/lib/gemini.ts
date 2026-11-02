@@ -13,9 +13,10 @@ export function geminiConfigured(): boolean {
   return !!process.env.GEMINI_API_KEY;
 }
 
-/** Modelo a usar (configurable). Flash por defecto: rápido y económico. */
+/** Modelo a usar (configurable con GEMINI_MODEL). Flash por defecto: rápido y
+ *  económico. Se puede sobrescribir si Google cambia la disponibilidad. */
 export function geminiModel(): string {
-  return process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  return process.env.GEMINI_MODEL || "gemini-3.8-flash";
 }
 
 export interface GeminiOptions {
