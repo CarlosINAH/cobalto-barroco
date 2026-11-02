@@ -249,7 +249,7 @@ function ProyectoDetalle({
       )}
       {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} />}
       {tab === "cronograma" && <Cronograma budget={budget} conceptosCatalogo={catalog.conceptos} onChange={setBudget} />}
-      {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} />}
+      {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} alcance={alcance} />}
       {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} catalog={catalog} />}
       {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} />}
       {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} empleados={empleados} catalog={catalog} />}
@@ -383,12 +383,15 @@ const BUCKET: Record<string, Bucket> = {
 };
 const bucketOf = (cat: string): Bucket => BUCKET[cat.toLowerCase()] ?? "otro";
 
-function Balance({ budget, conceptos, ledger, payroll }: {
+function Balance({ budget, conceptos, ledger, payroll, alcance = "completo" }: {
   budget: Budget | null;
   conceptos: ConceptoLite[];
   ledger: LedgerEntry[];
   payroll: PayrollEntry[];
+  alcance?: "completo" | "editor";
 }) {
+  // Indirectos y utilidad son financieros: solo los ve/gestiona el área (admin).
+  const verFin = alcance !== "editor";
   if (!budget || budget.lineas.length === 0)
     return <div className={`${CARD} py-14 px-6 text-center text-sm text-[#7A7A7A]`}>Arma primero el presupuesto para comparar contra lo real.</div>;
 
@@ -421,7 +424,7 @@ function Balance({ budget, conceptos, ledger, payroll }: {
     { label: "Material", p: pres.material, r: real.material },
     { label: "Herramienta", p: pres.herramienta, r: real.herramienta },
     { label: "Equipo", p: pres.equipo, r: real.equipo },
-    { label: "Indirectos", p: ciPres, r: real.indirectos },
+    ...(verFin ? [{ label: "Indirectos", p: ciPres, r: real.indirectos }] : []),
     { label: "Viáticos", p: 0, r: real.viaticos },
     { label: "Impuestos", p: 0, r: real.impuestos },
   ];
@@ -437,7 +440,7 @@ function Balance({ budget, conceptos, ledger, payroll }: {
         <Stat label="Contratado (cotización)" val={money(t.total)} />
         <Stat label="Ingresos cobrados" val={money(ingresos)} />
         <Stat label="Costo real" val={money(costoReal)} />
-        <Stat label="Utilidad real" val={money(utilReal)} />
+        {verFin && <Stat label="Utilidad real" val={money(utilReal)} />}
       </div>
       <div className={`${CARD} overflow-x-auto`}>
         <table className="w-full text-sm">
@@ -464,12 +467,14 @@ function Balance({ budget, conceptos, ledger, payroll }: {
               <td className="px-3 py-2 text-right">{money(costoReal)}</td>
               <td className="px-3 py-2 text-right">{dif(cdPres + ciPres, costoReal)}</td>
             </tr>
-            <tr className="font-semibold text-[#C9A84C]">
-              <td className="px-3 py-2">Utilidad</td>
-              <td className="px-3 py-2 text-right">{money(utilPres)}</td>
-              <td className="px-3 py-2 text-right">{money(utilReal)}</td>
-              <td className="px-3 py-2 text-right">{dif(utilReal, utilPres)}</td>
-            </tr>
+            {verFin && (
+              <tr className="font-semibold text-[#C9A84C]">
+                <td className="px-3 py-2">Utilidad</td>
+                <td className="px-3 py-2 text-right">{money(utilPres)}</td>
+                <td className="px-3 py-2 text-right">{money(utilReal)}</td>
+                <td className="px-3 py-2 text-right">{dif(utilReal, utilPres)}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
