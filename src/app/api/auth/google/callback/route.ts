@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth-server";
 import {
   openOAuthState,
   createSessionToken,
+  encryptSecret,
   isAdmin,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
 
   const state = await openOAuthState(stateRaw);
   if (!state) return fail("state");
-  const intent = state.intent === "link" ? "link" : "login";
+  const intent = state.intent === "link" ? "link" : state.intent === "drive" ? "drive" : "login";
 
   const tokens = await googleExchangeCode(code);
   if (!tokens) return fail("exchange");
@@ -47,6 +48,23 @@ export async function GET(req: Request) {
   if (!user?.sub || !user.email) return fail("userinfo");
   const email = norm(user.email);
   const sub = user.sub;
+
+  // ── Conectar el Drive central de la empresa (solo admin) ──
+  if (intent === "drive") {
+    const session = await getSession();
+    if (!session || session.role !== "admin" || session.username !== String(state.username || "")) {
+      return fail("session");
+    }
+    if (!tokens.refresh_token) {
+      // Google no devolvió refresh token (p. ej. ya se había concedido antes).
+      return NextResponse.redirect(`${base}/dashboard/admin/drive?dconn=norefresh`);
+    }
+    const refreshTokenEnc = await encryptSecret(tokens.refresh_token);
+    await mutate((d) => {
+      d.googleDrive = { refreshTokenEnc, email, connectedAt: Date.now() };
+    });
+    return NextResponse.redirect(`${base}/dashboard/admin/drive?dconn=ok`);
+  }
 
   // ── Vincular Google a la cuenta ya iniciada ──
   if (intent === "link") {

@@ -85,6 +85,30 @@ export async function openOAuthState(token: string): Promise<Record<string, unkn
   }
 }
 
+/**
+ * Cifra un secreto para guardarlo en reposo (sin caducidad), p. ej. el refresh
+ * token del Drive central. Usa la misma clave de sesión (AES-256-GCM). Solo el
+ * servidor puede descifrarlo con `decryptSecret`.
+ */
+export async function encryptSecret(value: string): Promise<string> {
+  const key = await getKey();
+  return await new EncryptJWT({ v: value })
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+    .setIssuedAt()
+    .encrypt(key);
+}
+
+/** Descifra un secreto sellado con `encryptSecret`; null si es inválido. */
+export async function decryptSecret(token: string): Promise<string | null> {
+  try {
+    const key = await getKey();
+    const { payload } = await jwtDecrypt(token, key);
+    return typeof payload.v === "string" ? payload.v : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Descifra y valida el token; devuelve la sesión o null. */
 export async function readSessionToken(
   token: string,
