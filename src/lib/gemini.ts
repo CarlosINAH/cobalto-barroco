@@ -25,18 +25,25 @@ export interface GeminiOptions {
   maxOutputTokens?: number;
 }
 
+/** Resultado: texto generado, o un error con su causa (para mostrarla). */
+export type GeminiResult =
+  | { ok: true; text: string }
+  | { ok: false; message: string };
+
 /**
- * Genera texto a partir de un prompt. Devuelve el texto o null si no está
- * configurado o la API falla. Nunca lanza.
+ * Genera texto a partir de un prompt. Devuelve el texto o un error con el
+ * motivo real de Google (para diagnóstico). Nunca lanza.
  */
-export async function geminiGenerate(prompt: string, opts: GeminiOptions = {}): Promise<string | null> {
+export async function geminiGenerate(prompt: string, opts: GeminiOptions = {}): Promise<GeminiResult> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
+  if (!key) return { ok: false, message: "GEMINI_API_KEY no configurada" };
   const body: Record<string, unknown> = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: opts.temperature ?? 0.4,
-      maxOutputTokens: opts.maxOutputTokens ?? 600,
+      // Amplio por defecto: los modelos "2.5" gastan tokens razonando y, con un
+      // tope bajo, pueden no dejar texto de salida.
+      maxOutputTokens: opts.maxOutputTokens ?? 2048,
     },
   };
   if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] };
@@ -45,14 +52,21 @@ export async function geminiGenerate(prompt: string, opts: GeminiOptions = {}): 
       `${API_BASE}/${encodeURIComponent(geminiModel())}:generateContent?key=${encodeURIComponent(key)}`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
     );
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const parts = data.candidates?.[0]?.content?.parts ?? [];
-    const text = parts.map((p) => p.text || "").join("").trim();
-    return text || null;
+    const data = (await res.json().catch(() => null)) as {
+      error?: { message?: string; status?: string };
+      candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+    } | null;
+    if (!res.ok) {
+      const msg = data?.error?.message || `HTTP ${res.status}`;
+      return { ok: false, message: `${geminiModel()}: ${msg}` };
+    }
+    const cand = data?.candidates?.[0];
+    const text = (cand?.content?.parts ?? []).map((p) => p.text || "").join("").trim();
+    if (!text) {
+      return { ok: false, message: `respuesta vacía (${cand?.finishReason || "sin candidatos"})` };
+    }
+    return { ok: true, text };
   } catch {
-    return null;
+    return { ok: false, message: "error de conexión con Gemini" };
   }
 }
