@@ -48,10 +48,13 @@ export async function geminiGenerate(prompt: string, opts: GeminiOptions = {}): 
     },
   };
   if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] };
+  // Timeout para no quedarse "pensando" indefinidamente si Google no responde.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);
   try {
     const res = await fetch(
       `${API_BASE}/${encodeURIComponent(geminiModel())}:generateContent?key=${encodeURIComponent(key)}`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctrl.signal },
     );
     const data = (await res.json().catch(() => null)) as {
       error?: { message?: string; status?: string };
@@ -67,7 +70,11 @@ export async function geminiGenerate(prompt: string, opts: GeminiOptions = {}): 
       return { ok: false, message: `respuesta vacía (${cand?.finishReason || "sin candidatos"})` };
     }
     return { ok: true, text };
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError")
+      return { ok: false, message: "la IA tardó demasiado (timeout). Intenta de nuevo." };
     return { ok: false, message: "error de conexión con Gemini" };
+  } finally {
+    clearTimeout(timer);
   }
 }
