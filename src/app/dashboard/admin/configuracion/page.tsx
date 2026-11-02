@@ -1,5 +1,6 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConfiguracionManager from "@/components/configuracion/ConfiguracionManager";
+import VincularGoogle from "@/components/perfil/VincularGoogle";
 import { requireAdmin, credsOf } from "@/lib/auth-server";
 import type { FolderPermLevel } from "@/lib/db";
 import { getDB } from "@/lib/db";
@@ -71,6 +72,7 @@ export default async function ConfiguracionAdmin() {
         folderPerms={initialPerms}
         projects={db.projects.map((p) => ({ id: p.id, nombre: p.nombre }))}
       />
+      <VincularGoogle />
     </DashboardShell>
   );
 }

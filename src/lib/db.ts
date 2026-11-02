@@ -101,6 +101,13 @@ export interface Employee {
    * Administración lo decide por persona y proyecto. El resto es solo lectura.
    */
   proyectoEdita?: string[];
+  /**
+   * Identidad de Google vinculada (para iniciar sesión con Google). `googleSub`
+   * es el id estable de la cuenta; `googleEmail`, el correo con el que vinculó.
+   * Se llenan al vincular desde Configuración. undefined = sin vincular.
+   */
+  googleSub?: string;
+  googleEmail?: string;
   createdAt: number;
 }
 

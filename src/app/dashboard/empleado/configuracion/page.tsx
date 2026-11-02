@@ -1,5 +1,6 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConfiguracionEmpleado from "@/components/perfil/ConfiguracionEmpleado";
+import VincularGoogle from "@/components/perfil/VincularGoogle";
 import { requireSession } from "@/lib/auth-server";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export default async function ConfiguracionEmpleadoPage() {
         </p>
       </div>
       <ConfiguracionEmpleado />
+      <VincularGoogle />
     </DashboardShell>
   );
 }

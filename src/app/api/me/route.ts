@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
+import { googleConfigured } from "@/lib/google";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,8 @@ export async function GET() {
     rol: emp?.rol || (session.role === "admin" ? "Administrador" : "Empleado"),
     unread,
     perfil: emp?.perfil,
+    googleEmail: emp?.googleEmail || null,
+    googleEnabled: googleConfigured(),
     // Acceso efectivo por sección (admin siempre total).
     acceso:
       session.role === "admin"
