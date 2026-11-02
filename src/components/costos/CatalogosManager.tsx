@@ -1087,7 +1087,7 @@ function ConceptoEditor({
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-5">
         <input className={INPUT} placeholder="Clave" value={form.clave} onChange={(e) => setForm({ ...form, clave: e.target.value })} />
-        <input className={INPUT + " sm:col-span-2 lg:col-span-2"} placeholder="Concepto" value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} />
+        <input className={INPUT + " sm:col-span-2 lg:col-span-2"} placeholder="Concepto" value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value.toUpperCase() })} />
         <select className={INPUT} value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} title="Unidad de medición">
           {form.unidad && !UNIDADES_CONCEPTO.includes(form.unidad) && <option value={form.unidad}>{form.unidad}</option>}
           {UNIDADES_CONCEPTO.map((u) => <option key={u} value={u}>{u}</option>)}
