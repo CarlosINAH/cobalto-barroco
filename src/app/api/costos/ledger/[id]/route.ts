@@ -37,6 +37,9 @@ export async function PATCH(
     if (b.concepto !== undefined) e.concepto = b.concepto.trim();
     if (b.monto !== undefined) e.monto = Number(b.monto) || 0;
     if (b.comprobante !== undefined) e.comprobante = cleanComprobante(b.comprobante);
+    // Reasignar a un proyecto o a la empresa (Administración) desde Gastos.
+    if (b.projectId !== undefined)
+      e.projectId = typeof b.projectId === "string" && b.projectId.trim() ? b.projectId.trim() : null;
     return e;
   });
   if (!updated)
