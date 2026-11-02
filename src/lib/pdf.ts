@@ -205,7 +205,22 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   // utilidad.
   const soloConceptos = budget.lineas.filter((l) => l.conceptId);
   const lineas = soloConceptos.length ? soloConceptos : budget.lineas;
-  const subtotal = lineas.reduce((a, l) => a + l.pu * l.cantidad, 0);
+  // Prorrateo: montos (viáticos, comisiones, etc.) repartidos por porcentaje
+  // entre las líneas. Se pliegan en el P.U./importe de cada concepto para que
+  // el cliente vea un precio único con todo incluido. La clave de línea debe
+  // coincidir con la del armador (PresupuestoManager.lineKey).
+  const lineKey = (l: typeof lineas[number]) => l.conceptId || `${l.clave}|${l.concepto}|${l.pu}`;
+  const prorrateos = (budget.prorrateos ?? []).filter((p) => p.monto > 0);
+  const extraDe = (l: typeof lineas[number]) =>
+    prorrateos.reduce((a, p) => {
+      const r = p.reparto.find((x) => x.lineKey === lineKey(l));
+      return a + (r ? p.monto * (r.porcentaje / 100) : 0);
+    }, 0);
+  // Importe y P.U. por línea ya con su prorrateo incluido.
+  const impDe = (l: typeof lineas[number]) => l.pu * l.cantidad + extraDe(l);
+  const puDe = (l: typeof lineas[number]) => (l.cantidad ? impDe(l) / l.cantidad : l.pu);
+
+  const subtotal = lineas.reduce((a, l) => a + impDe(l), 0);
   const t = { subtotal, iva: subtotal * budget.factorIva, total: subtotal * (1 + budget.factorIva) };
   const p = new Painter();
   p.newPage();
@@ -273,8 +288,8 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
     // Importe/unidad/cantidad se alinean con la primera línea del concepto.
     p.rtext(350, y, 8.5, l.unidad || "");
     p.rtext(420, y, 8.5, num(l.cantidad));
-    p.rtext(490, y, 8.5, money(l.pu));
-    p.rtext(556, y, 8.5, money(l.pu * l.cantidad));
+    p.rtext(490, y, 8.5, money(puDe(l)));
+    p.rtext(556, y, 8.5, money(impDe(l)));
     for (const cl of cLines) { p.text(CX, y, 8.5, cl, true); y -= 11; }
     // Descripción justificada (la última línea queda al natural).
     dlines.forEach((dl, k) => {
@@ -297,9 +312,17 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   y -= 28;
   const vy = Math.max(y, 96);
   p.text(56, vy, 8, "El presupuesto tiene una vigencia de 15 días. Precios en pesos mexicanos (MXN).");
+  // Nota de prorrateo: deja constancia de qué montos quedaron repartidos en los P.U.
+  let ny = vy - 11;
+  if (prorrateos.length) {
+    const nombres = prorrateos.map((p) => p.nombre || "concepto").join(", ");
+    for (const ln of wrapL(`Incluye prorrateo ya distribuido en los P.U.: ${nombres}.`, 8, 500)) {
+      p.text(56, ny, 8, ln, false, "#6E7480"); ny -= 11;
+    }
+  }
 
   // Espacio de firma (para enviar el presupuesto firmado). Nueva página si no cabe.
-  let sy = vy - 54;
+  let sy = ny - 43;
   if (sy < 96) { p.newPage(); sy = 680; }
   p.line(84, sy, 258, sy, GRAY, 0.6);
   p.ctext(171, sy - 12, 8.5, "Por Cobalto Barroco", false, NAVY);
