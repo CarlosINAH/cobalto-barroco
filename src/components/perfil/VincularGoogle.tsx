@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Link2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Link2, Unlink, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 /**
  * Tarjeta para vincular la cuenta de Google al perfil. Permite luego iniciar
@@ -17,6 +17,18 @@ export default function VincularGoogle() {
   const [enabled, setEnabled] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [desvinculando, setDesvinculando] = useState(false);
+
+  async function desvincular() {
+    if (!window.confirm("¿Desvincular tu cuenta de Google? Ya no podrás iniciar sesión con ella hasta vincularla de nuevo.")) return;
+    setDesvinculando(true);
+    try {
+      const r = await fetch("/api/auth/google/unlink", { method: "POST" });
+      if (r.ok) setEmail(null);
+    } finally {
+      setDesvinculando(false);
+    }
+  }
 
   // Estado actual (habilitado + correo vinculado): fetch inline, setState solo
   // tras el await.
@@ -55,7 +67,13 @@ export default function VincularGoogle() {
       {email ? (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="flex items-center gap-2 text-sm text-[#2C2C2C]"><CheckCircle2 size={15} className="text-green-600" /> Vinculada: <span className="font-semibold">{email}</span></p>
-          <a href="/api/auth/google/start?intent=link" className="text-xs text-[#7A7A7A] hover:text-[#1B2A5E] underline">Cambiar cuenta</a>
+          <div className="flex items-center gap-3">
+            <a href="/api/auth/google/start?intent=link" className="text-xs text-[#7A7A7A] hover:text-[#1B2A5E] underline">Cambiar cuenta</a>
+            <button onClick={desvincular} disabled={desvinculando}
+              className="inline-flex items-center gap-1.5 text-xs text-red-600 border border-[#EDE9E0] px-2.5 py-1 hover:border-red-300 disabled:opacity-60">
+              {desvinculando ? <Loader2 size={12} className="animate-spin" /> : <Unlink size={12} />} Desvincular
+            </button>
+          </div>
         </div>
       ) : (
         <a href="/api/auth/google/start?intent=link"

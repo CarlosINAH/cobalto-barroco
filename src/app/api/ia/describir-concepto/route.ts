@@ -37,8 +37,8 @@ export async function POST(req: Request) {
   ].filter(Boolean).join("\n");
   const prompt = `${datos}\n\nRedacta la descripción/alcance técnico de este concepto para la cotización.`;
 
-  const texto = await geminiGenerate(prompt, { system: SYSTEM, temperature: 0.5, maxOutputTokens: 400 });
-  if (!texto)
-    return NextResponse.json({ error: "La IA no devolvió texto. Intenta de nuevo." }, { status: 502 });
-  return NextResponse.json({ texto });
+  const r = await geminiGenerate(prompt, { system: SYSTEM, temperature: 0.5, maxOutputTokens: 2048 });
+  if (!r.ok)
+    return NextResponse.json({ error: `IA: ${r.message}` }, { status: 502 });
+  return NextResponse.json({ texto: r.text });
 }
