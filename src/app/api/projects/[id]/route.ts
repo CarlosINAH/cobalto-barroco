@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, canWriteWorkArea, canEditProject, requireWorkAreaWrite } from "@/lib/auth-server";
 import { mutate, newId, type Project, type CVEntry } from "@/lib/db";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -65,6 +66,10 @@ export async function PATCH(
     return p;
   });
   if (!updated) return NextResponse.json({ error: "No encontrado." }, { status: 404 });
+  await registrarMovimiento(session, {
+    accion: "editar", entidad: "proyecto", entidadId: updated.id,
+    descripcion: `Proyecto «${updated.nombre}»`, projectId: updated.id,
+  });
   return NextResponse.json({ ok: true, project: updated });
 }
 
@@ -72,16 +77,24 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireWorkAreaWrite())) {
+  const session = await requireWorkAreaWrite();
+  if (!session) {
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   }
   const { id } = await params;
-  await mutate((db) => {
+  const nombre = await mutate((db) => {
+    const p = db.projects.find((x) => x.id === id);
+    const n = p?.nombre;
     db.projects = db.projects.filter((x) => x.id !== id);
     // Desasigna empleados de ese proyecto.
     db.employees.forEach((e) => {
       if (e.proyectoId === id) e.proyectoId = null;
     });
+    return n;
+  });
+  await registrarMovimiento(session, {
+    accion: "borrar", entidad: "proyecto", entidadId: id,
+    descripcion: nombre ? `Proyecto «${nombre}»` : undefined, projectId: id,
   });
   return NextResponse.json({ ok: true });
 }

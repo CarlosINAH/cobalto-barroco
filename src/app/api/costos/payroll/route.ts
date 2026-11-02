@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, canWriteWorkArea, canWorkOnProject, editableProjectIds } from "@/lib/auth-server";
 import { getDB, mutate, newId, type PayrollEntry } from "@/lib/db";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -62,5 +63,10 @@ export async function POST(req: Request) {
     createdAt: Date.now(),
   };
   await mutate((db) => db.payrollEntries.push(entry));
+  await registrarMovimiento(session, {
+    accion: "crear", entidad: "nómina", entidadId: entry.id,
+    descripcion: `${entry.persona}${entry.periodo ? ` · ${entry.periodo}` : ""} (${entry.monto})`,
+    projectId,
+  });
   return NextResponse.json({ ok: true, entry });
 }

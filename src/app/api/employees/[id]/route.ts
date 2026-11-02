@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { mutate, type Employee } from "@/lib/db";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireAdmin()))
+  const admin = await requireAdmin();
+  if (!admin)
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const { id } = await params;
   let b: Partial<Employee> & { habilidades?: string[] | string };
@@ -103,6 +105,10 @@ export async function PATCH(
   });
   if (!updated)
     return NextResponse.json({ error: "No encontrado." }, { status: 404 });
+  await registrarMovimiento(admin, {
+    accion: "editar", entidad: "empleado", entidadId: updated.id,
+    descripcion: `${updated.nombre} (${updated.username})`,
+  });
   return NextResponse.json({ ok: true, employee: updated });
 }
 
@@ -110,11 +116,18 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await requireAdmin()))
+  const admin = await requireAdmin();
+  if (!admin)
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const { id } = await params;
-  await mutate((db) => {
+  const quitado = await mutate((db) => {
+    const e = db.employees.find((x) => x.id === id) || null;
     db.employees = db.employees.filter((x) => x.id !== id);
+    return e;
+  });
+  await registrarMovimiento(admin, {
+    accion: "borrar", entidad: "empleado", entidadId: id,
+    descripcion: quitado ? `${quitado.nombre} (${quitado.username})` : undefined,
   });
   return NextResponse.json({ ok: true });
 }

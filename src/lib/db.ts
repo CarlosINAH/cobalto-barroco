@@ -658,6 +658,30 @@ export interface ProximoPago {
   actualizado: number;
 }
 
+/**
+ * Entrada de la bitácora de movimientos: quién hizo qué y cuándo. Es un registro
+ * de auditoría (append-only) que alimenta la vista de administración.
+ */
+export interface Movimiento {
+  id: string;
+  /** Marca de tiempo (ms). */
+  ts: number;
+  /** Usuario que ejecutó la acción. */
+  actor: string;
+  /** Nombre del actor al momento (snapshot, para no depender de joins). */
+  actorNombre?: string;
+  /** Acción: "crear" | "editar" | "borrar" | "subir" | "pago" | "permisos"… */
+  accion: string;
+  /** Entidad afectada: "proyecto" | "gasto" | "nómina" | "empleado"… */
+  entidad: string;
+  /** Id del objeto afectado, si aplica. */
+  entidadId?: string;
+  /** Resumen legible de lo ocurrido. */
+  descripcion?: string;
+  /** Proyecto relacionado (para filtrar), o null = de empresa. */
+  projectId?: string | null;
+}
+
 export interface DBShape {
   projects: Project[];
   employees: Employee[];
@@ -683,6 +707,8 @@ export interface DBShape {
   cvEntries: CVEntry[];
   /** Próxima fecha de pago de nómina (global, la fija administración). */
   proximoPago?: ProximoPago | null;
+  /** Bitácora de movimientos (auditoría). Se recorta a las más recientes. */
+  movimientos?: Movimiento[];
   /**
    * Conexión del Drive central de la empresa (Google). El refresh token se
    * guarda CIFRADO (nunca en claro). null / undefined = sin conectar.

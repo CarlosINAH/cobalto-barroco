@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, canWriteWorkArea } from "@/lib/auth-server";
 import { getDB, mutate, newId, type Project } from "@/lib/db";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -73,5 +74,9 @@ export async function POST(req: Request) {
     utilidad: puedeMontos ? num(b.utilidad) : undefined,
   };
   await mutate((db) => db.projects.unshift(project));
+  await registrarMovimiento(session, {
+    accion: "crear", entidad: "proyecto", entidadId: project.id,
+    descripcion: `Proyecto «${project.nombre}»`, projectId: project.id,
+  });
   return NextResponse.json({ ok: true, project });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, canWriteWorkArea, canWorkOnProject, editableProjectIds } from "@/lib/auth-server";
+import { registrarMovimiento } from "@/lib/bitacora";
 import { getDB, mutate, newId, type LedgerEntry } from "@/lib/db";
 import { cleanComprobante } from "@/lib/costos";
 
@@ -46,5 +47,10 @@ export async function POST(req: Request) {
     createdAt: Date.now(),
   };
   await mutate((db) => db.ledgerEntries.push(entry));
+  await registrarMovimiento(session, {
+    accion: "crear", entidad: "movimiento", entidadId: entry.id,
+    descripcion: `${entry.tipo} · ${entry.categoria}${entry.concepto ? ` — ${entry.concepto}` : ""} (${entry.monto})${entry.comprobante ? " · con comprobante" : ""}`,
+    projectId,
+  });
   return NextResponse.json({ ok: true, entry });
 }

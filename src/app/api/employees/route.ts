@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { getDB, mutate, newId, type Employee } from "@/lib/db";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -73,5 +74,9 @@ export async function POST(req: Request) {
     createdAt: Date.now(),
   };
   await mutate((db) => db.employees.push(employee));
+  await registrarMovimiento(session, {
+    accion: "crear", entidad: "empleado", entidadId: employee.id,
+    descripcion: `${employee.nombre} (${employee.username})`,
+  });
   return NextResponse.json({ ok: true, employee });
 }
