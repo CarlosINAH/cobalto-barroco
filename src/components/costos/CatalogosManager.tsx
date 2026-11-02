@@ -903,7 +903,7 @@ function ConceptoEditor({
   const [kind, setKind] = useState<CostInputKind>("material");
   const [refId, setRefId] = useState("");
   const [cant, setCant] = useState("1");
-  const [depr, setDepr] = useState("100"); // % de depreciación para equipo/herramienta/material
+  const [depr, setDepr] = useState("5"); // % que se carga para equipo/herramienta (5% por defecto)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // Búsqueda y filtro por categoría dentro del picker de insumos (la lista
@@ -981,13 +981,14 @@ function ConceptoEditor({
       const m = materiales.find((x) => x.id === refId);
       if (m) { nombre = m.nombre; unidad = m.unidad; precio = m.precio; }
     }
-    // La depreciación solo aplica a equipo/herramienta/material (fracción 0..1).
-    const esDepreciable = kind === "material" || kind === "herramienta" || kind === "equipo";
+    // La depreciación solo aplica a equipo/herramienta (fracción 0..1). Los
+    // materiales son consumibles: sin depreciación (se cargan al 100%).
+    const esDepreciable = kind === "herramienta" || kind === "equipo";
     const depreciacion = esDepreciable ? Math.min(1, Math.max(0, (Number(depr) || 0) / 100)) : undefined;
     setInsumos((xs) => ordenarInsumos([...xs, { kind, refId, nombre, unidad, precio, cantidad, depreciacion }]));
     setRefId("");
     setCant("1");
-    setDepr("100");
+    setDepr("5");
   }
 
   async function guardar() {
@@ -1098,8 +1099,9 @@ function ConceptoEditor({
           </thead>
           <tbody>
             {insumos.map((i, idx) => {
-              const esDepr = i.kind === "material" || i.kind === "herramienta" || i.kind === "equipo";
-              const factor = i.depreciacion == null ? 1 : i.depreciacion;
+              const esDepr = i.kind === "herramienta" || i.kind === "equipo";
+              // Materiales (consumibles): siempre al 100%, sin depreciación.
+              const factor = esDepr ? (i.depreciacion == null ? 1 : i.depreciacion) : 1;
               return (
               <tr key={idx} className="border-b border-[#F5F2EC]">
                 <td className="px-3 py-2 text-[#7A7A7A]">{KIND_OPTS.find((k) => k.value === i.kind)?.label}</td>
@@ -1176,9 +1178,9 @@ function ConceptoEditor({
         {/* Cantidad + depreciación + agregar */}
         <div className="flex flex-wrap items-end gap-2 mt-2">
           <input type="number" step="0.0001" value={cant} onChange={(e) => setCant(e.target.value)} placeholder="Cant." className={INPUT + " w-24"} />
-          {(kind === "material" || kind === "herramienta" || kind === "equipo") && (
+          {(kind === "herramienta" || kind === "equipo") && (
             <label className="text-xs text-[#7A7A7A] flex flex-col">Depr. %
-              <input type="number" step="1" min="0" max="100" value={depr} onChange={(e) => setDepr(e.target.value)} title="% del costo que se carga al concepto (depreciación)" className={INPUT + " w-24"} />
+              <input type="number" step="1" min="0" max="100" value={depr} onChange={(e) => setDepr(e.target.value)} title="% del costo del equipo/herramienta que se carga al concepto (depreciación, 5% por defecto)" className={INPUT + " w-24"} />
             </label>
           )}
           <button onClick={addInsumo} disabled={!refId} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
