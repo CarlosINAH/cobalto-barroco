@@ -9,7 +9,7 @@ import {
   SESSION_MAX_AGE,
 } from "@/lib/session";
 import { googleConfigured, googleExchangeCode, googleUserInfo, googlePublicOrigin } from "@/lib/google";
-import { getDB, mutate } from "@/lib/db";
+import { getDB, mutate, newId, type Employee } from "@/lib/db";
 import { evaluateAccess } from "@/lib/access";
 
 export const runtime = "nodejs";
@@ -79,17 +79,30 @@ export async function GET(req: Request) {
         (e.googleSub === sub || (e.googleEmail && norm(e.googleEmail) === email)),
     );
     if (ocupada) return NextResponse.redirect(`${base}${dashboardFor(session.username)}/configuracion?glink=dupe`);
-    // Guarda la identidad y confirma que realmente se escribió (si no se
-    // encuentra el empleado, no se reporta "ok" en falso).
-    const guardado = await mutate((d) => {
-      const emp = d.employees.find((e) => norm(e.username) === norm(session.username));
-      if (!emp) return false;
+    // Guarda la identidad en la ficha del usuario. Si no existe (p. ej. un
+    // administrador definido por ADMIN_USERS, que no tiene ficha creada), se
+    // crea una mínima para poder vincular e iniciar sesión con Google.
+    await mutate((d) => {
+      let emp = d.employees.find((e) => norm(e.username) === norm(session.username));
+      if (!emp) {
+        emp = {
+          id: newId("EMP"),
+          username: session.username,
+          nombre: session.username,
+          email: "",
+          rol: "",
+          ranking: 0,
+          habilidades: [],
+          proyectoId: null,
+          createdAt: Date.now(),
+        } as Employee;
+        d.employees.push(emp);
+      }
       emp.googleSub = sub;
       emp.googleEmail = email;
-      return true;
     });
     return NextResponse.redirect(
-      `${base}${dashboardFor(session.username)}/configuracion?glink=${guardado ? "ok" : "err"}`,
+      `${base}${dashboardFor(session.username)}/configuracion?glink=ok`,
     );
   }
 
