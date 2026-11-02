@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Plus,
@@ -12,6 +12,8 @@ import {
   Coins,
   Layers,
   X,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import type {
   CostMaterial,
@@ -863,6 +865,40 @@ function ConceptoEditor({
     setForm((f) => ({ ...f, clave: nextClave(prefix, existingClaves) }));
   };
 
+  // IA (Gemini): redacta la descripción/alcance del concepto. El botón solo
+  // aparece si la IA está configurada (se consulta al servidor en runtime).
+  const [iaOn, setIaOn] = useState(false);
+  const [iaBusy, setIaBusy] = useState(false);
+  const [iaError, setIaError] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/ia/status");
+        const d = r.ok ? await r.json() : null;
+        if (vivo && d?.enabled) setIaOn(true);
+      } catch { /* sin IA */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
+  async function generarDescripcionIA() {
+    if (!form.concepto.trim()) { setIaError("Escribe el concepto primero."); return; }
+    setIaBusy(true); setIaError("");
+    try {
+      const r = await fetch("/api/ia/describir-concepto", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clave: form.clave, concepto: form.concepto, unidad: form.unidad, material: form.materialIntervencion }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setIaError(d.error || "No se pudo generar."); return; }
+      setForm((f) => ({ ...f, descripcion: d.texto }));
+    } catch {
+      setIaError("Error de conexión.");
+    } finally {
+      setIaBusy(false);
+    }
+  }
+
   const [insumos, setInsumos] = useState<ConceptInput[]>(ordenarInsumos(concept?.insumos ?? []));
   const [kind, setKind] = useState<CostInputKind>("material");
   const [refId, setRefId] = useState("");
@@ -1020,7 +1056,20 @@ function ConceptoEditor({
         <input className={INPUT} placeholder="Clave" value={form.clave} onChange={(e) => setForm({ ...form, clave: e.target.value })} />
         <input className={INPUT + " sm:col-span-2 lg:col-span-2"} placeholder="Concepto" value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} />
         <input className={INPUT} placeholder="Unidad (PZA, M2…)" value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} />
-        <textarea className={INPUT + " sm:col-span-2 lg:col-span-4 resize-y"} rows={2} placeholder="Descripción (aparece completa en el PDF)" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+        <div className="sm:col-span-2 lg:col-span-4">
+          <textarea className={INPUT + " w-full resize-y"} rows={2} placeholder="Descripción (aparece completa en el PDF)" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+          {iaOn && (
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <button type="button" onClick={generarDescripcionIA} disabled={iaBusy}
+                className="inline-flex items-center gap-1.5 text-xs text-[#1B2A5E] border border-[#EDE9E0] px-2.5 py-1 hover:border-[#C9A84C] disabled:opacity-60">
+                {iaBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} className="text-[#C9A84C]" />}
+                {iaBusy ? "Generando…" : "Generar con IA"}
+              </button>
+              {iaError && <span className="text-[11px] text-red-600">{iaError}</span>}
+              <span className="text-[11px] text-[#7A7A7A]">Revisa y ajusta el texto sugerido.</span>
+            </div>
+          )}
+        </div>
         <div className="sm:col-span-2 lg:col-span-2">
           <input className={INPUT} placeholder="Material a intervenir (metal, madera, piedra…)" list="mat-interv-list" value={form.materialIntervencion} onChange={(e) => setForm({ ...form, materialIntervencion: e.target.value })} />
           <datalist id="mat-interv-list">
