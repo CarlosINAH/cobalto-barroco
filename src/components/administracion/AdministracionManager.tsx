@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   Plus, Trash2, Save, Pencil, X, Building2,
-  Banknote, Receipt, Package, PiggyBank, Landmark, Paperclip,
+  Banknote, Receipt, PiggyBank, Landmark, Paperclip,
 } from "lucide-react";
 import type { Project, LedgerEntry, PayrollEntry, ProximoPago } from "@/lib/db";
 import ProximoPagoCard from "@/components/administracion/ProximoPagoCard";
@@ -26,14 +26,13 @@ function mesLabel(ym: string): string {
   return `${MESES[(parseInt(m, 10) || 1) - 1]} ${y}`;
 }
 
-type Tab = "obras" | "nomina" | "indirectos" | "utilidades" | "impuestos" | "adquisiciones";
+type Tab = "obras" | "nomina" | "gastos" | "utilidades" | "impuestos";
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "obras", label: "Obras", icon: Building2 },
   { id: "nomina", label: "Nómina", icon: Banknote },
-  { id: "indirectos", label: "Indirectos", icon: Receipt },
+  { id: "gastos", label: "Gastos", icon: Receipt },
   { id: "utilidades", label: "Utilidades", icon: PiggyBank },
   { id: "impuestos", label: "Impuestos", icon: Landmark },
-  { id: "adquisiciones", label: "Adquisiciones", icon: Package },
 ];
 
 export default function AdministracionManager({
@@ -67,10 +66,9 @@ export default function AdministracionManager({
 
       {tab === "obras" && <ObrasTab initial={projects} ledger={ledgerEmpresa} payroll={payrollEmpresa} />}
       {tab === "nomina" && <NominaTab inicial={payrollEmpresa} proximoPago={proximoPago} canEditPago={canEditPago} />}
-      {tab === "indirectos" && <GastoTab categoria="indirectos" inicial={ledgerEmpresa.filter((e) => e.categoria === "indirectos")} />}
+      {tab === "gastos" && <GastosTab inicial={ledger.filter((e) => e.categoria === "indirectos" || e.categoria === "adquisiciones")} proyectos={projects.map((p) => ({ id: p.id, nombre: p.nombre }))} />}
       {tab === "utilidades" && <GastoTab categoria="utilidades" inicial={ledgerEmpresa.filter((e) => e.categoria === "utilidades")} />}
       {tab === "impuestos" && <GastoTab categoria="impuestos" inicial={ledgerEmpresa.filter((e) => e.categoria === "impuestos")} />}
-      {tab === "adquisiciones" && <GastoTab categoria="adquisiciones" inicial={ledgerEmpresa.filter((e) => e.categoria === "adquisiciones")} />}
     </div>
   );
 }
@@ -252,6 +250,198 @@ function ObrasTab({ initial, ledger, payroll }: { initial: Project[]; ledger: Le
 type GForm = { id: string | null; fecha: string; subcategoria: string; concepto: string; monto: string; comprobante?: { path: string; nombre: string } };
 const G_EMPTY = (): GForm => ({ id: null, fecha: new Date().toISOString().slice(0, 10), subcategoria: "", concepto: "", monto: "" });
 const COMPROBANTES_DIR = "Archivos compartidos/COMPROBANTES";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GASTOS (Indirectos + Adquisiciones fusionados): cada gasto lleva un TIPO
+// (indirecto/adquisición) y una ASIGNACIÓN (Administración o un proyecto).
+// ─────────────────────────────────────────────────────────────────────────────
+type GUForm = { id: string | null; fecha: string; tipo: string; projectId: string; concepto: string; monto: string; comprobante?: { path: string; nombre: string } };
+const GU_EMPTY = (): GUForm => ({ id: null, fecha: new Date().toISOString().slice(0, 10), tipo: "indirectos", projectId: "", concepto: "", monto: "" });
+const tipoLabel = (c?: string) => (c === "adquisiciones" ? "Adquisición" : "Indirecto");
+
+function GastosTab({ inicial, proyectos }: { inicial: LedgerEntry[]; proyectos: { id: string; nombre: string }[] }) {
+  const [items, setItems] = useState<LedgerEntry[]>(inicial);
+  const [mes, setMes] = useState("");
+  const [fTipo, setFTipo] = useState("");
+  const [fAsig, setFAsig] = useState(""); // "" todas · "admin" · <projectId>
+  const [form, setForm] = useState<GUForm>(GU_EMPTY());
+  const [file, setFile] = useState<File | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const proyNombre = (id: string) => proyectos.find((p) => p.id === id)?.nombre || "Proyecto";
+  const asigLabel = (e: LedgerEntry) => (e.projectId ? proyNombre(e.projectId) : "Administración");
+
+  const meses = useMemo(() => [...new Set(items.map((e) => (e.fecha || "").slice(0, 7)).filter(Boolean))].sort().reverse(), [items]);
+  const visibles = useMemo(() => items.filter((e) =>
+    (!mes || (e.fecha || "").slice(0, 7) === mes) &&
+    (!fTipo || e.categoria === fTipo) &&
+    (!fAsig || (fAsig === "admin" ? !e.projectId : e.projectId === fAsig)),
+  ), [items, mes, fTipo, fAsig]);
+  const total = visibles.reduce((a, e) => a + e.monto, 0);
+
+  function nuevo() { setForm(GU_EMPTY()); setFile(null); setOpen(true); }
+  function editar(e: LedgerEntry) {
+    setForm({ id: e.id, fecha: e.fecha || "", tipo: e.categoria || "indirectos", projectId: e.projectId || "", concepto: e.concepto, monto: String(e.monto), comprobante: e.comprobante });
+    setFile(null); setOpen(true);
+  }
+  async function subirComprobante(entryId: string): Promise<{ path: string; nombre: string } | null> {
+    if (!file) return null;
+    await fetch("/api/files/folder", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "COMPROBANTES", path: "Archivos compartidos" }),
+    }).catch(() => {});
+    const safe = `${entryId}__${file.name}`.replace(/[^\w.\- ]+/g, "_");
+    const fd = new FormData();
+    fd.append("path", COMPROBANTES_DIR);
+    fd.append("files", new File([file], safe, { type: file.type }));
+    const up = await fetch("/api/files/upload", { method: "POST", body: fd });
+    if (!up.ok) return null;
+    return { path: `${COMPROBANTES_DIR}/${safe}`, nombre: file.name };
+  }
+  async function guardar() {
+    setBusy(true);
+    const payload: Record<string, unknown> = {
+      categoria: form.tipo, tipo: "egreso",
+      projectId: form.projectId || null,
+      fecha: form.fecha, concepto: form.concepto.trim(), monto: Number(form.monto) || 0,
+    };
+    if (!file && form.comprobante) payload.comprobante = form.comprobante;
+    let res = await fetch(form.id ? `/api/costos/ledger/${form.id}` : "/api/costos/ledger", {
+      method: form.id ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) { setBusy(false); return; }
+    let { entry } = await res.json();
+    if (file) {
+      const comp = await subirComprobante(entry.id);
+      if (comp) {
+        res = await fetch(`/api/costos/ledger/${entry.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ comprobante: comp }),
+        });
+        if (res.ok) entry = (await res.json()).entry;
+      }
+    }
+    setBusy(false);
+    setItems((xs) => (form.id ? xs.map((x) => (x.id === entry.id ? entry : x)) : [entry, ...xs]));
+    setOpen(false);
+  }
+  async function borrar(id: string) {
+    if (!confirm("¿Eliminar este gasto?")) return;
+    if ((await fetch(`/api/costos/ledger/${id}`, { method: "DELETE" })).ok)
+      setItems((xs) => xs.filter((x) => x.id !== id));
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <select value={mes} onChange={(e) => setMes(e.target.value)} className={INPUT + " w-40"}>
+            <option value="">Todos los meses</option>
+            {meses.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+          </select>
+          <select value={fTipo} onChange={(e) => setFTipo(e.target.value)} className={INPUT + " w-40"}>
+            <option value="">Todos los tipos</option>
+            <option value="indirectos">Indirecto</option>
+            <option value="adquisiciones">Adquisición</option>
+          </select>
+          <select value={fAsig} onChange={(e) => setFAsig(e.target.value)} className={INPUT + " w-48"}>
+            <option value="">Toda asignación</option>
+            <option value="admin">Administración</option>
+            {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+          <span className="text-sm text-[#7A7A7A]">{visibles.length} gastos</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-[#1B2A5E] text-lg data-label" style={{ fontFamily: "var(--font-playfair)" }}>{money(total)}</p>
+            <p className="text-[#7A7A7A] text-[11px] uppercase tracking-wider">{mes ? mesLabel(mes) : "total"}</p>
+          </div>
+          <button onClick={nuevo} className={BTN}><Plus size={14} /> Agregar</button>
+        </div>
+      </div>
+
+      {open && (
+        <div className={`${CARD} p-5 mb-4`}>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div><label className={LABEL}>Fecha</label><input type="date" className={INPUT} value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} /></div>
+            <div><label className={LABEL}>Tipo</label>
+              <select className={INPUT} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+                <option value="indirectos">Indirecto</option>
+                <option value="adquisiciones">Adquisición</option>
+              </select>
+            </div>
+            <div><label className={LABEL}>Asignación</label>
+              <select className={INPUT} value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
+                <option value="">Administración</option>
+                {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+            </div>
+            <div><label className={LABEL}>Monto</label><input type="number" step="0.01" className={INPUT} value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value })} /></div>
+            <div className="sm:col-span-4"><label className={LABEL}>Concepto</label><input className={INPUT} value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} /></div>
+          </div>
+          <div className="mt-3">
+            <label className={LABEL}>Comprobante (factura / nota)</label>
+            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-[#2C2C2C] file:mr-3 file:border file:border-[#EDE9E0] file:bg-[#F5F2EC] file:px-3 file:py-1.5 file:text-xs file:uppercase file:tracking-wider file:text-[#1B2A5E]" />
+            {file
+              ? <p className="text-[11px] text-[#7A7A7A] mt-1 flex items-center gap-1"><Paperclip size={11} /> {file.name}</p>
+              : form.comprobante && <p className="text-[11px] text-[#7A7A7A] mt-1 flex items-center gap-1"><Paperclip size={11} /> Adjunto: {form.comprobante.nombre} (elige otro para reemplazar)</p>}
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={guardar} disabled={busy} className={BTN}><Save size={14} /> Guardar</button>
+            <button onClick={() => setOpen(false)} className="px-4 py-2.5 text-xs tracking-widest uppercase text-[#7A7A7A] hover:text-[#1B2A5E]">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {visibles.length === 0 ? (
+        <div className={`${CARD} py-12 text-center text-sm text-[#7A7A7A]`}>Sin gastos{mes ? " en este mes" : ""}.</div>
+      ) : (
+        <div className={`${CARD} overflow-x-auto`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+                <th className="px-3 py-3 font-semibold">Fecha</th>
+                <th className="px-3 py-3 font-semibold">Tipo</th>
+                <th className="px-3 py-3 font-semibold">Asignación</th>
+                <th className="px-3 py-3 font-semibold">Concepto</th>
+                <th className="px-3 py-3 font-semibold text-right">Monto</th>
+                <th className="px-3 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map((e) => (
+                <tr key={e.id} className="border-b border-[#F5F2EC] hover:bg-[#F5F2EC]/40">
+                  <td className="px-3 py-2 text-[#7A7A7A] whitespace-nowrap w-28">{e.fecha || "—"}</td>
+                  <td className="px-3 py-2 text-[#555] whitespace-nowrap">{tipoLabel(e.categoria)}</td>
+                  <td className="px-3 py-2 text-[#555]">
+                    <span className={`text-[11px] px-2 py-0.5 border ${e.projectId ? "bg-[#1B2A5E]/5 text-[#1B2A5E] border-[#1B2A5E]/20" : "bg-[#F5F2EC] text-[#7A7A7A] border-[#EDE9E0]"}`}>{asigLabel(e)}</span>
+                  </td>
+                  <td className="px-3 py-2 text-[#2C2C2C]">
+                    {e.concepto || "—"}
+                    {e.comprobante && (
+                      <a href={`/api/files/download?path=${encodeURIComponent(e.comprobante.path)}&inline=1`} target="_blank" rel="noopener noreferrer"
+                        title={`Comprobante: ${e.comprobante.nombre}`} className="inline-flex items-center gap-1 ml-2 text-[11px] text-[#1B2A5E] hover:text-[#C9A84C] align-middle">
+                        <Paperclip size={11} /> comprobante
+                      </a>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right data-label whitespace-nowrap">{money(e.monto)}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap w-20">
+                    <button onClick={() => editar(e)} className="text-[#7A7A7A] hover:text-[#1B2A5E] mr-2"><Pencil size={14} /></button>
+                    <button onClick={() => borrar(e.id)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function GastoTab({ categoria, inicial }: { categoria: string; inicial: LedgerEntry[] }) {
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
