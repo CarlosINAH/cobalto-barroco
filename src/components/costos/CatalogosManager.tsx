@@ -1055,7 +1055,7 @@ function ConceptoEditor({
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-5">
         <input className={INPUT} placeholder="Clave" value={form.clave} onChange={(e) => setForm({ ...form, clave: e.target.value })} />
-        <input className={INPUT + " sm:col-span-2 lg:col-span-2"} placeholder="Concepto" value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} />
+        <input className={INPUT + " sm:col-span-2 lg:col-span-2"} placeholder="Concepto" value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value.toUpperCase() })} />
         <input className={INPUT} placeholder="Unidad (PZA, M2…)" value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} />
         <div className="sm:col-span-2 lg:col-span-4">
           <textarea className={INPUT + " w-full resize-y"} rows={2} placeholder="Descripción (aparece completa en el PDF)" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
