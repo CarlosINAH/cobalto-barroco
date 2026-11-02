@@ -79,11 +79,18 @@ export async function GET(req: Request) {
         (e.googleSub === sub || (e.googleEmail && norm(e.googleEmail) === email)),
     );
     if (ocupada) return NextResponse.redirect(`${base}${dashboardFor(session.username)}/configuracion?glink=dupe`);
-    await mutate((d) => {
+    // Guarda la identidad y confirma que realmente se escribió (si no se
+    // encuentra el empleado, no se reporta "ok" en falso).
+    const guardado = await mutate((d) => {
       const emp = d.employees.find((e) => norm(e.username) === norm(session.username));
-      if (emp) { emp.googleSub = sub; emp.googleEmail = email; }
+      if (!emp) return false;
+      emp.googleSub = sub;
+      emp.googleEmail = email;
+      return true;
     });
-    return NextResponse.redirect(`${base}${dashboardFor(session.username)}/configuracion?glink=ok`);
+    return NextResponse.redirect(
+      `${base}${dashboardFor(session.username)}/configuracion?glink=${guardado ? "ok" : "err"}`,
+    );
   }
 
   // ── Iniciar sesión con Google ──
