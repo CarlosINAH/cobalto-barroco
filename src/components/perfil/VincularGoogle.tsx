@@ -13,7 +13,8 @@ import { Link2, Unlink, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 export default function VincularGoogle() {
   const search = useSearchParams();
   const g = search.get("glink");
-  const aviso: "ok" | "dupe" | null = g === "ok" || g === "dupe" ? g : null;
+  const aviso: "ok" | "dupe" | "err" | null =
+    g === "ok" || g === "dupe" || g === "err" ? g : null;
   const [enabled, setEnabled] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,8 +58,16 @@ export default function VincularGoogle() {
         Vincula tu cuenta de Google para poder iniciar sesión con ella.
       </p>
 
-      {aviso === "ok" && (
+      {/* Solo se confirma "vinculada" si el estado real (email) lo respalda;
+          si llegó glink=ok pero no hay correo, el vínculo no se guardó. */}
+      {aviso === "ok" && email && (
         <p className="flex items-center gap-2 text-sm text-green-700 mb-3"><CheckCircle2 size={15} /> Cuenta vinculada correctamente.</p>
+      )}
+      {aviso === "ok" && !email && (
+        <p className="flex items-center gap-2 text-sm text-amber-700 mb-3"><AlertCircle size={15} /> El vínculo no se guardó. Vuelve a intentarlo; si persiste, revisa que los datos de la plataforma se estén guardando.</p>
+      )}
+      {aviso === "err" && (
+        <p className="flex items-center gap-2 text-sm text-red-600 mb-3"><AlertCircle size={15} /> No se pudo vincular (no se encontró tu cuenta). Intenta de nuevo.</p>
       )}
       {aviso === "dupe" && (
         <p className="flex items-center gap-2 text-sm text-red-600 mb-3"><AlertCircle size={15} /> Esa cuenta de Google ya está vinculada a otro usuario.</p>
