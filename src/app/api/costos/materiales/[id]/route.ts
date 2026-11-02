@@ -28,6 +28,7 @@ export async function PATCH(
     if (b.kind === "material" || b.kind === "herramienta" || b.kind === "equipo")
       m.kind = b.kind;
     if (b.categoria !== undefined) m.categoria = b.categoria.trim();
+    if (b.subcategoria !== undefined) m.subcategoria = b.subcategoria.trim() || undefined;
     if (b.precio !== undefined && Number(b.precio) !== m.precio) {
       m.precio = Number(b.precio) || 0;
       m.actualizadoEn = Date.now(); // historial: el precio cambió hoy

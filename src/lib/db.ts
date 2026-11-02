@@ -351,8 +351,10 @@ export interface CostMaterial {
   id: string;
   nombre: string;
   kind: "material" | "herramienta" | "equipo";
-  /** Etapa/proceso del catálogo: PRELIMINARES, EMBALAJE, LIMPIEZA FINA, … */
+  /** Etapa/proceso del catálogo: PRELIMINARES, EMBALAJE, LIMPIEZA, … */
   categoria: string;
+  /** Subcategoría dentro de la categoría (p. ej. "fina", "general"). */
+  subcategoria?: string;
   /** Precio unitario de compra (MXN). */
   precio: number;
   /** Presentación/unidad de compra (p. ej. "1 L", "100 pzas"). */
