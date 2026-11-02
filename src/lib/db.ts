@@ -683,6 +683,15 @@ export interface DBShape {
   cvEntries: CVEntry[];
   /** Próxima fecha de pago de nómina (global, la fija administración). */
   proximoPago?: ProximoPago | null;
+  /**
+   * Conexión del Drive central de la empresa (Google). El refresh token se
+   * guarda CIFRADO (nunca en claro). null / undefined = sin conectar.
+   */
+  googleDrive?: {
+    refreshTokenEnc: string;
+    email?: string;
+    connectedAt: number;
+  } | null;
   seededEmployees?: boolean;
 }
 

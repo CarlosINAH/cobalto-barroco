@@ -14,6 +14,13 @@ const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 /** Scopes de identidad (login/vinculación). Drive se añade en su propio flujo. */
 export const IDENTITY_SCOPES = ["openid", "email", "profile"];
 
+/** Scopes para conectar el Drive central (acceso completo de archivos + correo). */
+export const DRIVE_SCOPES = [
+  "openid",
+  "email",
+  "https://www.googleapis.com/auth/drive",
+];
+
 export function googleConfigured(): boolean {
   return !!(
     process.env.GOOGLE_CLIENT_ID &&
@@ -64,6 +71,24 @@ export async function googleExchangeCode(code: string): Promise<GoogleTokens | n
   });
   if (!res.ok) return null;
   return (await res.json()) as GoogleTokens;
+}
+
+/** Canjea un refresh token por un access token nuevo (Drive central). */
+export async function googleRefreshAccessToken(refreshToken: string): Promise<string | null> {
+  const body = new URLSearchParams({
+    refresh_token: refreshToken,
+    client_id: process.env.GOOGLE_CLIENT_ID!,
+    client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+    grant_type: "refresh_token",
+  });
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { access_token?: string };
+  return data.access_token ?? null;
 }
 
 export interface GoogleUser {
