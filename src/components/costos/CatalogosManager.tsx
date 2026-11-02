@@ -1135,32 +1135,55 @@ function ConceptoEditor({
         </table>
       </div>
 
-      {/* Agregar insumo */}
-      <div className="flex flex-wrap items-end gap-2 mb-5">
-        <select value={kind} onChange={(e) => { setKind(e.target.value as CostInputKind); setRefId(""); setPq(""); setPcat(""); }} className={INPUT + " w-40"}>
-          {KIND_OPTS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
-        </select>
-        <div className="relative flex-1 min-w-[180px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
-          <input value={pq} onChange={(e) => setPq(e.target.value)} placeholder="Buscar insumo…" className={INPUT + " pl-9 w-full"} />
-        </div>
-        {kindCats.length > 0 && (
-          <select value={pcat} onChange={(e) => setPcat(e.target.value)} className={INPUT + " w-40"}>
-            <option value="">Todas las categorías</option>
-            {kindCats.map((c) => <option key={c} value={c}>{c}</option>)}
+      {/* Agregar insumo: primero se filtra (tipo / categoría / búsqueda) y luego
+          se elige de una lista corta clicable (en vez de un select enorme). */}
+      <div className="mb-5">
+        <div className="flex flex-wrap items-end gap-2 mb-2">
+          <select value={kind} onChange={(e) => { setKind(e.target.value as CostInputKind); setRefId(""); setPq(""); setPcat(""); }} className={INPUT + " w-40"}>
+            {KIND_OPTS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
           </select>
-        )}
-        <select value={refId} onChange={(e) => setRefId(e.target.value)} className={INPUT + " flex-1 min-w-[200px]"}>
-          <option value="">{opciones.length ? `Elegir del catálogo… (${opciones.length})` : "Sin resultados"}</option>
-          {opciones.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-        </select>
-        <input type="number" step="0.0001" value={cant} onChange={(e) => setCant(e.target.value)} placeholder="Cant." className={INPUT + " w-24"} />
-        {(kind === "material" || kind === "herramienta" || kind === "equipo") && (
-          <label className="text-xs text-[#7A7A7A] flex flex-col">Depr. %
-            <input type="number" step="1" min="0" max="100" value={depr} onChange={(e) => setDepr(e.target.value)} title="% del costo que se carga al concepto (depreciación)" className={INPUT + " w-24"} />
-          </label>
-        )}
-        <button onClick={addInsumo} disabled={!refId} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
+          {kindCats.length > 0 && (
+            <select value={pcat} onChange={(e) => { setPcat(e.target.value); setRefId(""); }} className={INPUT + " w-48"}>
+              <option value="">Todas las categorías</option>
+              {kindCats.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+            <input value={pq} onChange={(e) => { setPq(e.target.value); setRefId(""); }} placeholder="Buscar insumo…" className={INPUT + " pl-9 w-full"} />
+          </div>
+        </div>
+
+        {/* Lista filtrada, clicable */}
+        <div className="border border-[#EDE9E0] bg-white max-h-56 overflow-y-auto divide-y divide-[#F5F2EC]">
+          {opciones.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-[#7A7A7A]">Sin resultados. Cambia el tipo, la categoría o la búsqueda.</p>
+          ) : (
+            <>
+              {opciones.slice(0, 80).map((o) => (
+                <button key={o.id} type="button" onClick={() => setRefId(o.id)}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${refId === o.id ? "bg-[#1B2A5E]/5 text-[#1B2A5E] font-medium" : "text-[#2C2C2C] hover:bg-[#F5F2EC]/60"}`}>
+                  {o.label}
+                </button>
+              ))}
+              {opciones.length > 80 && (
+                <p className="px-3 py-2 text-[11px] text-[#7A7A7A] bg-[#F5F2EC]/40">Mostrando 80 de {opciones.length}. Filtra por categoría o busca para acotar.</p>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Cantidad + depreciación + agregar */}
+        <div className="flex flex-wrap items-end gap-2 mt-2">
+          <input type="number" step="0.0001" value={cant} onChange={(e) => setCant(e.target.value)} placeholder="Cant." className={INPUT + " w-24"} />
+          {(kind === "material" || kind === "herramienta" || kind === "equipo") && (
+            <label className="text-xs text-[#7A7A7A] flex flex-col">Depr. %
+              <input type="number" step="1" min="0" max="100" value={depr} onChange={(e) => setDepr(e.target.value)} title="% del costo que se carga al concepto (depreciación)" className={INPUT + " w-24"} />
+            </label>
+          )}
+          <button onClick={addInsumo} disabled={!refId} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
+          {!refId && <span className="text-[11px] text-[#7A7A7A] self-center">Elige un insumo de la lista.</span>}
+        </div>
       </div>
 
       {/* Equivalencia de tiempo para mano de obra (1 jornada = 8 h) */}
