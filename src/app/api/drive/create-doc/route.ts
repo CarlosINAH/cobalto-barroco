@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { driveAccessToken, driveCreateGoogleFile, type GoogleDocKind } from "@/lib/drive";
 import { drivePermsForSession } from "@/lib/drive-perms";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
   const name = (b.name || "").trim() || (kind === "spreadsheet" ? "Nueva hoja" : "Nuevo documento");
   try {
     const entry = await driveCreateGoogleFile(token, name, kind, b.parentId || "root");
+    await registrarMovimiento(s, {
+      accion: "crear", entidad: "archivo", entidadId: entry.id,
+      descripcion: `Creó ${kind === "spreadsheet" ? "la hoja" : "el documento"} «${name}»`,
+    });
     return NextResponse.json({ entry });
   } catch {
     return NextResponse.json({ error: "No se pudo crear el documento." }, { status: 502 });

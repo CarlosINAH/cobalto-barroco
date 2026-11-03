@@ -228,3 +228,43 @@ export async function driveTrash(accessToken: string, id: string): Promise<boole
   );
   return res.ok;
 }
+
+/** Lista lo que hay en la papelera del Drive central (más reciente primero). */
+export async function driveListTrashed(accessToken: string): Promise<DriveEntry[]> {
+  const params = new URLSearchParams({
+    q: "trashed = true",
+    fields: "files(id,name,mimeType,size,modifiedTime,webViewLink)",
+    pageSize: "200",
+    orderBy: "modifiedTime desc",
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+  });
+  const res = await fetch(`${FILES_URL}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Drive trash list ${res.status}`);
+  const data = (await res.json()) as { files?: Parameters<typeof toEntry>[0][] };
+  return (data.files ?? []).map(toEntry);
+}
+
+/** Restaura un elemento de la papelera (lo saca de la papelera de Drive). */
+export async function driveRestore(accessToken: string, id: string): Promise<boolean> {
+  const res = await fetch(
+    `${FILES_URL}/${encodeURIComponent(id)}?supportsAllDrives=true&fields=id`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ trashed: false }),
+    },
+  );
+  return res.ok;
+}
+
+/** Borra definitivamente un elemento (no recuperable). Solo admin. */
+export async function driveDeleteForever(accessToken: string, id: string): Promise<boolean> {
+  const res = await fetch(`${FILES_URL}/${encodeURIComponent(id)}?supportsAllDrives=true`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  return res.ok || res.status === 204;
+}
