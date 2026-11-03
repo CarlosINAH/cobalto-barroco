@@ -41,7 +41,6 @@ const empleadoNav: NavItem[] = [
   { icon: Boxes, label: "Fichas de piezas", href: "/dashboard/empleado/fichas" },
   { icon: Package, label: "Materiales y recetas", href: "/dashboard/empleado/catalogos" },
   { icon: HardDrive, label: "Archivos", href: "/dashboard/empleado/repositorio" },
-  { icon: Trash2, label: "Papelera", href: "/dashboard/empleado/papelera" },
   { icon: Settings, label: "Configuración", href: "/dashboard/empleado/configuracion" },
 ];
 
