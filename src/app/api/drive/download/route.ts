@@ -12,7 +12,7 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request) {
   const s = await getSession();
-  if (!s || s.role !== "admin")
+  if (!s)
     return new Response("No autorizado.", { status: 403 });
   const token = await driveAccessToken();
   if (!token) return new Response("Drive no conectado.", { status: 409 });

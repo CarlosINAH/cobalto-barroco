@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { driveAccessToken, driveUpload, type DriveEntry } from "@/lib/drive";
+import { drivePermsForSession } from "@/lib/drive-perms";
 
 export const runtime = "nodejs";
 
-/** Sube uno o varios archivos a una carpeta del Drive central (solo admin). */
+/** Sube uno o varios archivos a una carpeta del Drive central (rol con permiso de subir). */
 export async function POST(req: Request) {
   const s = await getSession();
-  if (!s || s.role !== "admin")
-    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  if (!s) return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  if (!(await drivePermsForSession(s)).subir)
+    return NextResponse.json({ error: "No tienes permiso para subir archivos." }, { status: 403 });
   const token = await driveAccessToken();
   if (!token)
     return NextResponse.json({ error: "Drive no conectado." }, { status: 409 });

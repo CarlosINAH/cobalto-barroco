@@ -1,7 +1,10 @@
 import "server-only";
-import { getDB } from "@/lib/db";
+import { getDB, mutate } from "@/lib/db";
 import { decryptSecret } from "@/lib/session";
 import { googleRefreshAccessToken } from "@/lib/google";
+
+/** Nombre de la carpeta de trabajo única del equipo dentro del Drive central. */
+export const WORKSPACE_FOLDER_NAME = "PROYECTOS_COBALTO";
 
 /**
  * Acceso al Drive central de la empresa. La conexión (refresh token cifrado) se
@@ -156,4 +159,72 @@ export async function driveDownload(accessToken: string, id: string): Promise<Re
   return fetch(`${FILES_URL}/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+}
+
+/** Busca una carpeta hija por nombre exacto dentro de `parentId` (no en papelera). */
+export async function driveFindFolder(
+  accessToken: string,
+  name: string,
+  parentId = "root",
+): Promise<DriveEntry | null> {
+  const q = `name = '${name.replace(/'/g, "\\'")}' and '${parentId}' in parents ` +
+    `and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const params = new URLSearchParams({
+    q,
+    fields: "files(id,name,mimeType,modifiedTime,webViewLink)",
+    pageSize: "1",
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+  });
+  const res = await fetch(`${FILES_URL}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Drive find ${res.status}`);
+  const data = (await res.json()) as { files?: Parameters<typeof toEntry>[0][] };
+  const f = (data.files ?? [])[0];
+  return f ? toEntry(f) : null;
+}
+
+/**
+ * Resuelve el id de la carpeta de trabajo única (PROYECTOS_COBALTO) en el Drive
+ * central. Usa el id cacheado en la base si sigue siendo válido; si no, la busca
+ * por nombre bajo la raíz. Solo la CREA si `create` es true (acción de admin).
+ * Devuelve null si no existe y no se pidió crearla.
+ */
+export async function driveWorkspaceFolderId(
+  accessToken: string,
+  opts: { create?: boolean } = {},
+): Promise<string | null> {
+  const db = await getDB();
+  const cached = db.googleDrive?.workspaceFolderId;
+  if (cached) {
+    // Verifica que el id cacheado siga existiendo (y no esté en papelera).
+    const meta = await driveFileMeta(accessToken, cached);
+    if (meta && meta.isFolder) return cached;
+  }
+  let folder = await driveFindFolder(accessToken, WORKSPACE_FOLDER_NAME, "root");
+  if (!folder && opts.create) {
+    folder = await driveCreateFolder(accessToken, WORKSPACE_FOLDER_NAME, "root");
+  }
+  if (!folder) return null;
+  const id = folder.id;
+  if (id !== cached) {
+    await mutate((d) => {
+      if (d.googleDrive) d.googleDrive.workspaceFolderId = id;
+    });
+  }
+  return id;
+}
+
+/** Mueve un archivo/carpeta a la papelera de Drive (recuperable). */
+export async function driveTrash(accessToken: string, id: string): Promise<boolean> {
+  const res = await fetch(
+    `${FILES_URL}/${encodeURIComponent(id)}?supportsAllDrives=true&fields=id`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ trashed: true }),
+    },
+  );
+  return res.ok;
 }
