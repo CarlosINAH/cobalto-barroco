@@ -6,7 +6,6 @@ import AccesosManager from "@/components/configuracion/AccesosManager";
 import PersonalManager from "@/components/personal/PersonalManager";
 import SolicitudesAcceso, { type Solicitud } from "@/components/configuracion/SolicitudesAcceso";
 import type { Employee } from "@/lib/db";
-import type { FolderPerms } from "@/components/permisos/PermisosManager";
 
 type Tab = "permisos" | "empleados" | "solicitudes";
 
@@ -17,13 +16,11 @@ type Tab = "permisos" | "empleados" | "solicitudes";
  * "Empleados" el alta y edición del personal—.
  */
 export default function ConfiguracionManager({
-  accesos, personal, folders, folderPerms, projects, solicitudes = [],
+  accesos, personal, projects, solicitudes = [],
 }: {
   accesos: Employee[];
   personal: React.ComponentProps<typeof PersonalManager>;
   projects?: { id: string; nombre: string }[];
-  folders: { name: string; path: string }[];
-  folderPerms: Record<string, FolderPerms>;
   solicitudes?: Solicitud[];
 }) {
   const [tab, setTab] = useState<Tab>(solicitudes.length > 0 ? "solicitudes" : "permisos");
@@ -86,7 +83,7 @@ export default function ConfiguracionManager({
         })}
       </div>
 
-      {tab === "permisos" && <AccesosManager initial={accesos} folders={folders} folderPerms={folderPerms} projects={projects} />}
+      {tab === "permisos" && <AccesosManager initial={accesos} projects={projects} />}
       {tab === "empleados" && <PersonalManager {...personal} />}
       {tab === "solicitudes" && <SolicitudesAcceso initial={solicitudes} />}
     </div>
