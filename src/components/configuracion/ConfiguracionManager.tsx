@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldCheck, Users, Upload } from "lucide-react";
+import { ShieldCheck, Users, Upload, UserCheck } from "lucide-react";
 import AccesosManager from "@/components/configuracion/AccesosManager";
 import PersonalManager from "@/components/personal/PersonalManager";
+import SolicitudesAcceso, { type Solicitud } from "@/components/configuracion/SolicitudesAcceso";
 import type { Employee } from "@/lib/db";
 import type { FolderPerms } from "@/components/permisos/PermisosManager";
 
-type Tab = "permisos" | "empleados";
+type Tab = "permisos" | "empleados" | "solicitudes";
 
 /**
  * Centro de configuración (solo admin): reúne en un solo lugar los permisos de
@@ -16,15 +17,16 @@ type Tab = "permisos" | "empleados";
  * "Empleados" el alta y edición del personal—.
  */
 export default function ConfiguracionManager({
-  accesos, personal, folders, folderPerms, projects,
+  accesos, personal, folders, folderPerms, projects, solicitudes = [],
 }: {
   accesos: Employee[];
   personal: React.ComponentProps<typeof PersonalManager>;
   projects?: { id: string; nombre: string }[];
   folders: { name: string; path: string }[];
   folderPerms: Record<string, FolderPerms>;
+  solicitudes?: Solicitud[];
 }) {
-  const [tab, setTab] = useState<Tab>("permisos");
+  const [tab, setTab] = useState<Tab>(solicitudes.length > 0 ? "solicitudes" : "permisos");
   const [importing, setImporting] = useState(false);
 
   // Único botón de importación de datos (catálogos + administración). Se quita
@@ -52,9 +54,10 @@ export default function ConfiguracionManager({
     }
   }
 
-  const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+  const TABS: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: "permisos", label: "Accesos y permisos", icon: ShieldCheck },
     { id: "empleados", label: "Empleados", icon: Users },
+    { id: "solicitudes", label: "Solicitudes", icon: UserCheck, badge: solicitudes.length },
   ];
 
   return (
@@ -73,6 +76,11 @@ export default function ConfiguracionManager({
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex items-center gap-2 px-4 py-2.5 text-xs tracking-wider uppercase font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${on ? "border-[#C9A84C] text-[#1B2A5E]" : "border-transparent text-[#7A7A7A] hover:text-[#1B2A5E]"}`}>
               <Icon size={14} /> {t.label}
+              {t.badge ? (
+                <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#C9A84C] text-white text-[10px] font-bold">
+                  {t.badge}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -80,6 +88,7 @@ export default function ConfiguracionManager({
 
       {tab === "permisos" && <AccesosManager initial={accesos} folders={folders} folderPerms={folderPerms} projects={projects} />}
       {tab === "empleados" && <PersonalManager {...personal} />}
+      {tab === "solicitudes" && <SolicitudesAcceso initial={solicitudes} />}
     </div>
   );
 }

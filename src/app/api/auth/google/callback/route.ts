@@ -10,7 +10,7 @@ import {
 } from "@/lib/session";
 import { googleConfigured, googleExchangeCode, googleUserInfo, googlePublicOrigin } from "@/lib/google";
 import { getDB, mutate, newId, type Employee } from "@/lib/db";
-import { evaluateAccess } from "@/lib/access";
+import { evaluateAccess, requestGoogleAccess } from "@/lib/access";
 
 export const runtime = "nodejs";
 
@@ -114,11 +114,19 @@ export async function GET(req: Request) {
     (user.email_verified !== false
       ? db.employees.find((e) => e.email && norm(e.email) === email)
       : undefined);
-  if (!emp) return fail("nolink");
+  if (!emp) {
+    // Persona que entró con Google y no tiene ficha: registra (o consulta) su
+    // solicitud de acceso. Queda PENDIENTE hasta que un admin la apruebe.
+    const req = await requestGoogleAccess({ sub, email, nombre: user.name });
+    if (req.estado === "rejected") return fail("rejected");
+    // Primera vez → "solicitud" (recibimos tu petición); ya pendiente → "pending".
+    return fail(req.nuevo ? "solicitud" : "pending");
+  }
 
   const decision = await evaluateAccess(emp.username);
   if (decision === "rejected") return fail("rejected");
   if (decision === "pending") return fail("pending");
+  if (decision === "inactive") return fail("inactive");
 
   const role = isAdmin(emp.username) ? "admin" : "empleado";
   // Sesión de Google: sin credencial del NAS (pw vacío). Usa el área compartida

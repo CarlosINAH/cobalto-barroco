@@ -108,6 +108,12 @@ export interface Employee {
    */
   googleSub?: string;
   googleEmail?: string;
+  /**
+   * Estatus de la cuenta. undefined/true = ACTIVO (puede iniciar sesión);
+   * false = INACTIVO (se le niega el acceso por NAS y por Google, pero su ficha
+   * e historial se conservan). Los admins (ADMIN_USERS) nunca se bloquean aquí.
+   */
+  activo?: boolean;
   createdAt: number;
 }
 
@@ -264,6 +270,19 @@ export interface AccessEntry {
   solicitadoEn: number;
   decididoEn?: number;
   decididoPor?: string;
+  /**
+   * Origen de la solicitud: "nas" (usuario del servidor, se auto-aprueba) o
+   * "google" (persona que entró con Google y no tiene cuenta NAS: queda
+   * pendiente hasta que un administrador la apruebe y le asigne perfil).
+   */
+  via?: "nas" | "google";
+  /** Identidad de Google del solicitante sin cuenta NAS (para crear su ficha al aprobar). */
+  googleSub?: string;
+  googleEmail?: string;
+  /** Correo de contacto del solicitante. */
+  email?: string;
+  /** Perfil asignado al aprobar (administración/superintendente/residente/restaurador). */
+  perfil?: PerfilSistema;
 }
 
 /**

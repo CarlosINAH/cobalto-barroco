@@ -101,6 +101,8 @@ export async function PATCH(
       e.acceso = next;
     }
     if (b.papeleraBorrar !== undefined) e.papeleraBorrar = b.papeleraBorrar === true;
+    // Estatus ACTIVO/INACTIVO. Inactivo = no puede iniciar sesión (NAS ni Google).
+    if (b.activo !== undefined) e.activo = b.activo !== false;
     return e;
   });
   if (!updated)

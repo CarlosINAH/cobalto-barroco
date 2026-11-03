@@ -68,6 +68,8 @@ function LoginForm() {
     nolink: "Esa cuenta de Google no está vinculada a ningún usuario. Pide a administración que la vincule.",
     rejected: "Tu acceso a la plataforma no está autorizado.",
     pending: "Tu acceso está pendiente de aprobación por un administrador.",
+    solicitud: "¡Recibimos tu solicitud! Un administrador la revisará y te dará acceso pronto.",
+    inactive: "Tu cuenta está desactivada. Contacta a la administración para reactivarla.",
     session: "Inicia sesión primero para vincular Google.",
   };
   const gmsg = GERR[searchParams.get("gerror") || ""] ||
