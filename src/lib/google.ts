@@ -14,11 +14,16 @@ const USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 /** Scopes de identidad (login/vinculación). Drive se añade en su propio flujo. */
 export const IDENTITY_SCOPES = ["openid", "email", "profile"];
 
-/** Scopes para conectar el Drive central (acceso completo de archivos + correo). */
+/**
+ * Scopes de la cuenta central de la empresa: Drive (archivos) y Calendar
+ * (crear eventos e invitar). Se conceden juntos al conectar el Drive central;
+ * añadir Calendar aquí implica que el admin vuelva a conectar para autorizarlo.
+ */
 export const DRIVE_SCOPES = [
   "openid",
   "email",
   "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/calendar.events",
 ];
 
 export function googleConfigured(): boolean {
