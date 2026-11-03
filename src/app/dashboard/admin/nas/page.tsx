@@ -1,7 +1,7 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import NubeTabs from "@/components/files/NubeTabs";
 import { requireAdmin, credsForPath } from "@/lib/auth-server";
-import { SHARED_ROOT, ensureSharedStructure } from "@/lib/shared-files";
+import { SHARED_ROOT, ensureSharedStructure, withTimeout } from "@/lib/shared-files";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +13,9 @@ export default async function NubeAdmin({
   const session = await requireAdmin();
   const { tab } = await searchParams;
   // Asegura "Archivos compartidos/{Archivos,Fotos}" (con la cuenta de servicio
-  // si está configurada) antes de mostrar la pestaña de compartidos.
-  await ensureSharedStructure(credsForPath(session, SHARED_ROOT));
+  // si está configurada). Con tope de tiempo: si el NAS no responde, la página
+  // carga igual y el explorador muestra el aviso en vez de colgarse.
+  await withTimeout(ensureSharedStructure(credsForPath(session, SHARED_ROOT)), 2500, false);
 
   return (
     <DashboardShell role="admin" title="Nube">
