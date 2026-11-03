@@ -36,6 +36,12 @@ export interface Project {
   utilidad?: number;
   /** Carpeta de almacenamiento de informes (Word/PDF/Excel y otros recursos). */
   carpetaInformes?: string;
+  /**
+   * Asignación de la cuadrilla del proyecto: por cada rol (p. ej. "Restaurador"),
+   * qué empleados lo cubren (Employee.id, participantes del proyecto). Liga los
+   * roles abstractos de la cuadrilla con personas reales del equipo.
+   */
+  cuadrillaAsign?: { rol: string; empleadoIds: string[] }[];
 }
 
 /** Cualidad evaluada de un empleado, con nivel 1–5 (solo visible para admins). */
