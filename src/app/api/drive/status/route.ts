@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 /** Estado del Drive central (solo admin): habilitado y si hay cuenta conectada. */
 export async function GET() {
   const s = await getSession();
-  if (!s || s.role !== "admin")
+  if (!s)
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   return NextResponse.json({
     enabled: googleConfigured(),

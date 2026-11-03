@@ -744,6 +744,13 @@ export interface DBShape {
     refreshTokenEnc: string;
     email?: string;
     connectedAt: number;
+    /**
+     * Id (cacheado) de la carpeta de trabajo única del equipo —
+     * "PROYECTOS_COBALTO"— dentro del Drive central. Todos trabajan acotados a
+     * esta carpeta; las acciones dependen del rol. Se resuelve/crea la primera
+     * vez y se guarda aquí para no buscarla en cada carga.
+     */
+    workspaceFolderId?: string;
   } | null;
   seededEmployees?: boolean;
 }

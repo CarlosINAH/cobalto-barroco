@@ -1,31 +1,18 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import NubeTabs from "@/components/files/NubeTabs";
+import DriveWorkspace from "@/components/drive/DriveWorkspace";
 import { requireSession } from "@/lib/auth-server";
-import { SHARED_ROOT } from "@/lib/shared-files";
 
 export const dynamic = "force-dynamic";
 
-export default async function NubeEmpleado({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
+/** Archivos del equipo: la carpeta única de trabajo en el Drive central. */
+export default async function ArchivosEmpleado() {
   await requireSession();
-  const { tab } = await searchParams;
-
   return (
-    <DashboardShell role="empleado" title="Nube">
-      <NubeTabs
-        personalLabel="Mi carpeta"
-        initialTab={tab === "compartidos" ? "compartidos" : "personal"}
-        personal={{ rootLabel: "Mi carpeta", canPublish: true }}
-        shared={{
-          rootLabel: "Compartidos",
-          basePath: SHARED_ROOT,
-          withMeta: true,
-          autoRefreshMs: 180000,
-        }}
-      />
+    <DashboardShell role="empleado" title="Archivos">
+      <p className="text-[#7A7A7A] text-sm mb-4">
+        Carpeta de trabajo del equipo (Google Drive). Lo que puedes hacer depende de tu rol.
+      </p>
+      <DriveWorkspace />
     </DashboardShell>
   );
 }

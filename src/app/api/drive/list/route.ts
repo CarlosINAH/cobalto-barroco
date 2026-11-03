@@ -4,10 +4,11 @@ import { driveAccessToken, driveList } from "@/lib/drive";
 
 export const runtime = "nodejs";
 
-/** Lista una carpeta del Drive central (solo admin). */
+/** Lista una carpeta del Drive central (cualquier usuario con sesión: todos
+ *  ven la carpeta de trabajo). */
 export async function GET(req: Request) {
   const s = await getSession();
-  if (!s || s.role !== "admin")
+  if (!s)
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const token = await driveAccessToken();
   if (!token)
