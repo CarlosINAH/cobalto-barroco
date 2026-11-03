@@ -1,8 +1,22 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
-import { mutate, type CalendarEvent } from "@/lib/db";
+import { getDB, mutate, type CalendarEvent } from "@/lib/db";
+import { driveConnected, driveAccessToken } from "@/lib/drive";
+import { gcalUpdateEvent, gcalDeleteEvent } from "@/lib/gcal";
 
 export const runtime = "nodejs";
+
+const emailValido = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e || "");
+
+/** Correos de los integrantes (para invitarlos/actualizarlos en Google Calendar). */
+async function correosDe(integrantes: string[]): Promise<string[]> {
+  if (!integrantes.length) return [];
+  const db = await getDB();
+  return db.employees
+    .filter((e) => integrantes.some((u) => u.toLowerCase() === e.username.toLowerCase()))
+    .map((e) => e.email)
+    .filter(emailValido);
+}
 
 const RECORDATORIOS = [null, 10, 30, 60, 1440] as const;
 
@@ -86,6 +100,20 @@ export async function PATCH(
       { error: "El título es obligatorio." },
       { status: 400 },
     );
+  // Sincroniza el cambio con Google Calendar (si el evento está espejado).
+  if (updated.googleEventId) {
+    try {
+      if (await driveConnected()) {
+        const token = await driveAccessToken();
+        if (token) {
+          const emails = await correosDe(updated.integrantes);
+          await gcalUpdateEvent(token, updated.googleEventId, updated, emails);
+        }
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
   return NextResponse.json({ ok: true, event: updated });
 }
 
@@ -98,12 +126,25 @@ export async function DELETE(
   if (!session)
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   const { id } = await params;
-  const existed = await mutate((db) => {
+  const res = await mutate((db) => {
+    const ev = db.events.find((x) => x.id === id);
+    const gid = ev?.googleEventId;
     const before = db.events.length;
     db.events = db.events.filter((x) => x.id !== id);
-    return db.events.length < before;
+    return { existed: db.events.length < before, gid };
   });
-  if (!existed)
+  if (!res.existed)
     return NextResponse.json({ error: "No encontrado." }, { status: 404 });
+  // Cancela el evento espejo en Google Calendar (avisa a los invitados).
+  if (res.gid) {
+    try {
+      if (await driveConnected()) {
+        const token = await driveAccessToken();
+        if (token) await gcalDeleteEvent(token, res.gid);
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
   return NextResponse.json({ ok: true });
 }

@@ -2,8 +2,47 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { getDB, mutate, newId, type CalendarEvent } from "@/lib/db";
 import { notificarEventoNuevo } from "@/lib/reminders";
+import { driveConnected, driveAccessToken } from "@/lib/drive";
+import { gcalCreateEvent } from "@/lib/gcal";
 
 export const runtime = "nodejs";
+
+const emailValido = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e || "");
+
+/** Correos de los integrantes de un evento (para invitarlos en Google Calendar). */
+async function correosIntegrantes(ev: CalendarEvent): Promise<string[]> {
+  if (!ev.integrantes.length) return [];
+  const db = await getDB();
+  return db.employees
+    .filter((e) => ev.integrantes.some((u) => u.toLowerCase() === e.username.toLowerCase()))
+    .map((e) => e.email)
+    .filter(emailValido);
+}
+
+/**
+ * Espeja el evento en el Google Calendar central (si está conectado) y, si tiene
+ * integrantes con correo, Google les manda la invitación. Devuelve si se invitó
+ * por Google (para no duplicar con el correo SMTP). Best-effort.
+ */
+async function espejarEnGoogle(event: CalendarEvent): Promise<{ invited: boolean }> {
+  try {
+    if (!(await driveConnected())) return { invited: false };
+    const token = await driveAccessToken();
+    if (!token) return { invited: false };
+    const emails = await correosIntegrantes(event);
+    const g = await gcalCreateEvent(token, event, emails);
+    if (g?.id) {
+      await mutate((db) => {
+        const ev = db.events.find((x) => x.id === event.id);
+        if (ev) ev.googleEventId = g.id;
+      });
+      return { invited: emails.length > 0 };
+    }
+  } catch {
+    /* best-effort */
+  }
+  return { invited: false };
+}
 
 /** Recordatorios permitidos (minutos antes). null = sin recordatorio. */
 const RECORDATORIOS = [null, 10, 30, 60, 1440] as const;
@@ -90,7 +129,9 @@ export async function POST(req: Request) {
     event.integrantes = canonIntegrantes(b.integrantes, db.employees);
     db.events.push(event);
   });
-  // Avisa por correo a los integrantes (o al equipo) que se creó el evento.
-  await notificarEventoNuevo(event);
+  // Espeja en Google Calendar (invitación nativa si hay integrantes). Si Google
+  // no invitó (no conectado o sin integrantes), se avisa por correo SMTP.
+  const { invited } = await espejarEnGoogle(event);
+  if (!invited) await notificarEventoNuevo(event);
   return NextResponse.json({ ok: true, event });
 }

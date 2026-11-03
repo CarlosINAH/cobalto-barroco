@@ -341,6 +341,11 @@ export interface CalendarEvent {
   recordatorioMin: number | null;
   /** Ya se envió el recordatorio por correo (para no repetirlo). */
   recordatorioEnviado: boolean;
+  /**
+   * Id del evento espejo en el Google Calendar central (si está conectado). Se
+   * usa para actualizar/borrar el evento en Google cuando cambia en la app.
+   */
+  googleEventId?: string;
   creadoPor: string;
   creadoEn: number;
 }
