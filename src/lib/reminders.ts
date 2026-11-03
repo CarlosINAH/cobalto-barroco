@@ -60,6 +60,35 @@ function cuerpo(ev: CalendarEvent): string {
   return lineas.join("\n");
 }
 
+/**
+ * Avisa por correo a los integrantes (o a todo el equipo) cuando se CREA un
+ * evento. Best-effort: si el SMTP no está configurado o no hay destinatarios,
+ * no hace nada y nunca lanza (no debe tumbar la creación del evento).
+ */
+export async function notificarEventoNuevo(ev: CalendarEvent): Promise<void> {
+  try {
+    if (!mailConfigured()) return;
+    const db = await getDB();
+    const destinatarios = destinatariosDe(ev, db.employees);
+    if (destinatarios.length === 0) return;
+    const lineas = [
+      `Se agendó un nuevo evento: ${ev.titulo}`,
+      "",
+      `Cuándo: ${fmtFecha(ev)}`,
+    ];
+    if (ev.lugar) lineas.push(`Dónde: ${ev.lugar}`);
+    if (ev.descripcion) lineas.push("", ev.descripcion);
+    lineas.push("", "— Calendario de Cobalto Barroco");
+    const subject = `Nuevo evento: ${ev.titulo}`;
+    const text = lineas.join("\n");
+    for (const to of destinatarios) {
+      await sendMail({ to, subject, text });
+    }
+  } catch {
+    /* el aviso es best-effort: no debe afectar la creación del evento */
+  }
+}
+
 /** Una pasada: busca eventos cuyo recordatorio toca y los avisa. */
 export async function runReminderScan(): Promise<void> {
   const db = await getDB();
