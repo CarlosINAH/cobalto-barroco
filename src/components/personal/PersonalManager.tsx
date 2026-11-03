@@ -19,6 +19,7 @@ import {
   Lock,
   Check,
   HeartPulse,
+  Power,
 } from "lucide-react";
 
 interface Project {
@@ -52,6 +53,8 @@ interface Employee {
   acciones?: Acciones;
   proyectoId: string | null;
   proyectoIds?: string[];
+  /** undefined/true = ACTIVO; false = INACTIVO (no puede iniciar sesión). */
+  activo?: boolean;
 }
 
 const ACCIONES: { key: keyof Acciones; label: string }[] = [
@@ -141,6 +144,23 @@ export default function PersonalManager({
     router.refresh();
   };
 
+  // Activa / desactiva una cuenta. Inactivo = no puede iniciar sesión, pero se
+  // conserva su ficha e historial.
+  const toggleActivo = async (e: Employee) => {
+    const activar = e.activo === false; // si está inactivo, lo activamos
+    if (
+      !activar &&
+      !confirm(`¿Desactivar a "${e.nombre}"? No podrá iniciar sesión hasta reactivarlo.`)
+    )
+      return;
+    await fetch(`/api/employees/${e.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activo: activar }),
+    });
+    router.refresh();
+  };
+
   const rankColor = (r: number) =>
     r >= 90
       ? "text-emerald-600 bg-emerald-50 border-emerald-200"
@@ -179,11 +199,27 @@ export default function PersonalManager({
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {filtered.map((e) => (
-            <div key={e.id} className="bg-white border border-[#EDE9E0] p-5">
+          {filtered.map((e) => {
+            const inactivo = e.activo === false;
+            return (
+            <div
+              key={e.id}
+              className={`bg-white border p-5 ${inactivo ? "border-red-200 bg-red-50/40" : "border-[#EDE9E0]"}`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="text-[#1B2A5E] text-base font-semibold truncate">{e.nombre}</h3>
+                  <h3 className="text-[#1B2A5E] text-base font-semibold truncate flex items-center gap-2">
+                    {e.nombre}
+                    <span
+                      className={`shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 border font-semibold ${
+                        inactivo
+                          ? "bg-red-100 border-red-200 text-red-600"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                      }`}
+                    >
+                      {inactivo ? "Inactivo" : "Activo"}
+                    </span>
+                  </h3>
                   <p className="text-[#7A7A7A] text-xs">@{e.username}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -192,6 +228,13 @@ export default function PersonalManager({
                   >
                     <Star size={10} /> {e.ranking}
                   </span>
+                  <button
+                    onClick={() => toggleActivo(e)}
+                    title={inactivo ? "Reactivar cuenta" : "Desactivar cuenta"}
+                    className={`p-1.5 ${inactivo ? "text-red-500 hover:text-emerald-600" : "text-[#7A7A7A] hover:text-red-500"}`}
+                  >
+                    <Power size={13} />
+                  </button>
                   <button
                     onClick={() => setModal({ mode: "edit", data: { ...e } })}
                     className="text-[#7A7A7A] hover:text-[#1B2A5E] p-1.5"
@@ -269,7 +312,8 @@ export default function PersonalManager({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

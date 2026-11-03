@@ -14,6 +14,7 @@ import {
   permOf,
 } from "@/lib/shared-files";
 import { isInTrash } from "@/lib/trash";
+import { listAccess } from "@/lib/access";
 import type { FolderPerms } from "@/components/permisos/PermisosManager";
 
 export const dynamic = "force-dynamic";
@@ -41,10 +42,21 @@ export default async function ConfiguracionAdmin() {
     .filter((e) => e.isDir && !isInTrash(e.path))
     .map((e) => ({ name: e.name, path: e.path }));
 
-  const [shares, employees] = await Promise.all([
+  const [shares, employees, accessEntries] = await Promise.all([
     allFolderShares(),
     employeeDirectory(),
+    listAccess(),
   ]);
+  // Solicitudes de acceso pendientes (p. ej. personas que entraron con Google).
+  const solicitudes = accessEntries
+    .filter((a) => a.estado === "pendiente")
+    .map((a) => ({
+      username: a.username,
+      nombre: a.nombre,
+      email: a.email || a.googleEmail,
+      via: a.via,
+      solicitadoEn: a.solicitadoEn,
+    }));
   const initialPerms: Record<string, FolderPerms> = {};
   for (const f of folders) {
     const s = shares.find((x) => x.path === norm(f.path));
@@ -71,6 +83,7 @@ export default async function ConfiguracionAdmin() {
         folders={folders}
         folderPerms={initialPerms}
         projects={db.projects.map((p) => ({ id: p.id, nombre: p.nombre }))}
+        solicitudes={solicitudes}
       />
       <VincularGoogle />
     </DashboardShell>

@@ -64,6 +64,15 @@ export async function POST(req: Request) {
       { status: 403 },
     );
   }
+  if (decision === "inactive") {
+    return NextResponse.json(
+      {
+        error:
+          "Tu cuenta está desactivada. Contacta a la administración para reactivarla.",
+      },
+      { status: 403 },
+    );
+  }
 
   const role = isAdmin(username) ? "admin" : "empleado";
   const token = await createSessionToken({ username, role, pw: password });
