@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Folder, FileText, Download, Upload, FolderPlus, RefreshCw, Loader2,
   ChevronRight, Home, AlertCircle, FileType, Sheet, Trash2, HardDrive, Link2,
+  RotateCcw,
 } from "lucide-react";
 
 type Entry = {
@@ -41,6 +42,10 @@ export default function DriveWorkspace() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Vista de papelera (de Drive).
+  const [verPapelera, setVerPapelera] = useState(false);
+  const [trashed, setTrashed] = useState<Entry[]>([]);
+  const [loadingTrash, setLoadingTrash] = useState(false);
 
   const folderId = stack.length ? stack[stack.length - 1].id : null;
   const caps = info?.caps;
@@ -172,6 +177,59 @@ export default function DriveWorkspace() {
     }
   }
 
+  // ── Papelera ──
+  async function cargarPapelera() {
+    setLoadingTrash(true); setError("");
+    try {
+      const r = await fetch("/api/drive/trash");
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || "No se pudo leer la papelera."); setTrashed([]); return; }
+      setTrashed(d.entries || []);
+    } catch {
+      setError("Error al leer la papelera.");
+    } finally {
+      setLoadingTrash(false);
+    }
+  }
+  function abrirPapelera() { setVerPapelera(true); setError(""); cargarPapelera(); }
+  function cerrarPapelera() { setVerPapelera(false); setError(""); }
+
+  async function restaurar(e: Entry) {
+    setBusy(true);
+    try {
+      await fetch("/api/drive/restore", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: e.id }),
+      });
+      await cargarPapelera();
+    } finally { setBusy(false); }
+  }
+  async function borrarDef(e: Entry) {
+    if (!window.confirm(`¿Borrar definitivamente "${e.name}"? No se puede recuperar.`)) return;
+    setBusy(true);
+    try {
+      await fetch("/api/drive/delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: e.id }),
+      });
+      await cargarPapelera();
+    } finally { setBusy(false); }
+  }
+  async function vaciarPapelera() {
+    if (trashed.length === 0) return;
+    if (!window.confirm(`¿Vaciar la papelera? Se borrarán definitivamente ${trashed.length} elemento(s).`)) return;
+    setBusy(true);
+    try {
+      for (const e of trashed) {
+        await fetch("/api/drive/delete", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: e.id }),
+        });
+      }
+      await cargarPapelera();
+    } finally { setBusy(false); }
+  }
+
   // ── Estados previos al explorador ──
   if (cargandoInfo) {
     return <p className="flex items-center gap-2 text-sm text-[#7A7A7A]"><Loader2 size={14} className="animate-spin" /> Cargando…</p>;
@@ -217,49 +275,103 @@ export default function DriveWorkspace() {
 
   return (
     <div>
-      {/* Navegación + acciones (según permisos) */}
+      {/* Barra superior: navegación (o papelera) + acciones según permisos */}
       <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
         <div className="flex items-center gap-1 text-sm text-[#7A7A7A] flex-wrap min-w-0">
-          {stack.map((f, i) => (
-            <span key={f.id} className="flex items-center gap-1 min-w-0">
-              {i > 0 && <ChevronRight size={13} className="shrink-0" />}
-              <button onClick={() => irA(i)} className="hover:text-[#1B2A5E] truncate max-w-[180px] flex items-center gap-1">
-                {i === 0 && <Home size={13} className="text-[#C9A84C]" />} {f.name}
-              </button>
+          {verPapelera ? (
+            <span className="flex items-center gap-1 text-[#1B2A5E] font-medium">
+              <Trash2 size={14} className="text-[#C9A84C]" /> Papelera
             </span>
-          ))}
+          ) : (
+            stack.map((f, i) => (
+              <span key={f.id} className="flex items-center gap-1 min-w-0">
+                {i > 0 && <ChevronRight size={13} className="shrink-0" />}
+                <button onClick={() => irA(i)} className="hover:text-[#1B2A5E] truncate max-w-[180px] flex items-center gap-1">
+                  {i === 0 && <Home size={13} className="text-[#C9A84C]" />} {f.name}
+                </button>
+              </span>
+            ))
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={recargar} className="text-[#7A7A7A] hover:text-[#1B2A5E] p-1" title="Actualizar"><RefreshCw size={14} /></button>
-          {caps?.crearCarpeta && (
+          {verPapelera ? (
             <>
-              <button onClick={crearCarpeta} disabled={busy}
-                className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60">
-                <FolderPlus size={13} /> Carpeta
-              </button>
-              <button onClick={() => crearGoogle("document")} disabled={busy}
-                className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60" title="Nuevo Google Doc">
-                <FileType size={13} /> Doc
-              </button>
-              <button onClick={() => crearGoogle("spreadsheet")} disabled={busy}
-                className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60" title="Nueva Hoja de cálculo">
-                <Sheet size={13} /> Hoja
+              {caps?.borrarReal && trashed.length > 0 && (
+                <button onClick={vaciarPapelera} disabled={busy}
+                  className="flex items-center gap-1.5 border border-red-200 text-red-600 px-3 py-1.5 text-xs hover:bg-red-50 disabled:opacity-60">
+                  <Trash2 size={13} /> Vaciar papelera
+                </button>
+              )}
+              <button onClick={cerrarPapelera}
+                className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C]">
+                <Home size={13} /> Volver a la carpeta
               </button>
             </>
-          )}
-          {caps?.subir && (
+          ) : (
             <>
-              <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => subir(e.target.files)} />
-              <button onClick={() => inputRef.current?.click()} disabled={busy}
-                className="flex items-center gap-1.5 bg-[#1B2A5E] text-[#F5F2EC] px-3 py-1.5 text-xs tracking-wider uppercase font-semibold hover:bg-[#243470] disabled:opacity-60">
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Subir
+              <button onClick={recargar} className="text-[#7A7A7A] hover:text-[#1B2A5E] p-1" title="Actualizar"><RefreshCw size={14} /></button>
+              {caps?.crearCarpeta && (
+                <>
+                  <button onClick={crearCarpeta} disabled={busy}
+                    className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60">
+                    <FolderPlus size={13} /> Carpeta
+                  </button>
+                  <button onClick={() => crearGoogle("document")} disabled={busy}
+                    className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60" title="Nuevo Google Doc">
+                    <FileType size={13} /> Doc
+                  </button>
+                  <button onClick={() => crearGoogle("spreadsheet")} disabled={busy}
+                    className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#1B2A5E] hover:border-[#C9A84C] disabled:opacity-60" title="Nueva Hoja de cálculo">
+                    <Sheet size={13} /> Hoja
+                  </button>
+                </>
+              )}
+              {caps?.subir && (
+                <>
+                  <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => subir(e.target.files)} />
+                  <button onClick={() => inputRef.current?.click()} disabled={busy}
+                    className="flex items-center gap-1.5 bg-[#1B2A5E] text-[#F5F2EC] px-3 py-1.5 text-xs tracking-wider uppercase font-semibold hover:bg-[#243470] disabled:opacity-60">
+                    {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Subir
+                  </button>
+                </>
+              )}
+              <button onClick={abrirPapelera}
+                className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-1.5 text-xs text-[#7A7A7A] hover:text-[#1B2A5E] hover:border-[#C9A84C]" title="Ver papelera">
+                <Trash2 size={13} /> Papelera
               </button>
             </>
           )}
         </div>
       </div>
 
-      {loading ? (
+      {verPapelera ? (
+        loadingTrash ? (
+          <p className="text-sm text-[#7A7A7A] flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Cargando…</p>
+        ) : error ? (
+          <p className="text-xs text-red-600">{error}</p>
+        ) : trashed.length === 0 ? (
+          <p className="text-sm text-[#7A7A7A]">La papelera está vacía.</p>
+        ) : (
+          <div className="border border-[#EDE9E0] divide-y divide-[#F5F2EC]">
+            {trashed.map((e) => (
+              <div key={e.id} className="flex items-center gap-3 px-3 py-2 hover:bg-[#F5F2EC]/50">
+                {e.isFolder
+                  ? <Folder size={15} className="text-[#C9A84C] shrink-0" />
+                  : <FileText size={15} className="text-[#7A7A7A] shrink-0" />}
+                <span className="flex-1 min-w-0 text-sm text-[#7A7A7A] truncate line-through decoration-[#C0BDB8]" title={e.name}>{e.name}</span>
+                {caps?.papelera && (
+                  <button onClick={() => restaurar(e)} disabled={busy}
+                    className="text-[#7A7A7A] hover:text-emerald-600 shrink-0 disabled:opacity-50" title="Restaurar"><RotateCcw size={15} /></button>
+                )}
+                {caps?.borrarReal && (
+                  <button onClick={() => borrarDef(e)} disabled={busy}
+                    className="text-[#7A7A7A] hover:text-red-600 shrink-0 disabled:opacity-50" title="Borrar definitivamente"><Trash2 size={15} /></button>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : loading ? (
         <p className="text-sm text-[#7A7A7A] flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Cargando…</p>
       ) : error ? (
         <p className="text-xs text-red-600">{error}</p>

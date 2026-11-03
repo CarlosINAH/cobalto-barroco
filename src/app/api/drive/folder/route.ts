@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { driveAccessToken, driveCreateFolder } from "@/lib/drive";
 import { drivePermsForSession } from "@/lib/drive-perms";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
   if (!name) return NextResponse.json({ error: "Falta el nombre." }, { status: 400 });
   try {
     const entry = await driveCreateFolder(token, name, b.parentId || "root");
+    await registrarMovimiento(s, {
+      accion: "crear", entidad: "carpeta", entidadId: entry.id,
+      descripcion: `Creó la carpeta «${name}»`,
+    });
     return NextResponse.json({ entry });
   } catch {
     return NextResponse.json({ error: "No se pudo crear la carpeta." }, { status: 502 });
