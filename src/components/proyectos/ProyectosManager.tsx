@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Calculator,
@@ -21,6 +21,9 @@ import {
   Eye,
   Pencil,
   Paperclip,
+  HardHat,
+  Save,
+  Check,
 } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
 import CarpetaArchivos from "@/components/proyectos/CarpetaArchivos";
@@ -73,6 +76,7 @@ type SubTab =
   | "balance"
   | "administracion"
   | "participantes"
+  | "cuadrilla"
   | "nomina";
 
 const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
@@ -82,6 +86,7 @@ const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: "balance", label: "Balance", icon: Scale },
   { id: "administracion", label: "Administración", icon: Wallet },
   { id: "participantes", label: "Participantes", icon: UserPlus },
+  { id: "cuadrilla", label: "Cuadrilla", icon: HardHat },
   { id: "nomina", label: "Nómina", icon: Users },
 ];
 
@@ -252,6 +257,7 @@ function ProyectoDetalle({
       {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} alcance={alcance} />}
       {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} catalog={catalog} />}
       {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} />}
+      {tab === "cuadrilla" && <Cuadrilla proyecto={proyecto} budget={budget} empleados={empleados} />}
       {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} empleados={empleados} catalog={catalog} />}
     </div>
   );
@@ -932,6 +938,145 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
         </table>
       </div>
       <p className="text-xs text-[#7A7A7A] mt-2">La tarifa diaria viene del catálogo de salarios según el rol. En Nómina usa «Generar quincena» para crear los pagos de los participantes.</p>
+    </div>
+  );
+}
+
+// ─── Cuadrilla del proyecto (roles ↔ personas) ───────────────────────────────
+// Liga cada rol de la cuadrilla con empleados reales (participantes del
+// proyecto). Los roles se siembran del presupuesto y se pueden añadir a mano.
+function Cuadrilla({ proyecto, budget, empleados }: { proyecto: Project; budget: Budget | null; empleados: EmpleadoLite[] }) {
+  const participantes = empleados.filter((e) => e.proyectoIds.includes(proyecto.id));
+
+  // Roles necesarios según el presupuesto (rol → personas pico entre conceptos).
+  const necesarios = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of budget?.lineas ?? []) {
+      for (const c of l.cuadrilla ?? []) {
+        const r = (c.rol || "").trim();
+        if (!r) continue;
+        m.set(r, Math.max(m.get(r) ?? 0, c.personas || 0));
+      }
+    }
+    return m;
+  }, [budget]);
+
+  // Estado inicial: lo ya guardado + los roles del presupuesto que falten.
+  const [asign, setAsign] = useState<{ rol: string; empleadoIds: string[] }[]>(() => {
+    const base = (proyecto.cuadrillaAsign ?? []).map((r) => ({ rol: r.rol, empleadoIds: [...r.empleadoIds] }));
+    const vistos = new Set(base.map((r) => r.rol.toLowerCase()));
+    for (const rol of necesarios.keys()) {
+      if (!vistos.has(rol.toLowerCase())) base.push({ rol, empleadoIds: [] });
+    }
+    return base;
+  });
+  const [nuevoRol, setNuevoRol] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [guardado, setGuardado] = useState(false);
+
+  const rolesParticipantes = [...new Set(participantes.map((e) => e.rol).filter(Boolean))];
+
+  function toggle(rol: string, empId: string) {
+    setGuardado(false);
+    setAsign((xs) => xs.map((r) => (r.rol !== rol ? r : {
+      ...r,
+      empleadoIds: r.empleadoIds.includes(empId)
+        ? r.empleadoIds.filter((x) => x !== empId)
+        : [...r.empleadoIds, empId],
+    })));
+  }
+  function addRol() {
+    const r = nuevoRol.trim();
+    if (!r) return;
+    if (!asign.some((x) => x.rol.toLowerCase() === r.toLowerCase())) {
+      setAsign((xs) => [...xs, { rol: r, empleadoIds: [] }]);
+      setGuardado(false);
+    }
+    setNuevoRol("");
+  }
+  function removeRol(rol: string) {
+    setAsign((xs) => xs.filter((r) => r.rol !== rol));
+    setGuardado(false);
+  }
+  async function guardar() {
+    setBusy(true); setGuardado(false);
+    const res = await fetch(`/api/projects/${proyecto.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cuadrillaAsign: asign.filter((r) => r.rol.trim()) }),
+    });
+    setBusy(false);
+    if (res.ok) setGuardado(true);
+  }
+
+  return (
+    <div>
+      {participantes.length === 0 && (
+        <div className={`${CARD} p-4 mb-4 text-sm text-[#7A7A7A]`}>
+          Aún no hay participantes en este proyecto. Agrégalos en la pestaña{" "}
+          <span className="text-[#1B2A5E] font-semibold">Participantes</span> y luego asígnalos a la cuadrilla.
+        </div>
+      )}
+
+      {/* Agregar rol a la cuadrilla */}
+      <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
+        <label className="text-xs text-[#7A7A7A] flex flex-col gap-1 flex-1 min-w-[220px]">Agregar rol
+          <input list="roles-cuadrilla" value={nuevoRol} onChange={(e) => setNuevoRol(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addRol(); } }}
+            placeholder="Restaurador, Técnico, Ayudante…" className={INPUT} />
+          <datalist id="roles-cuadrilla">
+            {[...new Set([...necesarios.keys(), ...rolesParticipantes])].map((r) => <option key={r} value={r} />)}
+          </datalist>
+        </label>
+        <button onClick={addRol} disabled={!nuevoRol.trim()} className={BTN_PRIMARY}><Plus size={14} /> Agregar rol</button>
+      </div>
+
+      {asign.length === 0 ? (
+        <div className={`${CARD} py-12 text-center text-sm text-[#7A7A7A]`}>
+          Sin roles en la cuadrilla. Agrega uno arriba, o captura el presupuesto para que se propongan solos.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {asign.map((r) => {
+            const necesita = necesarios.get(r.rol) ?? necesarios.get([...necesarios.keys()].find((k) => k.toLowerCase() === r.rol.toLowerCase()) ?? "");
+            return (
+              <div key={r.rol} className={`${CARD} p-4`}>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <HardHat size={15} className="text-[#C9A84C]" />
+                    <span className="text-[#1B2A5E] font-semibold text-sm">{r.rol}</span>
+                    <span className="text-xs text-[#7A7A7A]">
+                      {r.empleadoIds.length} asignado(s){necesita ? ` · el presupuesto pide ${necesita}` : ""}
+                    </span>
+                  </div>
+                  <button onClick={() => removeRol(r.rol)} title="Quitar rol" className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button>
+                </div>
+                {participantes.length === 0 ? (
+                  <p className="text-xs text-[#7A7A7A]">Sin participantes para asignar.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {participantes.map((e) => {
+                      const on = r.empleadoIds.includes(e.id);
+                      return (
+                        <button key={e.id} type="button" onClick={() => toggle(r.rol, e.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-colors ${on ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "bg-white text-[#2C2C2C] border-[#EDE9E0] hover:border-[#C9A84C]"}`}>
+                          {on && <Check size={12} />}
+                          {e.nombre}{e.rol ? <span className={on ? "text-[#F5F2EC]/60" : "text-[#7A7A7A]"}> · {e.rol}</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mt-4">
+        <button onClick={guardar} disabled={busy} className={BTN_PRIMARY}><Save size={14} /> {busy ? "Guardando…" : "Guardar cuadrilla"}</button>
+        {guardado && <span className="text-xs text-emerald-600 font-semibold">Cuadrilla guardada.</span>}
+      </div>
+      <p className="text-xs text-[#7A7A7A] mt-2">Los roles se proponen desde el presupuesto (cuadrilla de cada concepto). Asigna qué participantes cubren cada rol; esto no cambia los cálculos, es para saber quién trabaja en qué.</p>
     </div>
   );
 }

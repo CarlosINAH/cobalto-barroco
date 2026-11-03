@@ -36,6 +36,20 @@ export async function PATCH(
     if (b.cliente !== undefined) p.cliente = b.cliente.trim() || undefined;
     if (b.tipo !== undefined) p.tipo = b.tipo.trim() || undefined;
     if (b.carpetaInformes !== undefined) p.carpetaInformes = b.carpetaInformes.trim() || undefined;
+    // Cuadrilla del proyecto: por rol, qué empleados lo cubren (operativo, no
+    // monetario: lo puede editar cualquier editor del proyecto).
+    if (b.cuadrillaAsign !== undefined) {
+      p.cuadrillaAsign = Array.isArray(b.cuadrillaAsign)
+        ? b.cuadrillaAsign
+            .filter((r) => r && typeof r.rol === "string" && r.rol.trim())
+            .map((r) => ({
+              rol: r.rol.trim(),
+              empleadoIds: Array.isArray(r.empleadoIds)
+                ? [...new Set(r.empleadoIds.map(String).filter(Boolean))]
+                : [],
+            }))
+        : undefined;
+    }
     // Los montos solo los toca el área de trabajo (admin/total); un editor por
     // proyecto no los ve ni los modifica.
     if (conMontos) {
