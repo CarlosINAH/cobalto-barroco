@@ -12,6 +12,7 @@ import {
   allFolderShares,
   employeeDirectory,
   permOf,
+  withTimeout,
 } from "@/lib/shared-files";
 import { isInTrash } from "@/lib/trash";
 import { listAccess } from "@/lib/access";
@@ -28,16 +29,14 @@ const norm = (p: string) => p.replace(/^\/+/, "").replace(/\/+$/, "");
 export default async function ConfiguracionAdmin() {
   const session = await requireAdmin();
   await seedInitialEmployees();
-  await ensureSharedStructure(credsOf(session));
+  // Con tope de tiempo: un NAS lento o caído no debe bloquear el render de
+  // Configuración (la página carga igual; la gestión de carpetas queda vacía).
+  await withTimeout(ensureSharedStructure(credsOf(session)), 2500, false);
   const db = await getDB();
 
-  // Subcarpetas de "Archivos compartidos" (una sola lectura del NAS).
-  let entries: { name: string; path: string; isDir: boolean }[] = [];
-  try {
-    entries = await listDirectory(credsOf(session), SHARED_ROOT);
-  } catch {
-    /* el NAS puede no responder */
-  }
+  // Subcarpetas de "Archivos compartidos" (una sola lectura del NAS, acotada).
+  const entries: { name: string; path: string; isDir: boolean }[] =
+    await withTimeout(listDirectory(credsOf(session), SHARED_ROOT), 2500, []);
   const folders = entries
     .filter((e) => e.isDir && !isInTrash(e.path))
     .map((e) => ({ name: e.name, path: e.path }));

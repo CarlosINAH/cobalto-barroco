@@ -439,6 +439,19 @@ export async function grantTopFolderVisibility(
   });
 }
 
+/**
+ * Limita cuánto esperamos una promesa (p. ej. una llamada al NAS). Si no
+ * resuelve en `ms`, devuelve `fallback`. Evita que un NAS lento o caído bloquee
+ * el render de una página en el servidor: la página carga igual, en modo
+ * degradado, en vez de quedarse "sin cargar".
+ */
+export function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    p.catch(() => fallback),
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 /** Crea la estructura "Archivos Compartidos/{Archivos,Fotos}" si no existe. */
 export async function ensureSharedStructure(creds: {
   username: string;
