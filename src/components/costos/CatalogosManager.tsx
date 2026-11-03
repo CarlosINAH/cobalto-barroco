@@ -40,10 +40,10 @@ const money = (n: number) => mxn.format(Number.isFinite(n) ? n : 0);
 type Tab = "materiales" | "recetas" | "salarios" | "conceptos";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+  { id: "conceptos", label: "Conceptos", icon: Layers },
   { id: "materiales", label: "Materiales", icon: Package },
   { id: "recetas", label: "Recetas", icon: FlaskConical },
   { id: "salarios", label: "Salarios", icon: Coins },
-  { id: "conceptos", label: "Conceptos", icon: Layers },
 ];
 
 const INPUT =
@@ -67,7 +67,7 @@ export default function CatalogosManager({
   salarios: LaborRate[];
   conceptos: ConceptoView[];
 }) {
-  const [tab, setTab] = useState<Tab>("materiales");
+  const [tab, setTab] = useState<Tab>("conceptos");
 
   return (
     <div>
@@ -568,10 +568,26 @@ function RecetaEditor({
   const [rendUnit, setRendUnit] = useState(parsed.unit || "L");
   const [comps, setComps] = useState<RecipeComponent[]>(receta?.componentes ?? []);
   const [nuevo, setNuevo] = useState({ materialId: "", nombre: "", unidad: "", precio: "", cantidad: "1" });
+  const [pq, setPq] = useState("");
+  const [pcat, setPcat] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const costo = comps.reduce((a, c) => a + c.precio * c.cantidad, 0);
+
+  // Categorías del catálogo para acotar el buscador.
+  const matCats = useMemo(
+    () => [...new Set(materiales.map((m) => m.categoria).filter(Boolean))].sort(),
+    [materiales],
+  );
+  // Opciones del catálogo filtradas por categoría y texto (incluye material,
+  // herramienta y equipo: una receta puede consumir cualquiera).
+  const opciones = useMemo(() => {
+    const nq = pq.trim().toLowerCase();
+    return materiales
+      .filter((m) => (!pcat || m.categoria === pcat) && (!nq || m.nombre.toLowerCase().includes(nq)))
+      .map((m) => ({ id: m.id, label: `${m.nombre}${m.categoria ? " · " + m.categoria : ""} · ${money(m.precio)}` }));
+  }, [materiales, pq, pcat]);
 
   function pickMaterial(id: string) {
     const m = materiales.find((x) => x.id === id);
@@ -641,19 +657,48 @@ function RecetaEditor({
         </table>
       </div>
 
-      {/* Agregar componente: del catálogo o manual */}
-      <div className="grid gap-2 sm:grid-cols-6 items-end mb-5">
-        <select value={nuevo.materialId} onChange={(e) => pickMaterial(e.target.value)} className={INPUT + " sm:col-span-2"}>
-          <option value="">Del catálogo (opcional)…</option>
-          {materiales.map((m) => <option key={m.id} value={m.id}>{m.nombre} · {money(m.precio)}</option>)}
-        </select>
-        <input className={INPUT} placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, materialId: "", nombre: e.target.value })} />
-        <input className={INPUT} placeholder="Unidad" value={nuevo.unidad} onChange={(e) => setNuevo({ ...nuevo, unidad: e.target.value })} />
-        <input className={INPUT} type="number" step="0.01" placeholder="Precio" value={nuevo.precio} onChange={(e) => setNuevo({ ...nuevo, precio: e.target.value })} />
-        <div className="flex gap-2">
-          <input className={INPUT + " w-20"} type="number" step="0.0001" placeholder="Cant." value={nuevo.cantidad} onChange={(e) => setNuevo({ ...nuevo, cantidad: e.target.value })} />
-          <button onClick={addComp} className={BTN_PRIMARY}><Plus size={14} /></button>
+      {/* Agregar componente: busca en el catálogo (lista clicable) o captura manual */}
+      <div className="mb-5">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          {matCats.length > 0 && (
+            <select value={pcat} onChange={(e) => setPcat(e.target.value)} className={INPUT + " w-48"}>
+              <option value="">Todas las categorías</option>
+              {matCats.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+            <input value={pq} onChange={(e) => setPq(e.target.value)} placeholder="Buscar material del catálogo…" className={INPUT + " pl-9 w-full"} />
+          </div>
         </div>
+        {/* Lista filtrada, clicable (como en Conceptos) */}
+        <div className="border border-[#EDE9E0] bg-white max-h-48 overflow-y-auto divide-y divide-[#F5F2EC] mb-2">
+          {opciones.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-[#7A7A7A]">Sin resultados. Cambia la categoría o la búsqueda, o captura el componente a mano abajo.</p>
+          ) : (
+            <>
+              {opciones.slice(0, 80).map((o) => (
+                <button key={o.id} type="button" onClick={() => pickMaterial(o.id)}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${nuevo.materialId === o.id ? "bg-[#1B2A5E]/5 text-[#1B2A5E] font-medium" : "text-[#2C2C2C] hover:bg-[#F5F2EC]/60"}`}>
+                  {o.label}
+                </button>
+              ))}
+              {opciones.length > 80 && (
+                <p className="px-3 py-2 text-[11px] text-[#7A7A7A] bg-[#F5F2EC]/40">Mostrando 80 de {opciones.length}. Filtra por categoría o busca para acotar.</p>
+              )}
+            </>
+          )}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-6 items-end">
+          <input className={INPUT + " sm:col-span-2"} placeholder="Nombre" value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, materialId: "", nombre: e.target.value })} />
+          <input className={INPUT} placeholder="Unidad" value={nuevo.unidad} onChange={(e) => setNuevo({ ...nuevo, unidad: e.target.value })} />
+          <input className={INPUT} type="number" step="0.01" placeholder="Precio" value={nuevo.precio} onChange={(e) => setNuevo({ ...nuevo, precio: e.target.value })} />
+          <div className="flex gap-2">
+            <input className={INPUT + " w-20"} type="number" step="0.0001" placeholder="Cant." value={nuevo.cantidad} onChange={(e) => setNuevo({ ...nuevo, cantidad: e.target.value })} />
+            <button onClick={addComp} className={BTN_PRIMARY}><Plus size={14} /></button>
+          </div>
+        </div>
+        <p className="text-[11px] text-[#7A7A7A] mt-1">Elige un material de la lista (rellena nombre, unidad y precio) o captúralo a mano; ajusta la cantidad y pulsa +.</p>
       </div>
 
       <div className="bg-[#1B2A5E] text-[#F5F2EC] p-4 flex items-center justify-between mb-5">
