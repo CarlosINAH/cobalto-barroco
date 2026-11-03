@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth-server";
 import { getDB, mutate, newId, type CalendarEvent } from "@/lib/db";
+import { notificarEventoNuevo } from "@/lib/reminders";
 
 export const runtime = "nodejs";
 
@@ -89,5 +90,7 @@ export async function POST(req: Request) {
     event.integrantes = canonIntegrantes(b.integrantes, db.employees);
     db.events.push(event);
   });
+  // Avisa por correo a los integrantes (o al equipo) que se creó el evento.
+  await notificarEventoNuevo(event);
   return NextResponse.json({ ok: true, event });
 }
