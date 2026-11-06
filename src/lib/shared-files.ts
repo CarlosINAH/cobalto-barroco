@@ -9,12 +9,12 @@ import {
 import { makeDirectory, makeDirectoryDeep } from "@/lib/webdav";
 
 /**
- * Carpeta raíz compartida entre empleados y administradores.
- * Debe coincidir EXACTO con la carpeta creada en el NAS (/volume1/Archivos compartidos),
- * porque la ruta WebDAV distingue mayúsculas/minúsculas.
+ * Carpeta raíz de proyectos en el NAS. Debe existir en la raíz WebDAV con este
+ * nombre exacto (distingue mayúsculas/minúsculas).
+ * Dentro: una subcarpeta por proyecto; dentro de cada proyecto, "compartido"
+ * es la única carpeta que los empleados pueden ver/subir.
  */
-export const SHARED_ROOT = "Archivos compartidos";
-export const SHARED_SUBDIRS = ["Archivos", "Fotos"] as const;
+export const SHARED_ROOT = "PROYECTOS_COBALTO";
 
 /** ¿La ruta está dentro del área compartida? */
 export function isShared(path: string): boolean {
@@ -452,16 +452,13 @@ export function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<
   ]);
 }
 
-/** Crea la estructura "Archivos Compartidos/{Archivos,Fotos}" si no existe. */
+/** Crea la carpeta raíz PROYECTOS_COBALTO si no existe. */
 export async function ensureSharedStructure(creds: {
   username: string;
   password: string;
 }): Promise<boolean> {
   try {
     await makeDirectory(creds, SHARED_ROOT);
-    for (const sub of SHARED_SUBDIRS) {
-      await makeDirectory(creds, `${SHARED_ROOT}/${sub}`);
-    }
     return true;
   } catch {
     return false;
