@@ -11,10 +11,12 @@ import { makeDirectory, makeDirectoryDeep } from "@/lib/webdav";
 /**
  * Carpeta raíz de proyectos en el NAS. Debe existir en la raíz WebDAV con este
  * nombre exacto (distingue mayúsculas/minúsculas).
+ * Configurable vía NAS_PROJECTS_ROOT; por defecto "proyectos-cobalto".
  * Dentro: una subcarpeta por proyecto; dentro de cada proyecto, "compartido"
  * es la única carpeta que los empleados pueden ver/subir.
  */
-export const SHARED_ROOT = "PROYECTOS_COBALTO";
+export const SHARED_ROOT =
+  process.env.NAS_PROJECTS_ROOT ?? "proyectos-cobalto";
 
 /** ¿La ruta está dentro del área compartida? */
 export function isShared(path: string): boolean {

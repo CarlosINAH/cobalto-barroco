@@ -3,15 +3,16 @@
 import { useState } from "react";
 import { FolderOpen, Folder, ChevronRight, X, Plus, Check, Loader2, CornerLeftUp } from "lucide-react";
 
-// Raíz de proyectos en el NAS (carpeta que debe existir en el WebDAV root).
-const ROOT = "PROYECTOS_COBALTO";
+// Raíz de proyectos en el NAS. Configurable vía NEXT_PUBLIC_NAS_PROJECTS_ROOT.
+const ROOT = process.env.NEXT_PUBLIC_NAS_PROJECTS_ROOT ?? "proyectos-cobalto";
 
 type Entry = { name: string; path: string; isDir: boolean };
 
 /**
- * Selector de carpeta del proyecto: navega dentro de PROYECTOS_COBALTO en el NAS.
- * Al crear una carpeta nueva, también crea "compartido" dentro de ella
- * (los empleados solo ven esa subcarpeta; los admins ven todo).
+ * Selector de carpeta del proyecto: navega dentro de la carpeta raíz del NAS
+ * (proyectos-cobalto por defecto, o NAS_PROJECTS_ROOT). Las carpetas de proyecto
+ * ya existen; el admin las elige y crea "compartido" dentro si no existe aún.
+ * Empleados solo ven esa subcarpeta; admins ven todo el proyecto.
  */
 export default function CarpetaInformesPicker({ projectId, projectNombre, initial }: {
   projectId: string; projectNombre: string; initial: string;
