@@ -14,11 +14,14 @@ function humanSize(n?: number): string {
 }
 
 /**
- * Explorador de archivos de la carpeta de informes del proyecto (estilo Drive):
- * lista los archivos de la carpeta elegida, permite descargarlos/abrirlos y,
- * si `canUpload`, subir nuevos. Reutiliza los endpoints del NAS.
+ * Explorador de archivos de la carpeta del proyecto en el NAS.
+ * `compartidoOnly`: si true, usa la subcarpeta "compartido" (para empleados).
+ * `canUpload`: muestra botón de subir.
  */
-export default function CarpetaArchivos({ path, canUpload = false }: { path: string; canUpload?: boolean }) {
+export default function CarpetaArchivos({ path, canUpload = false, compartidoOnly = false }: {
+  path: string; canUpload?: boolean; compartidoOnly?: boolean;
+}) {
+  const efectivePath = compartidoOnly ? `${path}/compartido` : path;
   const [files, setFiles] = useState<Archivo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -31,7 +34,7 @@ export default function CarpetaArchivos({ path, canUpload = false }: { path: str
     if (mostrarCarga) setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`);
+      const res = await fetch(`/api/files/list?path=${encodeURIComponent(efectivePath)}`);
       if (!res.ok) { setFiles([]); setError("No se pudo abrir la carpeta en el NAS."); return; }
       const d = await res.json();
       setFiles((d.entries || []).filter((e: Archivo) => !e.isDir));
@@ -42,12 +45,11 @@ export default function CarpetaArchivos({ path, canUpload = false }: { path: str
     }
   }
 
-  // Carga inicial / al cambiar de carpeta: sin setState síncrono en el efecto.
   useEffect(() => {
     let vivo = true;
     (async () => {
       try {
-        const res = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`);
+        const res = await fetch(`/api/files/list?path=${encodeURIComponent(efectivePath)}`);
         const d = res.ok ? await res.json() : null;
         if (!vivo) return;
         if (!d) { setFiles([]); setError("No se pudo abrir la carpeta en el NAS."); }
@@ -59,14 +61,14 @@ export default function CarpetaArchivos({ path, canUpload = false }: { path: str
       }
     })();
     return () => { vivo = false; };
-  }, [path]);
+  }, [efectivePath]);
 
   async function subir(lista: FileList | null) {
     if (!lista || lista.length === 0) return;
     setSubiendo(true); setError("");
     try {
       const fd = new FormData();
-      fd.append("path", path);
+      fd.append("path", efectivePath);
       Array.from(lista).forEach((f) => fd.append("files", f));
       const res = await fetch("/api/files/upload", { method: "POST", body: fd });
       if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error || "No se pudieron subir los archivos."); }
@@ -83,7 +85,7 @@ export default function CarpetaArchivos({ path, canUpload = false }: { path: str
     <div className="mt-4 border-t border-[#EDE9E0] pt-4">
       <div className="flex items-center justify-between gap-2 mb-3">
         <span className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-[#1B2A5E] font-semibold">
-          <HardDrive size={14} className="text-[#C9A84C]" /> Archivos de la carpeta
+          <HardDrive size={14} className="text-[#C9A84C]" /> {compartidoOnly ? "Archivos compartidos del proyecto" : "Archivos de la carpeta"}
         </span>
         <div className="flex items-center gap-2">
           <button onClick={() => cargar()} className="text-[#7A7A7A] hover:text-[#1B2A5E] p-1" title="Actualizar"><RefreshCw size={14} /></button>

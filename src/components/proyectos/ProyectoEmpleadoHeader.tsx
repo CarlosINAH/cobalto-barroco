@@ -119,9 +119,9 @@ export default function ProyectoEmpleadoHeader({ proyecto, canEdit }: { proyecto
         </div>
       )}
       {p.carpetaInformes ? (
-        <CarpetaArchivos path={p.carpetaInformes} canUpload={true} />
+        <CarpetaArchivos path={p.carpetaInformes} canUpload={true} compartidoOnly={true} />
       ) : !canEdit ? (
-        <p className="text-xs text-[#7A7A7A] mt-3">Aún no hay carpeta de informes asignada.</p>
+        <p className="text-xs text-[#7A7A7A] mt-3">Aún no hay carpeta de archivos asignada.</p>
       ) : null}
     </div>
   );
