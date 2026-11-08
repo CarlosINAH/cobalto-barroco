@@ -4,13 +4,13 @@ import { useState } from "react";
 import { FolderOpen, Folder, ChevronRight, X, Plus, Check, Loader2, CornerLeftUp } from "lucide-react";
 
 // Raíz de proyectos en el NAS. Configurable vía NEXT_PUBLIC_NAS_PROJECTS_ROOT.
-const ROOT = process.env.NEXT_PUBLIC_NAS_PROJECTS_ROOT ?? "proyectos-cobalto";
+const ROOT = process.env.NEXT_PUBLIC_NAS_PROJECTS_ROOT ?? "Archivos compartidos/PROYECTOS_COBALTO";
 
 type Entry = { name: string; path: string; isDir: boolean };
 
 /**
  * Selector de carpeta del proyecto: navega dentro de la carpeta raíz del NAS
- * (proyectos-cobalto por defecto, o NAS_PROJECTS_ROOT). Las carpetas de proyecto
+ * ("Archivos compartidos/PROYECTOS_COBALTO" por defecto, o NAS_PROJECTS_ROOT). Las carpetas de proyecto
  * ya existen; el admin las elige y crea "compartido" dentro si no existe aún.
  * Empleados solo ven esa subcarpeta; admins ven todo el proyecto.
  */
