@@ -19,7 +19,12 @@ export default async function ProyectosEmpleado() {
     (e) => e.username.toLowerCase() === session.username.toLowerCase(),
   );
   const misIds = emp?.proyectoIds?.length ? emp.proyectoIds : emp?.proyectoId ? [emp.proyectoId] : [];
-  const visibles = session.role === "admin" ? db.projects : db.projects.filter((p) => misIds.includes(p.id));
+  // Un empleado solo ve proyectos asignados QUE YA TENGAN carpeta del NAS
+  // asignada; sin carpeta, el proyecto está "inactivo" y se le oculta.
+  const visibles =
+    session.role === "admin"
+      ? db.projects
+      : db.projects.filter((p) => misIds.includes(p.id) && p.carpetaInformes);
   // Solo campos no sensibles (sin montos).
   const proyectos = visibles.map((p) => ({
     id: p.id,

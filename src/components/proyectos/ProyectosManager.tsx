@@ -171,10 +171,18 @@ export default function ProyectosManager({
           {visibles.map((p) => {
             const est = ESTADO[p.estado] ?? ESTADO.activo;
             const tiene = budgets.some((b) => b.projectId === p.id);
+            const sinCarpeta = !p.carpetaInformes;
             return (
-              <button key={p.id} onClick={() => setSelId(p.id)} className={`${CARD} p-5 text-left hover:border-[#C9A84C]/60 transition-colors group`}>
+              <button key={p.id} onClick={() => setSelId(p.id)} className={`${CARD} p-5 text-left hover:border-[#C9A84C]/60 transition-colors group ${sinCarpeta ? "opacity-70" : ""}`}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className={`text-xs px-2 py-0.5 border ${est.cls}`}>{est.label}</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-xs px-2 py-0.5 border ${est.cls}`}>{est.label}</span>
+                    {sinCarpeta && (
+                      <span className="text-xs px-2 py-0.5 border bg-amber-50 text-amber-700 border-amber-200" title="Asígnale una carpeta del NAS para activarlo y que lo vean los empleados">
+                        Inactivo · sin carpeta
+                      </span>
+                    )}
+                  </div>
                   <ArrowRight size={14} className="text-[#EDE9E0] group-hover:text-[#C9A84C]" />
                 </div>
                 <h3 className="text-[#1B2A5E] text-lg leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>{p.nombre}</h3>

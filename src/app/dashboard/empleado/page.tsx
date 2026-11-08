@@ -25,7 +25,11 @@ export default async function PanelGeneralEmpleado() {
     : emp?.proyectoId
       ? [emp.proyectoId]
       : [];
-  const misProyectos = db.projects.filter((p) => misIds.includes(p.id));
+  // Sin carpeta del NAS asignada, el proyecto está "inactivo" y se oculta al
+  // empleado (el admin lo ve siempre).
+  const misProyectos = db.projects.filter(
+    (p) => misIds.includes(p.id) && (session.role === "admin" || !!p.carpetaInformes),
+  );
 
   const accesos = [
     { label: "Nube", href: "/dashboard/empleado/repositorio", icon: HardDrive },
