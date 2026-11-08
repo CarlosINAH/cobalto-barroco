@@ -1,18 +1,21 @@
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import DriveWorkspace from "@/components/drive/DriveWorkspace";
+import NasArchivos from "@/components/nas/NasArchivos";
 import { requireSession } from "@/lib/auth-server";
+import { sessionProjectFolders } from "@/lib/shared-files";
 
 export const dynamic = "force-dynamic";
 
-/** Archivos del equipo: la carpeta única de trabajo en el Drive central. */
+/**
+ * Archivos para empleados: carpetas compartidas de sus proyectos asignados.
+ * Solo ven la subcarpeta "compartido" de cada proyecto.
+ */
 export default async function ArchivosEmpleado() {
-  await requireSession();
+  const session = await requireSession();
+  const proyectos = await sessionProjectFolders(session);
+  const role = session.role === "admin" ? "admin" : "empleado";
   return (
     <DashboardShell role="empleado" title="Archivos">
-      <p className="text-[#7A7A7A] text-sm mb-4">
-        Carpeta de trabajo del equipo (Google Drive). Lo que puedes hacer depende de tu rol.
-      </p>
-      <DriveWorkspace />
+      <NasArchivos role={role} proyectos={proyectos} />
     </DashboardShell>
   );
 }

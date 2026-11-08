@@ -143,44 +143,6 @@ export interface EmployeeAcciones {
   borrar: boolean;
 }
 
-/**
- * Nivel de permiso de un usuario sobre una carpeta compartida (estilo Windows):
- * - total: ver, escribir y gestionar permisos de la carpeta.
- * - escritura: ver, descargar, subir y modificar.
- * - lectura: solo ver y descargar.
- * - none: sin acceso (la carpeta queda oculta para esa persona).
- */
-export type FolderPermLevel = "total" | "escritura" | "lectura" | "none";
-
-/**
- * Compartición de una carpeta dentro de "Archivos compartidos".
- * Por defecto las carpetas son visibles para todos; se crea un registro solo
- * cuando alguien la RESTRINGE (o al crearla, para saber el dueño).
- */
-export interface FolderShare {
-  /** Ruta WebDAV de la carpeta (dentro de SHARED_ROOT). */
-  path: string;
-  /** Usuario que la creó/comparte (dueño, siempre con acceso total). */
-  sharedBy: string;
-  /**
-   * Modelo antiguo (compat): null = visible para todos; array = solo esos.
-   * Si `perms` está definido, manda `perms` y este campo se ignora.
-   */
-  allowed: string[] | null;
-  /** Nivel por usuario (username en minúsculas). Modelo nuevo estilo Windows. */
-  perms?: Record<string, FolderPermLevel>;
-  /** Nivel para "Todos los demás" (quienes no estén en `perms`). */
-  defaultPerm?: FolderPermLevel;
-  /**
-   * ¿La carpeta se oculta a quien no tiene acceso? (el "ojito").
-   * true (por defecto) = quien no puede entrar tampoco la ve.
-   * false = quien no puede entrar la ve en gris con candado, pero no entra.
-   */
-  hidden?: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
 /** Proveedor de la empresa. */
 export interface Supplier {
   id: string;
@@ -724,7 +686,6 @@ export interface DBShape {
   inquiries: Inquiry[];
   sharedFiles: SharedFileMeta[];
   suppliers: Supplier[];
-  folderShares: FolderShare[];
   access: AccessEntry[];
   trash: TrashEntry[];
   events: CalendarEvent[];
@@ -770,7 +731,6 @@ const EMPTY: DBShape = {
   inquiries: [],
   sharedFiles: [],
   suppliers: [],
-  folderShares: [],
   access: [],
   trash: [],
   events: [],
