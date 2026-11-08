@@ -54,6 +54,12 @@ export default function CarpetaInformesPicker({ projectId, projectNombre, initia
 
   async function guardar(path: string) {
     setBusy(true);
+    // Asegura la subcarpeta "compartido" dentro de la carpeta del proyecto
+    // (es la única que ven los empleados). Si ya existe, el NAS la ignora.
+    await fetch("/api/files/folder", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, name: "compartido" }),
+    }).catch(() => {});
     const res = await fetch(`/api/projects/${projectId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ carpetaInformes: path }),
