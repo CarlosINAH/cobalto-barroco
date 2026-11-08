@@ -22,8 +22,13 @@ export default async function EmpleadoProyectoDetalle({ params }: { params: Prom
   const misIds = emp?.proyectoIds?.length ? emp.proyectoIds : emp?.proyectoId ? [emp.proyectoId] : [];
 
   const proyecto = db.projects.find((p) => p.id === id);
-  // Solo si participa (o es admin).
-  if (!proyecto || (session.role !== "admin" && !misIds.includes(id))) redirect("/dashboard/empleado");
+  // Solo si participa (o es admin). Para empleados, además el proyecto debe
+  // tener carpeta del NAS asignada; sin carpeta está "inactivo" y se oculta.
+  if (
+    !proyecto ||
+    (session.role !== "admin" && (!misIds.includes(id) || !proyecto.carpetaInformes))
+  )
+    redirect("/dashboard/empleado");
 
   const budget = db.budgets.find((b) => b.projectId === id) || null;
   const equipo = db.employees
