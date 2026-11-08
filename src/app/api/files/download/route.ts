@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, credsForPath } from "@/lib/auth-server";
 import { downloadFile } from "@/lib/webdav";
+import { canAccessNasPath } from "@/lib/shared-files";
 import { canDoFileAction } from "@/lib/access";
 
 export const runtime = "nodejs";
@@ -47,6 +48,14 @@ export async function GET(req: Request) {
   const inline = searchParams.get("inline") === "1";
   if (!relPath) {
     return NextResponse.json({ error: "Ruta inválida." }, { status: 400 });
+  }
+
+  // Acceso: el empleado solo descarga dentro del "compartido" de sus proyectos.
+  if (!(await canAccessNasPath(session, relPath))) {
+    return NextResponse.json(
+      { error: "No tienes acceso a este archivo." },
+      { status: 403 },
+    );
   }
 
   // Autorización global (matriz del Excel): sin permiso de "descargar" no se

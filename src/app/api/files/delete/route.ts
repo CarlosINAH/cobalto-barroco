@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, credsForPath } from "@/lib/auth-server";
-import { isShared, canWriteSharedPath } from "@/lib/shared-files";
+import { canAccessNasPath } from "@/lib/shared-files";
 import { trashItem } from "@/lib/trash";
 import { canDoFileAction } from "@/lib/access";
 
@@ -35,11 +35,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // En el área compartida, enviar a la papelera requiere escritura.
-  if (
-    isShared(body.path) &&
-    !(await canWriteSharedPath(session.username, session.role, body.path))
-  ) {
+  // Acceso: el empleado solo elimina dentro del "compartido" de sus proyectos.
+  if (!(await canAccessNasPath(session, body.path))) {
     return NextResponse.json(
       { error: "No tienes permiso para eliminar en esta carpeta." },
       { status: 403 },

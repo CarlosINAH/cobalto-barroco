@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession, credsForPath } from "@/lib/auth-server";
 import { listDirectory, type WebDavEntry } from "@/lib/webdav";
-import {
-  isShared,
-  sharedGoverningFolder,
-  metaForPaths,
-  allFolderShares,
-  canSeeWith,
-  canWriteWith,
-  canManageWith,
-  isRestrictedWith,
-  hiddenWith,
-  folderMetaWith,
-} from "@/lib/shared-files";
+import { isShared, metaForPaths, canAccessNasPath } from "@/lib/shared-files";
+import { canDoFileAction } from "@/lib/access";
 import { isInTrash } from "@/lib/trash";
 
 export const runtime = "nodejs";
@@ -24,30 +14,20 @@ export async function GET(req: Request) {
   }
   const { searchParams } = new URL(req.url);
   const relPath = searchParams.get("path") || "";
-  const isEmployee = session.role !== "admin";
   const inShared = isShared(relPath);
 
   // La papelera no se navega desde el explorador (tiene su propia pestaña).
   if (isInTrash(relPath)) {
-    return NextResponse.json(
-      { error: "No disponible." },
-      { status: 403 },
-    );
+    return NextResponse.json({ error: "No disponible." }, { status: 403 });
   }
 
-  // Cargar comparticiones una sola vez (para filtrar/anotar sin N lecturas).
-  const shares = inShared ? await allFolderShares() : [];
-
-  // Acceso a la carpeta solicitada: lo gobiernan los permisos por carpeta
-  // (estilo Windows), que se aplican a la carpeta de primer nivel y se heredan.
-  if (inShared && isEmployee) {
-    const gov = sharedGoverningFolder(relPath);
-    if (gov && !canSeeWith(shares, session.username, session.role, gov)) {
-      return NextResponse.json(
-        { error: "No tienes acceso a esa carpeta." },
-        { status: 403 },
-      );
-    }
+  // Acceso: el admin ve todo; un empleado solo dentro del "compartido" de sus
+  // proyectos asignados. El acceso a un proyecto se decide por asignación.
+  if (!(await canAccessNasPath(session, relPath))) {
+    return NextResponse.json(
+      { error: "No tienes acceso a esa carpeta." },
+      { status: 403 },
+    );
   }
 
   try {
@@ -55,16 +35,6 @@ export async function GET(req: Request) {
 
     // La carpeta de papelera no se muestra en el explorador compartido.
     if (inShared) entries = entries.filter((e) => !isInTrash(e.path));
-
-    // Filtrado para empleados: una carpeta sin acceso se OCULTA, salvo que su
-    // "ojito" la deje visible (se mostrará en gris con candado, sin poder entrar).
-    if (inShared && isEmployee) {
-      entries = entries.filter((e) => {
-        if (!e.isDir) return true;
-        if (canSeeWith(shares, session.username, session.role, e.path)) return true;
-        return !hiddenWith(shares, e.path);
-      });
-    }
 
     // Metadatos de archivos (autor/fecha) desde nuestra DB.
     const meta = inShared
@@ -75,42 +45,19 @@ export async function GET(req: Request) {
 
     const mapped = entries.map((e) => {
       const m = meta[e.path];
-      // Para carpetas compartidas, el autor/fecha vienen del registro de share.
-      const fm = inShared && e.isDir ? folderMetaWith(shares, e.path) : null;
-      // Carpeta visible pero sin acceso (candado): empleado que no puede entrar
-      // a una carpeta que su "ojito" deja a la vista.
-      const noAccess =
-        inShared && isEmployee && e.isDir
-          ? !canSeeWith(shares, session.username, session.role, e.path)
-          : false;
       return {
         name: e.name,
         path: e.path,
         isDir: e.isDir,
         size: e.size,
         modified: e.modified ? Date.parse(e.modified) || 0 : 0,
-        subidoPor: m?.subidoPor ?? fm?.sharedBy ?? null,
-        subidoEn: m?.subidoEn ?? fm?.createdAt ?? null,
-        // Sharing (solo carpetas en el área compartida).
-        restricted: inShared && e.isDir ? isRestrictedWith(shares, e.path) : false,
-        noAccess,
-        canManage:
-          inShared && e.isDir
-            ? canManageWith(shares, session.username, session.role, e.path)
-            : false,
+        subidoPor: m?.subidoPor ?? null,
+        subidoEn: m?.subidoEn ?? null,
       };
     });
-    // ¿Puede escribir en la carpeta actual? (oculta "Subir/Carpeta" si no).
-    const govHere = sharedGoverningFolder(relPath);
-    const canWrite =
-      !inShared
-        ? true
-        : canWriteWith(
-            shares,
-            session.username,
-            session.role,
-            govHere ?? relPath,
-          );
+
+    // ¿Puede subir/crear en la carpeta actual? (matriz global de acciones).
+    const canWrite = await canDoFileAction(session.username, session.role, "subir");
 
     return NextResponse.json({
       path: relPath,

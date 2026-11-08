@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, credsForPath } from "@/lib/auth-server";
 import { makeDirectoryDeep } from "@/lib/webdav";
-import { isShared, recordFolderCreated, canWriteSharedPath } from "@/lib/shared-files";
+import { canAccessNasPath } from "@/lib/shared-files";
 import { canDoFileAction } from "@/lib/access";
 
 export const runtime = "nodejs";
@@ -42,11 +42,9 @@ export async function POST(req: Request) {
   }
   const target = body.path ? `${body.path}/${name}` : name;
 
-  // En el área compartida, crear subcarpetas requiere escritura o acceso total.
-  if (
-    isShared(target) &&
-    !(await canWriteSharedPath(session.username, session.role, body.path || ""))
-  ) {
+  // Acceso: el empleado solo crea carpetas dentro del "compartido" de sus
+  // proyectos asignados; el admin, en cualquier parte.
+  if (!(await canAccessNasPath(session, body.path || ""))) {
     return NextResponse.json(
       { error: "No tienes permiso de escritura en esta carpeta." },
       { status: 403 },
@@ -56,9 +54,6 @@ export async function POST(req: Request) {
   try {
     const ok = await makeDirectoryDeep(credsForPath(session, target), target);
     if (!ok) throw new Error("mkcol");
-    if (isShared(target)) {
-      await recordFolderCreated(target, session.username);
-    }
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(
