@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
 import CarpetaArchivos from "@/components/proyectos/CarpetaArchivos";
+import ProyectoActividad from "@/components/proyectos/ProyectoActividad";
 import type {
   Project,
   Budget,
@@ -77,7 +78,8 @@ type SubTab =
   | "administracion"
   | "participantes"
   | "cuadrilla"
-  | "nomina";
+  | "nomina"
+  | "actividad";
 
 const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: "presupuesto", label: "Presupuesto", icon: Calculator },
@@ -88,6 +90,7 @@ const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: "participantes", label: "Participantes", icon: UserPlus },
   { id: "cuadrilla", label: "Cuadrilla", icon: HardHat },
   { id: "nomina", label: "Nómina", icon: Users },
+  { id: "actividad", label: "Actividad", icon: Clock },
 ];
 
 const ESTADO: Record<Project["estado"], { label: string; cls: string }> = {
@@ -267,6 +270,7 @@ function ProyectoDetalle({
       {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} />}
       {tab === "cuadrilla" && <Cuadrilla proyecto={proyecto} budget={budget} empleados={empleados} />}
       {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} empleados={empleados} catalog={catalog} />}
+      {tab === "actividad" && <ProyectoActividad projectId={proyecto.id} />}
     </div>
   );
 }
