@@ -59,13 +59,13 @@ export async function GET(req: Request) {
     }
     if (!tokens.refresh_token) {
       // Google no devolvió refresh token (p. ej. ya se había concedido antes).
-      return NextResponse.redirect(`${base}/dashboard/admin/drive?dconn=norefresh`);
+      return NextResponse.redirect(`${base}/dashboard/admin/calendario?dconn=norefresh`);
     }
     const refreshTokenEnc = await encryptSecret(tokens.refresh_token);
     await mutate((d) => {
       d.googleDrive = { refreshTokenEnc, email, connectedAt: Date.now() };
     });
-    return NextResponse.redirect(`${base}/dashboard/admin/drive?dconn=ok`);
+    return NextResponse.redirect(`${base}/dashboard/admin/calendario?dconn=ok`);
   }
 
   // ── Vincular Google a la cuenta ya iniciada ──
