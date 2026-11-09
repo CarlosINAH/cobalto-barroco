@@ -89,6 +89,26 @@ export async function canAccessNasPath(
 }
 
 /**
+ * Proyecto al que pertenece una ruta del NAS (aquel cuya `carpetaInformes`
+ * contiene la ruta; el más específico si hay anidados). null si no está dentro
+ * de ninguna carpeta de proyecto. Para etiquetar movimientos de archivos.
+ */
+export async function projectIdForPath(rawPath: string): Promise<string | null> {
+  const path = normalize(rawPath);
+  if (!path) return null;
+  const db = await getDB();
+  let best: { id: string; len: number } | null = null;
+  for (const p of db.projects) {
+    if (!p.carpetaInformes) continue;
+    const c = normalize(p.carpetaInformes);
+    if (path === c || path.startsWith(c + "/")) {
+      if (!best || c.length > best.len) best = { id: p.id, len: c.length };
+    }
+  }
+  return best?.id ?? null;
+}
+
+/**
  * Registra que un archivo se subió o modificó a través de la plataforma.
  * Si es la primera vez, guarda al autor original y la fecha de subida.
  */

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSession, credsForPath } from "@/lib/auth-server";
-import { canAccessNasPath } from "@/lib/shared-files";
+import { isShared, canAccessNasPath, projectIdForPath } from "@/lib/shared-files";
 import { trashItem } from "@/lib/trash";
 import { canDoFileAction } from "@/lib/access";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -52,5 +53,18 @@ export async function POST(req: Request) {
   if (!res.ok) {
     return NextResponse.json({ error: res.error }, { status: 403 });
   }
+
+  // Bitácora: registra el envío a la papelera (best-effort).
+  if (isShared(body.path)) {
+    const projectId = await projectIdForPath(body.path);
+    const nombre = body.path.split("/").filter(Boolean).pop() || "un elemento";
+    await registrarMovimiento(session, {
+      accion: "eliminó",
+      entidad: body.isDir ? "carpeta" : "archivo",
+      descripcion: `Envió a la papelera "${nombre}"`,
+      projectId,
+    });
+  }
+
   return NextResponse.json({ ok: true });
 }
