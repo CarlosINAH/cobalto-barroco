@@ -276,7 +276,7 @@ function ProyectoDetalle({
       {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} />}
       {tab === "cronograma" && <Cronograma budget={budget} conceptosCatalogo={catalog.conceptos} onChange={setBudget} />}
       {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} alcance={alcance} />}
-      {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} catalog={catalog} />}
+      {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} />}
       {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} />}
       {tab === "cuadrilla" && <Cuadrilla proyecto={proyecto} budget={budget} empleados={empleados} />}
       {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} empleados={empleados} catalog={catalog} />}
@@ -715,7 +715,7 @@ function Stat({ label, val }: { label: string; val: string }) {
 const CATEGORIAS = ["anticipo", "finiquito", "pago", "mano de obra", "material", "herramienta", "equipo", "viáticos", "indirectos", "impuestos", "otro"];
 const COMPROBANTES_DIR = "Archivos compartidos/COMPROBANTES";
 
-function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[]; catalog: CatalogProps }) {
+function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[] }) {
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ fecha: new Date().toISOString().slice(0, 10), categoria: "anticipo", tipo: "ingreso" as LedgerEntry["tipo"], concepto: "", monto: "" });
@@ -723,17 +723,7 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
   const fileRef = useRef<HTMLInputElement>(null);
   const [verCat, setVerCat] = useState(""); // filtro de la tabla por categoría
 
-  // Enlace con el catálogo: en Administración solo se jalan CONCEPTOS (los
-  // materiales/recetas/personal se arman en Presupuesto). El campo Concepto
-  // ofrece los conceptos del catálogo; al elegir uno, prellena el monto con su
-  // P.U. (que ya incluye indirectos y utilidad). En cuanto se den de alta
-  // conceptos en el catálogo, aparecen aquí automáticamente.
-  const conceptoLabel = (c: (typeof catalog.conceptos)[number]) =>
-    [c.clave, c.concepto || c.descripcion].filter(Boolean).join(" · ");
-  function onConceptoChange(v: string) {
-    const hit = catalog.conceptos.find((c) => conceptoLabel(c) === v);
-    setF((prev) => (hit ? { ...prev, concepto: v, tipo: "egreso", monto: String(hit.pu) } : { ...prev, concepto: v }));
-  }
+  // El concepto se captura a mano (en mayúsculas), sin desplegable del catálogo.
 
   // Sube el comprobante (factura/nota) a la carpeta compartida de COMPROBANTES,
   // con el id del movimiento como prefijo para que no colisione.
@@ -794,17 +784,14 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
       </div>
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
         <input type="date" value={f.fecha} onChange={(e) => setF({ ...f, fecha: e.target.value })} className={INPUT} />
-        <select value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} className={INPUT}>
-          {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
+        <select value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} className={INPUT + " uppercase"}>
+          {CATEGORIAS.map((c) => <option key={c} value={c}>{c.toUpperCase()}</option>)}
         </select>
-        <select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value as LedgerEntry["tipo"] })} className={INPUT}>
-          <option value="ingreso">Ingreso</option>
-          <option value="egreso">Egreso</option>
+        <select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value as LedgerEntry["tipo"] })} className={INPUT + " uppercase"}>
+          <option value="ingreso">INGRESO</option>
+          <option value="egreso">EGRESO</option>
         </select>
-        <input placeholder="Concepto (elige del catálogo o escribe)" list="admin-conceptos" value={f.concepto} onChange={(e) => onConceptoChange(e.target.value)} className={INPUT + " flex-1 min-w-[160px]"} />
-        <datalist id="admin-conceptos">
-          {catalog.conceptos.map((c) => <option key={c.id} value={conceptoLabel(c)}>{money(c.pu)}</option>)}
-        </datalist>
+        <input placeholder="CONCEPTO (a mano)" value={f.concepto} onChange={(e) => setF({ ...f, concepto: e.target.value.toUpperCase() })} className={INPUT + " flex-1 min-w-[160px] uppercase"} />
         <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
         <label className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-2 text-xs text-[#7A7A7A] cursor-pointer hover:border-[#C9A84C] whitespace-nowrap" title="Adjuntar factura o nota (opcional)">
           <Paperclip size={13} /> {file ? file.name : "Comprobante"}
@@ -852,7 +839,7 @@ function Administracion({ proyecto, budget, inicial, catalog }: { proyecto: Proj
                 {visibles.map((e) => (
                   <tr key={e.id} className="border-b border-[#F5F2EC]">
                     <td className="px-3 py-2 data-label text-[#7A7A7A]">{e.fecha}</td>
-                    <td className="px-3 py-2 text-[#7A7A7A]">{e.categoria}</td>
+                    <td className="px-3 py-2 text-[#7A7A7A] uppercase">{e.categoria}</td>
                     <td className="px-3 py-2 text-[#2C2C2C]">
                       {e.concepto || "—"}
                       {e.comprobante && (
