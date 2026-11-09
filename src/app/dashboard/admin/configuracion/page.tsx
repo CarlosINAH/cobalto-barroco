@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 /**
  * Centro de configuración (solo admin): perfiles y accesos por persona,
  * solicitudes de acceso y alta de empleados. Los permisos de Archivos los fija
- * el perfil (ver lib/drive-perms); ya no se gestionan carpetas del NAS aquí.
+ * el perfil; el acceso a cada proyecto se controla por asignación de carpeta.
  */
 export default async function ConfiguracionAdmin() {
   await requireAdmin();

@@ -21,9 +21,9 @@ const SECCIONES: { id: SeccionSistema; label: string }[] = [
   { id: "cv", label: "Currículum" },
 ];
 
-// Qué puede hacer cada perfil en Archivos (Drive). Es informativo: se decide por
-// el perfil, no carpeta por carpeta. Refleja lib/drive-perms.
-const JERARQUIA_DRIVE: { perfil: string; permisos: string }[] = [
+// Qué puede hacer cada perfil con los archivos del NAS. Es informativo: se
+// decide por el perfil (acción global de subir/descargar/borrar), no por carpeta.
+const JERARQUIA_ARCHIVOS: { perfil: string; permisos: string }[] = [
   { perfil: "Administración", permisos: "Ver · Subir · Crear carpetas · Borrar de verdad (papelera y vaciar)" },
   { perfil: "Superintendente", permisos: "Ver · Subir · Crear carpetas · Mandar a papelera" },
   { perfil: "Residente", permisos: "Ver · Subir · Crear carpetas · Mandar a papelera" },
@@ -79,20 +79,21 @@ export default function AccesosManager({
 
   return (
     <div className="space-y-5">
-      {/* Leyenda: jerarquía de permisos sobre la carpeta de Archivos (Drive) */}
+      {/* Leyenda: qué puede hacer cada perfil con los archivos del NAS */}
       <div className="bg-white border border-[#EDE9E0] p-5">
         <div className="flex items-center gap-2 mb-1 text-[#1B2A5E]">
           <HardDrive size={16} className="text-[#C9A84C]" />
           <h3 className="font-semibold">Permisos de Archivos (según el perfil)</h3>
         </div>
         <p className="text-[#7A7A7A] text-xs mb-3">
-          Todos ven y suben a la carpeta del equipo en Drive. Lo que cambia es crear
-          carpetas y borrar: lo decide el <strong>perfil</strong> de cada persona.
+          Los empleados ven y suben a la carpeta <strong>compartido</strong> de sus
+          proyectos. Lo que cambia es crear carpetas y borrar: lo decide el{" "}
+          <strong>perfil</strong> de cada persona.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody className="divide-y divide-[#F5F2EC]">
-              {JERARQUIA_DRIVE.map((r) => (
+              {JERARQUIA_ARCHIVOS.map((r) => (
                 <tr key={r.perfil}>
                   <td className="px-2 py-1.5 font-semibold text-[#1B2A5E] whitespace-nowrap">{r.perfil}</td>
                   <td className="px-2 py-1.5 text-[#7A7A7A]">{r.permisos}</td>
