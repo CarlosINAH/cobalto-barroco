@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSession, credsForPath } from "@/lib/auth-server";
 import { makeDirectoryDeep } from "@/lib/webdav";
-import { canAccessNasPath } from "@/lib/shared-files";
+import { isShared, canAccessNasPath, projectIdForPath } from "@/lib/shared-files";
 import { canDoFileAction } from "@/lib/access";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,16 @@ export async function POST(req: Request) {
   try {
     const ok = await makeDirectoryDeep(credsForPath(session, target), target);
     if (!ok) throw new Error("mkcol");
+    // Bitácora: registra la carpeta creada (best-effort).
+    if (isShared(target)) {
+      const projectId = await projectIdForPath(target);
+      await registrarMovimiento(session, {
+        accion: "creó",
+        entidad: "carpeta",
+        descripcion: `Creó la carpeta "${name}"`,
+        projectId,
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(

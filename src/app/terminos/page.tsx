@@ -44,7 +44,7 @@ export default function TerminosPage() {
           </section>
           <section>
             <h2 className="text-[#1B2A5E] font-semibold mb-1">6. Disponibilidad y responsabilidad</h2>
-            <p>La plataforma se ofrece "tal cual", sin garantías de disponibilidad ininterrumpida. La organización no será responsable por pérdidas derivadas de un uso indebido o de interrupciones del servicio.</p>
+            <p>La plataforma se ofrece &ldquo;tal cual&rdquo;, sin garantías de disponibilidad ininterrumpida. La organización no será responsable por pérdidas derivadas de un uso indebido o de interrupciones del servicio.</p>
           </section>
           <section>
             <h2 className="text-[#1B2A5E] font-semibold mb-1">7. Cambios</h2>

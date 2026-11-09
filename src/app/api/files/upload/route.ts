@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSession, credsForPath } from "@/lib/auth-server";
 import { uploadFile } from "@/lib/webdav";
-import { isShared, recordFileEvent, canAccessNasPath } from "@/lib/shared-files";
+import { isShared, recordFileEvent, canAccessNasPath, projectIdForPath } from "@/lib/shared-files";
 import { canDoFileAction } from "@/lib/access";
+import { registrarMovimiento } from "@/lib/bitacora";
 
 export const runtime = "nodejs";
 
@@ -78,5 +79,22 @@ export async function POST(req: Request) {
     const code = lastStatus === 507 || lastStatus === 413 ? lastStatus : 403;
     return NextResponse.json({ error: msg }, { status: code });
   }
+
+  // Bitácora: registra la subida (quién, qué, en qué proyecto). Best-effort.
+  if (isShared(dir)) {
+    const projectId = await projectIdForPath(dir);
+    const carpeta = dir.split("/").pop() || "la carpeta";
+    const detalle =
+      ok === 1 && files.length === 1
+        ? `Subió "${files[0].name}" a ${carpeta}`
+        : `Subió ${ok} archivo(s) a ${carpeta}`;
+    await registrarMovimiento(session, {
+      accion: "subió",
+      entidad: "archivo",
+      descripcion: detalle,
+      projectId,
+    });
+  }
+
   return NextResponse.json({ ok: true, count: ok });
 }
