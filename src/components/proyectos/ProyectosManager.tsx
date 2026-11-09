@@ -865,7 +865,6 @@ function tarifaDiaria(rol: string, salarios: CatalogProps["salarios"]): number |
 
 function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; empleados: EmpleadoLite[]; catalog: CatalogProps }) {
   const [emps, setEmps] = useState<EmpleadoLite[]>(empleados);
-  const [sel, setSel] = useState("");
   const [busy, setBusy] = useState(false);
 
   const participa = (e: EmpleadoLite) => e.proyectoIds.includes(proyecto.id);
@@ -883,11 +882,9 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
     setBusy(false);
     if (res.ok) setEmps((xs) => xs.map((x) => (x.id === emp.id ? { ...x, ...body } : x)));
   }
-  function agregar() {
-    const emp = emps.find((e) => e.id === sel);
-    if (!emp || participa(emp)) return;
+  function agregar(emp: EmpleadoLite) {
+    if (participa(emp)) return;
     patchEmp(emp, { proyectoIds: [...emp.proyectoIds, proyecto.id] });
-    setSel("");
   }
   function quitar(emp: EmpleadoLite) {
     if (!confirm(`¿Quitar a ${emp.nombre} de este proyecto?`)) return;
@@ -904,14 +901,26 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
 
   return (
     <div>
-      <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
-        <label className="text-xs text-[#7A7A7A] flex flex-col gap-1 flex-1 min-w-[220px]">Agregar participante
-          <select value={sel} onChange={(e) => setSel(e.target.value)} className={INPUT}>
-            <option value="">Elegir empleado…</option>
-            {disponibles.map((e) => <option key={e.id} value={e.id}>{e.nombre}{e.rol ? ` · ${e.rol}` : ""}</option>)}
-          </select>
-        </label>
-        <button onClick={agregar} disabled={busy || !sel} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
+      <div className={`${CARD} p-4 mb-4`}>
+        <p className="text-xs text-[#7A7A7A] mb-2">Agregar participantes — toca a cada empleado para sumarlo al proyecto:</p>
+        {disponibles.length === 0 ? (
+          <p className="text-xs text-[#7A7A7A]">Todos los empleados ya participan en este proyecto.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {disponibles.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => agregar(e)}
+                disabled={busy}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border bg-white text-[#2C2C2C] border-[#EDE9E0] hover:border-[#C9A84C] disabled:opacity-50"
+              >
+                <Plus size={12} className="text-[#C9A84C]" /> {e.nombre}
+                {e.rol ? <span className="text-[#7A7A7A]"> · {e.rol}</span> : null}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={`${CARD} overflow-x-auto`}>
