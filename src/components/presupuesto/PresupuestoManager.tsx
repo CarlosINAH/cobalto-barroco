@@ -402,24 +402,33 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
           {lineas.length === 0 ? (
             <p className="py-8 text-center text-sm text-[#7A7A7A]">Agrega partidas desde el catálogo.</p>
           ) : (
-            <div className="space-y-2 max-h-[20rem] overflow-y-auto pr-1">
-              {lineas.map((l, i) => (
-                <div key={i} className="flex items-center gap-2 border border-[#EDE9E0] p-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#2C2C2C] truncate">{l.concepto}</p>
-                    <p className="text-[11px] text-[#7A7A7A]">{money(l.pu)}{l.unidad ? ` / ${l.unidad}` : ""}</p>
+            <>
+              {/* Encabezados de columna para no perderse */}
+              <div className="flex items-center gap-2 px-2 pb-1 text-[10px] uppercase tracking-wider text-[#7A7A7A]">
+                <span className="flex-1">Partida</span>
+                <span className="w-16 text-center">Cant.</span>
+                <span className="w-24 text-right">Importe</span>
+                <span className="w-4" />
+              </div>
+              <div className="space-y-2 max-h-[20rem] overflow-y-auto pr-1">
+                {lineas.map((l, i) => (
+                  <div key={i} className="flex items-start gap-2 border border-[#EDE9E0] p-2.5 bg-white">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-[#2C2C2C] leading-snug break-words">{l.concepto}</p>
+                      <p className="text-[11px] text-[#7A7A7A] mt-0.5">{money(l.pu)}{l.unidad ? ` / ${l.unidad}` : ""}</p>
+                    </div>
+                    <input type="number" step="0.01" value={l.cantidad} onChange={(e) => editCant(i, Number(e.target.value) || 0)} className="w-16 border border-[#EDE9E0] px-2 py-1 text-sm text-right shrink-0" />
+                    <span className="w-24 text-right data-label text-sm font-semibold text-[#1B2A5E] shrink-0">{money(l.pu * l.cantidad)}</span>
+                    <button onClick={() => quitar(i)} className="text-[#7A7A7A] hover:text-red-500 shrink-0 mt-1"><Trash2 size={14} /></button>
                   </div>
-                  <input type="number" step="0.01" value={l.cantidad} onChange={(e) => editCant(i, Number(e.target.value) || 0)} className="w-16 border border-[#EDE9E0] px-2 py-1 text-sm text-right" />
-                  <span className="w-24 text-right data-label text-sm">{money(l.pu * l.cantidad)}</span>
-                  <button onClick={() => quitar(i)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
-          <div className="border-t border-[#EDE9E0] mt-3 pt-3 space-y-1 text-sm">
+          <div className="border-t-2 border-[#1B2A5E]/20 mt-3 pt-3 space-y-1.5 text-sm">
             <div className="flex justify-between text-[#7A7A7A]"><span>Subtotal</span><span className="data-label">{money(subtotal)}</span></div>
             <div className="flex justify-between text-[#7A7A7A]"><span>IVA {Math.round(iva * 100)}%</span><span className="data-label">{money(subtotal * iva)}</span></div>
-            <div className="flex justify-between text-[#1B2A5E] font-semibold"><span>Total</span><span className="data-label">{money(total)}</span></div>
+            <div className="flex justify-between items-baseline text-[#1B2A5E] font-bold text-base pt-1"><span>Total</span><span className="data-label text-lg">{money(total)}</span></div>
           </div>
         </div>
       </div>
