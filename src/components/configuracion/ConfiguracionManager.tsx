@@ -10,18 +10,18 @@ import type { Employee } from "@/lib/db";
 type Tab = "permisos" | "empleados" | "solicitudes";
 
 /**
- * Centro de configuración (solo admin): reúne en un solo lugar los permisos de
- * la plataforma —en "Accesos y permisos" el acceso por persona a secciones
- * sensibles y a cada carpeta compartida (todo en el mismo panel); en
- * "Empleados" el alta y edición del personal—.
+ * Centro de configuración (solo admin): reúne en un solo lugar los accesos de la
+ * plataforma —en "Accesos y permisos" qué secciones ve cada persona y en qué
+ * proyectos participa; en "Empleados" el alta y edición del personal—.
  */
 export default function ConfiguracionManager({
-  accesos, personal, projects, solicitudes = [],
+  accesos, personal, projects, solicitudes = [], adminUsernames = [],
 }: {
   accesos: Employee[];
   personal: React.ComponentProps<typeof PersonalManager>;
   projects?: { id: string; nombre: string }[];
   solicitudes?: Solicitud[];
+  adminUsernames?: string[];
 }) {
   const [tab, setTab] = useState<Tab>(solicitudes.length > 0 ? "solicitudes" : "permisos");
   const [importing, setImporting] = useState(false);
@@ -122,7 +122,7 @@ export default function ConfiguracionManager({
         })}
       </div>
 
-      {tab === "permisos" && <AccesosManager initial={accesos} projects={projects} />}
+      {tab === "permisos" && <AccesosManager initial={accesos} projects={projects} adminUsernames={adminUsernames} />}
       {tab === "empleados" && <PersonalManager {...personal} />}
       {tab === "solicitudes" && <SolicitudesAcceso initial={solicitudes} />}
     </div>

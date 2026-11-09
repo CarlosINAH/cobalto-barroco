@@ -36,13 +36,22 @@ async function getKey(): Promise<Uint8Array> {
   return cachedKey;
 }
 
-/** Lista de administradores (usuarios del NAS separados por comas). */
-export function isAdmin(username: string): boolean {
-  const admins = (process.env.ADMIN_USERS || "")
+/**
+ * Lista de administradores (usuarios del NAS separados por comas en ADMIN_USERS),
+ * normalizados a minúsculas. Es la ÚNICA fuente de verdad del rol admin: se
+ * configura en el servidor (Composer), no desde la app. Hoy: Floppy y Cobalto
+ * Barroco. El resto se gestiona por la plataforma (secciones y proyectos).
+ */
+export function adminUsernames(): string[] {
+  return (process.env.ADMIN_USERS || "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  return admins.includes(username.trim().toLowerCase());
+}
+
+/** ¿El usuario es administrador? (según ADMIN_USERS). */
+export function isAdmin(username: string): boolean {
+  return adminUsernames().includes(username.trim().toLowerCase());
 }
 
 /** Crea el token de sesión cifrado (JWE, AES-256-GCM). */
