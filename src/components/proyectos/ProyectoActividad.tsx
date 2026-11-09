@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 
 type Mov = {
   id: string;
@@ -73,12 +73,9 @@ export default function ProyectoActividad({ projectId }: { projectId: string }) 
   return (
     <div className="bg-white border border-[#EDE9E0] p-5">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2 text-[#1B2A5E]">
-          <Clock size={16} className="text-[#C9A84C]" />
-          <h3 className="font-semibold text-sm">Actividad del proyecto</h3>
-        </div>
-        <button onClick={refrescar} className="text-[#7A7A7A] hover:text-[#1B2A5E] p-1" title="Actualizar">
-          <RefreshCw size={14} />
+        <span className="text-[11px] text-[#7A7A7A] uppercase tracking-wider font-semibold">Movimientos recientes</span>
+        <button onClick={refrescar} className="text-[#7A7A7A] hover:text-[#1B2A5E] p-1 flex items-center gap-1 text-xs" title="Actualizar">
+          <RefreshCw size={13} /> Actualizar
         </button>
       </div>
 

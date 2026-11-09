@@ -24,6 +24,7 @@ import {
   HardHat,
   Save,
   Check,
+  X,
 } from "lucide-react";
 import CarpetaInformesPicker from "@/components/proyectos/CarpetaInformesPicker";
 import CarpetaArchivos from "@/components/proyectos/CarpetaArchivos";
@@ -78,8 +79,7 @@ type SubTab =
   | "administracion"
   | "participantes"
   | "cuadrilla"
-  | "nomina"
-  | "actividad";
+  | "nomina";
 
 const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: "presupuesto", label: "Presupuesto", icon: Calculator },
@@ -90,7 +90,6 @@ const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
   { id: "participantes", label: "Participantes", icon: UserPlus },
   { id: "cuadrilla", label: "Cuadrilla", icon: HardHat },
   { id: "nomina", label: "Nómina", icon: Users },
-  { id: "actividad", label: "Actividad", icon: Clock },
 ];
 
 const ESTADO: Record<Project["estado"], { label: string; cls: string }> = {
@@ -226,6 +225,7 @@ function ProyectoDetalle({
 }) {
   const [tab, setTab] = useState<SubTab>("presupuesto");
   const [budget, setBudget] = useState<Budget | null>(budgetInicial);
+  const [verActividad, setVerActividad] = useState(false);
   const est = ESTADO[proyecto.estado] ?? ESTADO.activo;
   // Un editor (residente) no asigna participantes aquí (se hace desde permisos).
   const subtabs = alcance === "editor" ? SUBTABS.filter((s) => s.id !== "participantes") : SUBTABS;
@@ -242,7 +242,17 @@ function ProyectoDetalle({
             <h2 className="text-[#1B2A5E] text-2xl" style={{ fontFamily: "var(--font-playfair)" }}>{proyecto.nombre}</h2>
             {proyecto.ubicacion && <p className="flex items-center gap-1 text-sm text-[#7A7A7A] mt-1"><MapPin size={13} /> {proyecto.ubicacion}</p>}
           </div>
-          <span className={`text-xs px-2 py-1 border ${est.cls}`}>{est.label}</span>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2 py-1 border ${est.cls}`}>{est.label}</span>
+            <button
+              onClick={() => setVerActividad(true)}
+              data-no-print
+              className="flex items-center gap-1.5 border border-[#EDE9E0] text-[#1B2A5E] px-2.5 py-1 text-xs hover:border-[#C9A84C]"
+              title="Ver actividad del proyecto"
+            >
+              <Clock size={13} className="text-[#C9A84C]" /> Actividad
+            </button>
+          </div>
         </div>
         <CarpetaInformesPicker projectId={proyecto.id} projectNombre={proyecto.nombre} initial={proyecto.carpetaInformes || ""} />
         {proyecto.carpetaInformes && <CarpetaArchivos path={proyecto.carpetaInformes} canUpload={true} />}
@@ -270,7 +280,27 @@ function ProyectoDetalle({
       {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} />}
       {tab === "cuadrilla" && <Cuadrilla proyecto={proyecto} budget={budget} empleados={empleados} />}
       {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} empleados={empleados} catalog={catalog} />}
-      {tab === "actividad" && <ProyectoActividad projectId={proyecto.id} />}
+
+      {/* Panel lateral de actividad (tipo Drive): se abre desde el botón "Actividad". */}
+      {verActividad && (
+        <div className="fixed inset-0 z-50 flex justify-end" data-no-print>
+          <div className="absolute inset-0 bg-black/30" onClick={() => setVerActividad(false)} />
+          <aside className="relative bg-[#F5F2EC] w-full max-w-md h-full shadow-xl overflow-y-auto border-l border-[#EDE9E0]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#EDE9E0] bg-white sticky top-0 z-10">
+              <h3 className="text-[#1B2A5E] font-semibold text-sm flex items-center gap-2 min-w-0">
+                <Clock size={15} className="text-[#C9A84C] shrink-0" />
+                <span className="truncate">Actividad · {proyecto.nombre}</span>
+              </h3>
+              <button onClick={() => setVerActividad(false)} className="text-[#7A7A7A] hover:text-[#1B2A5E] shrink-0" title="Cerrar">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4">
+              <ProyectoActividad projectId={proyecto.id} />
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
