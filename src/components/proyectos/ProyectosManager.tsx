@@ -516,8 +516,11 @@ function Balance({ budget, conceptos, ledger, payroll, alcance = "completo" }: {
               <td className="px-3 py-2 text-right">{dif(cdPres + ciPres, costoReal)}</td>
             </tr>
             {verFin && (
-              <tr className="font-semibold text-[#C9A84C]">
-                <td className="px-3 py-2">Utilidad</td>
+              <tr className="border-t-2 border-[#C9A84C]/40 font-semibold text-[#C9A84C] bg-[#C9A84C]/5">
+                <td className="px-3 py-2">
+                  Utilidad
+                  <span className="block text-[10px] font-normal text-[#7A7A7A]">contratado − costo total</span>
+                </td>
                 <td className="px-3 py-2 text-right">{money(utilPres)}</td>
                 <td className="px-3 py-2 text-right">{money(utilReal)}</td>
                 <td className="px-3 py-2 text-right">{dif(utilReal, utilPres)}</td>
@@ -528,6 +531,9 @@ function Balance({ budget, conceptos, ledger, payroll, alcance = "completo" }: {
       </div>
       <p className="text-xs text-[#7A7A7A] mt-2">
         Presupuestado: desglose de los conceptos de la cotización. Real: egresos de Administración (por categoría) + nómina del proyecto. Registra los gastos en Administración con la categoría del rubro para que el balance cuadre.
+      </p>
+      <p className="text-xs text-[#7A7A7A] mt-1">
+        <strong>Utilidad</strong> = lo contratado (cotización) − el costo total. Puede salir <strong>negativa</strong> si el costo supera lo cotizado: es la señal de que hay que subir precios o bajar costos.
       </p>
     </div>
   );
