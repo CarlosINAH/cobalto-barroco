@@ -114,6 +114,11 @@ export default function CarpetaInformesPicker({ projectId, projectNombre, initia
               <button onClick={() => setOpen(false)} className="text-[#7A7A7A] hover:text-[#1B2A5E]"><X size={18} /></button>
             </div>
 
+            {/* Guía rápida para elegir la carpeta correcta y no equivocarse. */}
+            <div className="px-4 py-2.5 bg-[#F5F2EC] border-b border-[#EDE9E0] text-[11px] text-[#7A7A7A] leading-snug">
+              <span className="text-[#1B2A5E] font-semibold">Cómo elegir:</span> entra al <strong>año</strong> → elige o crea la carpeta <strong>del proyecto</strong> y toca <strong>&ldquo;Usar esta carpeta&rdquo;</strong>. La subcarpeta <strong>compartido</strong> (lo que ven los empleados) se crea sola.
+            </div>
+
             <div className="flex items-center gap-2 px-4 py-2 border-b border-[#EDE9E0] text-xs text-[#7A7A7A]">
               {cwd !== ROOT && (
                 <button onClick={subir} className="flex items-center gap-1 text-[#1B2A5E] hover:text-[#C9A84C]"><CornerLeftUp size={13} /> Subir</button>
@@ -144,7 +149,7 @@ export default function CarpetaInformesPicker({ projectId, projectNombre, initia
             </div>
 
             <div className="px-4 py-3 border-t border-[#EDE9E0] flex items-center justify-between gap-2">
-              <span className="text-xs text-[#7A7A7A] truncate">Usar: <span className="text-[#2C2C2C]">{cwd === ROOT ? ROOT : cwd.replace(ROOT + "/", "")}</span></span>
+              <span className="text-xs text-[#7A7A7A] truncate">Se asignará: <span className="text-[#2C2C2C] font-medium">{cwd === ROOT ? ROOT : cwd.replace(ROOT + "/", "")}</span></span>
               <button onClick={() => guardar(cwd)} disabled={busy || cwd === ROOT} className="flex items-center gap-2 bg-[#1B2A5E] text-[#F5F2EC] px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-[#243470] disabled:opacity-60">
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Usar esta carpeta
               </button>
