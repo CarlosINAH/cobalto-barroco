@@ -3,15 +3,17 @@ import ConfiguracionManager from "@/components/configuracion/ConfiguracionManage
 import VincularGoogle from "@/components/perfil/VincularGoogle";
 import { requireAdmin } from "@/lib/auth-server";
 import { getDB } from "@/lib/db";
+import { adminUsernames } from "@/lib/session";
 import { seedInitialEmployees } from "@/lib/seed";
 import { listAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Centro de configuración (solo admin): perfiles y accesos por persona,
- * solicitudes de acceso y alta de empleados. Los permisos de Archivos los fija
- * el perfil; el acceso a cada proyecto se controla por asignación de carpeta.
+ * Centro de configuración (solo admin): accesos por persona (qué secciones ve y
+ * en qué proyectos participa), solicitudes de acceso y alta de empleados. El rol
+ * de administrador se fija en el servidor (ADMIN_USERS); el acceso a archivos se
+ * decide por la asignación de proyectos.
  */
 export default async function ConfiguracionAdmin() {
   await requireAdmin();
@@ -39,6 +41,7 @@ export default async function ConfiguracionAdmin() {
         personal={{ initial: db.employees, projects }}
         projects={projects}
         solicitudes={solicitudes}
+        adminUsernames={adminUsernames()}
       />
       <VincularGoogle />
     </DashboardShell>
