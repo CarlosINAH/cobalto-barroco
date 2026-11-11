@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Calculator,
   FileText,
+  Calendar,
   CalendarRange,
   Wallet,
   Users,
@@ -105,6 +106,22 @@ const ESTADO_FILTROS: { id: "todos" | Project["estado"]; label: string }[] = [
   { id: "finalizado", label: "Finalizados" },
 ];
 
+/**
+ * Año del proyecto. Las carpetas del NAS están organizadas por año, así que esa
+ * es la fuente principal; si el proyecto no tiene carpeta, se cae a la fecha de
+ * inicio, luego a la de entrega y por último a la de creación. null = sin año.
+ */
+function yearOf(p: Project): number | null {
+  const carpeta = (p.carpetaInformes || "").match(/(?:^|\/)((?:19|20)\d{2})(?=\/|$)/);
+  if (carpeta) return Number(carpeta[1]);
+  const ini = (p.inicio || "").match(/^((?:19|20)\d{2})/);
+  if (ini) return Number(ini[1]);
+  const ent = (p.entrega || "").match(/^((?:19|20)\d{2})/);
+  if (ent) return Number(ent[1]);
+  if (p.createdAt) return new Date(p.createdAt).getFullYear();
+  return null;
+}
+
 export default function ProyectosManager({
   proyectos,
   budgets,
@@ -128,7 +145,18 @@ export default function ProyectosManager({
 }) {
   const [selId, setSelId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<"todos" | Project["estado"]>("todos");
+  const [anio, setAnio] = useState<number | "todos">("todos");
   const sel = proyectos.find((p) => p.id === selId) || null;
+
+  // Años presentes entre los proyectos (desc), para el filtro por año.
+  const anios = useMemo(() => {
+    const s = new Set<number>();
+    for (const p of proyectos) {
+      const y = yearOf(p);
+      if (y) s.add(y);
+    }
+    return [...s].sort((a, b) => b - a);
+  }, [proyectos]);
 
   if (sel) {
     return (
@@ -146,22 +174,46 @@ export default function ProyectosManager({
     );
   }
 
-  const visibles = filtro === "todos" ? proyectos : proyectos.filter((p) => p.estado === filtro);
+  const visibles = proyectos.filter(
+    (p) => (filtro === "todos" || p.estado === filtro) && (anio === "todos" || yearOf(p) === anio),
+  );
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 mb-5">
+      {/* Filtro por estado */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         {ESTADO_FILTROS.map((f) => {
           const on = filtro === f.id;
           const n = f.id === "todos" ? proyectos.length : proyectos.filter((p) => p.estado === f.id).length;
           return (
             <button key={f.id} onClick={() => setFiltro(f.id)}
               className={`px-3 py-1.5 text-xs tracking-wider uppercase font-semibold border transition-colors ${on ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"}`}>
-              {f.label} <span className={on ? "text-[#C9A84C]" : "text-[#C9A84C]"}>{n}</span>
+              {f.label} <span className="text-[#C9A84C]">{n}</span>
             </button>
           );
         })}
       </div>
+
+      {/* Filtro por año (solo si hay años que distinguir) */}
+      {anios.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 mb-5">
+          <span className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[#7A7A7A] font-semibold mr-1"><Calendar size={13} className="text-[#C9A84C]" /> Año</span>
+          <button onClick={() => setAnio("todos")}
+            className={`px-3 py-1 text-xs font-semibold border transition-colors ${anio === "todos" ? "bg-[#C9A84C] text-white border-[#C9A84C]" : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"}`}>
+            Todos
+          </button>
+          {anios.map((y) => {
+            const on = anio === y;
+            const n = proyectos.filter((p) => yearOf(p) === y).length;
+            return (
+              <button key={y} onClick={() => setAnio(y)}
+                className={`px-3 py-1 text-xs font-semibold border transition-colors ${on ? "bg-[#C9A84C] text-white border-[#C9A84C]" : "border-[#EDE9E0] text-[#7A7A7A] hover:border-[#C9A84C]"}`}>
+                {y} <span className={on ? "text-white/80" : "text-[#C9A84C]"}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {proyectos.length === 0 ? (
         <div className={`${CARD} py-16 px-6 text-center text-sm text-[#7A7A7A]`}>
           No hay proyectos todavía. Crea uno en{" "}
@@ -169,16 +221,27 @@ export default function ProyectosManager({
           y aparecerá aquí para presupuestar.
         </div>
       ) : (
+        visibles.length === 0 ? (
+          <div className={`${CARD} py-12 px-6 text-center text-sm text-[#7A7A7A]`}>
+            No hay proyectos que coincidan con el filtro.
+          </div>
+        ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visibles.map((p) => {
             const est = ESTADO[p.estado] ?? ESTADO.activo;
             const tiene = budgets.some((b) => b.projectId === p.id);
             const sinCarpeta = !p.carpetaInformes;
+            const anioP = yearOf(p);
             return (
               <button key={p.id} onClick={() => setSelId(p.id)} className={`${CARD} p-5 text-left hover:border-[#C9A84C]/60 transition-colors group ${sinCarpeta ? "opacity-70" : ""}`}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className={`text-xs px-2 py-0.5 border ${est.cls}`}>{est.label}</span>
+                    {anioP && (
+                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 border bg-[#C9A84C]/10 text-[#8A6D1F] border-[#C9A84C]/30">
+                        <Calendar size={11} /> {anioP}
+                      </span>
+                    )}
                     {sinCarpeta && (
                       <span className="text-xs px-2 py-0.5 border bg-amber-50 text-amber-700 border-amber-200" title="Asígnale una carpeta del NAS para activarlo y que lo vean los empleados">
                         Inactivo · sin carpeta
@@ -197,6 +260,7 @@ export default function ProyectosManager({
             );
           })}
         </div>
+        )
       )}
     </div>
   );
