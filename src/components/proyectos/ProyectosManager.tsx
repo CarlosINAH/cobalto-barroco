@@ -82,15 +82,30 @@ type SubTab =
   | "cuadrilla"
   | "nomina";
 
+// Orden de las pestañas del proyecto (para todos). Administración → Balance →
+// Cotización → Cronograma → Participantes → Presupuesto, y al final las de
+// gestión interna (Cuadrilla, Nómina).
 const SUBTABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
-  { id: "presupuesto", label: "Presupuesto", icon: Calculator },
+  { id: "administracion", label: "Administración", icon: Wallet },
+  { id: "balance", label: "Balance", icon: Scale },
   { id: "cotizacion", label: "Cotización", icon: FileText },
   { id: "cronograma", label: "Cronograma", icon: CalendarRange },
-  { id: "balance", label: "Balance", icon: Scale },
-  { id: "administracion", label: "Administración", icon: Wallet },
   { id: "participantes", label: "Participantes", icon: UserPlus },
+  { id: "presupuesto", label: "Presupuesto", icon: Calculator },
   { id: "cuadrilla", label: "Cuadrilla", icon: HardHat },
   { id: "nomina", label: "Nómina", icon: Users },
+];
+
+// Pestañas que ve un residente (editor de su obra). Ve Administración (solo
+// para registrar gastos, sin ver los demás), Balance (solo el presupuesto de
+// material), Cotización (catálogo sin costos), Cronograma y Participantes.
+// No ve Presupuesto, Cuadrilla ni Nómina.
+const EDITOR_SUBTABS: SubTab[] = [
+  "administracion",
+  "balance",
+  "cotizacion",
+  "cronograma",
+  "participantes",
 ];
 
 const ESTADO: Record<Project["estado"], { label: string; cls: string }> = {
@@ -287,12 +302,12 @@ function ProyectoDetalle({
   alcance?: "completo" | "editor";
   onBack: () => void;
 }) {
-  const [tab, setTab] = useState<SubTab>("presupuesto");
+  // Pestañas visibles según el alcance (un residente ve solo EDITOR_SUBTABS).
+  const subtabs = alcance === "editor" ? SUBTABS.filter((s) => EDITOR_SUBTABS.includes(s.id)) : SUBTABS;
+  const [tab, setTab] = useState<SubTab>(subtabs[0]?.id ?? "administracion");
   const [budget, setBudget] = useState<Budget | null>(budgetInicial);
   const [verActividad, setVerActividad] = useState(false);
   const est = ESTADO[proyecto.estado] ?? ESTADO.activo;
-  // Un editor (residente) no asigna participantes aquí (se hace desde permisos).
-  const subtabs = alcance === "editor" ? SUBTABS.filter((s) => s.id !== "participantes") : SUBTABS;
 
   return (
     <div>
@@ -337,11 +352,11 @@ function ProyectoDetalle({
       {tab === "presupuesto" && (
         <PresupuestoProyecto proyecto={proyecto} budget={budget} conceptos={conceptos} catalog={catalog} onChange={setBudget} />
       )}
-      {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} />}
+      {tab === "cotizacion" && <Cotizacion proyecto={proyecto} budget={budget} alcance={alcance} />}
       {tab === "cronograma" && <Cronograma budget={budget} conceptosCatalogo={catalog.conceptos} onChange={setBudget} />}
       {tab === "balance" && <Balance budget={budget} conceptos={conceptos} ledger={ledgerInicial} payroll={payrollInicial} alcance={alcance} />}
-      {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} />}
-      {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} />}
+      {tab === "administracion" && <Administracion proyecto={proyecto} budget={budget} inicial={ledgerInicial} alcance={alcance} />}
+      {tab === "participantes" && <Participantes proyecto={proyecto} empleados={empleados} catalog={catalog} alcance={alcance} />}
       {tab === "cuadrilla" && <Cuadrilla proyecto={proyecto} budget={budget} empleados={empleados} />}
       {tab === "nomina" && <Nomina proyecto={proyecto} inicial={payrollInicial} empleados={empleados} catalog={catalog} />}
 
@@ -422,7 +437,10 @@ function PresupuestoProyecto({
 }
 
 // ─── Cotización (vista imprimible / PDF) ─────────────────────────────────────
-function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | null }) {
+function Cotizacion({ proyecto, budget, alcance = "completo" }: { proyecto: Project; budget: Budget | null; alcance?: "completo" | "editor" }) {
+  // El residente ve el catálogo extendido (clave, concepto, unidad, cantidad)
+  // pero NO los costos (P.U., importe, subtotal, IVA, total) ni el PDF.
+  const verCostos = alcance !== "editor";
   if (!budget || budget.lineas.length === 0)
     return <div className={`${CARD} py-14 px-6 text-center text-sm text-[#7A7A7A]`}>Arma primero el presupuesto en la pestaña Presupuesto.</div>;
   // La cotización al contratista es un listado de CONCEPTOS (los materiales,
@@ -436,10 +454,12 @@ function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | 
   return (
     <div>
       <style>{`@media print { [data-no-print]{display:none!important} body{background:#fff} .cotiz-print{border:none!important} }`}</style>
-      <div className="flex justify-end gap-2 mb-3" data-no-print>
-        <a href={`/api/costos/budgets/${budget.id}/pdf`} target="_blank" rel="noopener noreferrer" className={BTN_PRIMARY}><Download size={14} /> Descargar PDF</a>
-        <button onClick={() => window.print()} className="flex items-center gap-2 border border-[#EDE9E0] text-[#1B2A5E] px-4 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#F5F2EC]"><Printer size={14} /> Imprimir</button>
-      </div>
+      {verCostos && (
+        <div className="flex justify-end gap-2 mb-3" data-no-print>
+          <a href={`/api/costos/budgets/${budget.id}/pdf`} target="_blank" rel="noopener noreferrer" className={BTN_PRIMARY}><Download size={14} /> Descargar PDF</a>
+          <button onClick={() => window.print()} className="flex items-center gap-2 border border-[#EDE9E0] text-[#1B2A5E] px-4 py-2.5 text-xs tracking-widest uppercase font-semibold hover:bg-[#F5F2EC]"><Printer size={14} /> Imprimir</button>
+        </div>
+      )}
       <div className={`${CARD} p-8 cotiz-print`}>
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -459,8 +479,8 @@ function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | 
               <th className="py-2 font-semibold">Concepto</th>
               <th className="py-2 font-semibold text-right">Unidad</th>
               <th className="py-2 font-semibold text-right">Cant.</th>
-              <th className="py-2 font-semibold text-right">P.U.</th>
-              <th className="py-2 font-semibold text-right">Importe</th>
+              {verCostos && <th className="py-2 font-semibold text-right">P.U.</th>}
+              {verCostos && <th className="py-2 font-semibold text-right">Importe</th>}
             </tr>
           </thead>
           <tbody>
@@ -470,16 +490,18 @@ function Cotizacion({ proyecto, budget }: { proyecto: Project; budget: Budget | 
                 <td className="py-2 text-[#2C2C2C]">{l.concepto || l.descripcion}</td>
                 <td className="py-2 text-right text-[#7A7A7A]">{l.unidad}</td>
                 <td className="py-2 text-right data-label">{l.cantidad}</td>
-                <td className="py-2 text-right data-label text-[#7A7A7A]">{money(l.pu)}</td>
-                <td className="py-2 text-right data-label text-[#2C2C2C]">{money(l.pu * l.cantidad)}</td>
+                {verCostos && <td className="py-2 text-right data-label text-[#7A7A7A]">{money(l.pu)}</td>}
+                {verCostos && <td className="py-2 text-right data-label text-[#2C2C2C]">{money(l.pu * l.cantidad)}</td>}
               </tr>
             ))}
           </tbody>
-          <tfoot className="data-label">
-            <tr><td colSpan={5} className="py-1.5 text-right text-[#7A7A7A]">Subtotal</td><td className="py-1.5 text-right text-[#2C2C2C]">{money(totals.subtotal)}</td></tr>
-            <tr><td colSpan={5} className="py-1.5 text-right text-[#7A7A7A]">IVA {pct(budget.factorIva)}</td><td className="py-1.5 text-right text-[#2C2C2C]">{money(totals.iva)}</td></tr>
-            <tr className="border-t-2 border-[#1B2A5E]"><td colSpan={5} className="py-2 text-right text-[#1B2A5E] font-bold">Total</td><td className="py-2 text-right text-[#1B2A5E] font-bold">{money(totals.total)}</td></tr>
-          </tfoot>
+          {verCostos && (
+            <tfoot className="data-label">
+              <tr><td colSpan={5} className="py-1.5 text-right text-[#7A7A7A]">Subtotal</td><td className="py-1.5 text-right text-[#2C2C2C]">{money(totals.subtotal)}</td></tr>
+              <tr><td colSpan={5} className="py-1.5 text-right text-[#7A7A7A]">IVA {pct(budget.factorIva)}</td><td className="py-1.5 text-right text-[#2C2C2C]">{money(totals.iva)}</td></tr>
+              <tr className="border-t-2 border-[#1B2A5E]"><td colSpan={5} className="py-2 text-right text-[#1B2A5E] font-bold">Total</td><td className="py-2 text-right text-[#1B2A5E] font-bold">{money(totals.total)}</td></tr>
+            </tfoot>
+          )}
         </table>
         <p className="text-xs text-[#7A7A7A]">El presupuesto tiene una vigencia de 15 días. Precios en pesos mexicanos.</p>
       </div>
@@ -517,6 +539,18 @@ function Balance({ budget, conceptos, ledger, payroll, alcance = "completo" }: {
     pres.material += (c.porTipo.material + c.porTipo.receta) * l.cantidad;
     pres.herramienta += c.porTipo.herramienta * l.cantidad;
     pres.equipo += c.porTipo.equipo * l.cantidad;
+  }
+
+  // Residente (editor): solo ve lo PRESUPUESTADO de Material. Sin tarjetas,
+  // sin columna Real/Diferencia, sin los demás rubros ni la utilidad.
+  if (alcance === "editor") {
+    return (
+      <div className={`${CARD} p-6 max-w-sm`}>
+        <p className="text-[11px] uppercase tracking-wider text-[#7A7A7A] mb-1">Presupuesto de material</p>
+        <p className="text-3xl text-[#1B2A5E]" style={{ fontFamily: "var(--font-playfair)" }}>{money(pres.material)}</p>
+        <p className="text-xs text-[#7A7A7A] mt-2">Monto presupuestado para material en esta obra.</p>
+      </div>
+    );
   }
   const cdPres = pres.mano_obra + pres.material + pres.herramienta + pres.equipo;
   const ciPres = cdPres * budget.factorIndirectos;
@@ -785,10 +819,20 @@ function Stat({ label, val }: { label: string; val: string }) {
 const CATEGORIAS = ["anticipo", "finiquito", "pago", "mano de obra", "material", "herramienta", "equipo", "viáticos", "indirectos", "impuestos", "otro"];
 const COMPROBANTES_DIR = "Archivos compartidos/COMPROBANTES";
 
-function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[] }) {
+function Administracion({ proyecto, budget, inicial, alcance = "completo" }: { proyecto: Project; budget: Budget | null; inicial: LedgerEntry[]; alcance?: "completo" | "editor" }) {
+  // El residente solo REGISTRA gastos de su obra: no ve el listado, los totales
+  // ni los movimientos de otros. Su alta queda fija como egreso.
+  const esEditor = alcance === "editor";
   const [items, setItems] = useState<LedgerEntry[]>(inicial);
   const [busy, setBusy] = useState(false);
-  const [f, setF] = useState({ fecha: new Date().toISOString().slice(0, 10), categoria: "anticipo", tipo: "ingreso" as LedgerEntry["tipo"], concepto: "", monto: "" });
+  const [guardado, setGuardado] = useState(false);
+  const [f, setF] = useState({
+    fecha: new Date().toISOString().slice(0, 10),
+    categoria: esEditor ? "material" : "anticipo",
+    tipo: (esEditor ? "egreso" : "ingreso") as LedgerEntry["tipo"],
+    concepto: "",
+    monto: "",
+  });
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [verCat, setVerCat] = useState(""); // filtro de la tabla por categoría
@@ -834,6 +878,7 @@ function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budg
     setF({ ...f, concepto: "", monto: "" });
     setFile(null);
     if (fileRef.current) fileRef.current.value = "";
+    if (esEditor) setGuardado(true);
   }
   async function borrar(id: string) {
     if (!confirm("¿Eliminar movimiento?")) return;
@@ -846,31 +891,38 @@ function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budg
 
   return (
     <div>
-      <div className="grid gap-3 sm:grid-cols-4 mb-5">
-        <Stat label="Ingresos" val={money(ingresos)} />
-        <Stat label="Egresos" val={money(egresos)} />
-        <Stat label="Balance" val={money(ingresos - egresos)} />
-        <Stat label="Contratado (cotización)" val={money(contratado)} />
-      </div>
+      {!esEditor && (
+        <div className="grid gap-3 sm:grid-cols-4 mb-5">
+          <Stat label="Ingresos" val={money(ingresos)} />
+          <Stat label="Egresos" val={money(egresos)} />
+          <Stat label="Balance" val={money(ingresos - egresos)} />
+          <Stat label="Contratado (cotización)" val={money(contratado)} />
+        </div>
+      )}
+      {esEditor && (
+        <p className="text-sm text-[#7A7A7A] mb-3">Registra aquí los gastos de tu obra (material, herramienta, viáticos…). {guardado && <span className="text-green-700 font-semibold">✓ Gasto registrado.</span>}</p>
+      )}
       <div className={`${CARD} p-4 mb-4 flex flex-wrap items-end gap-2`}>
-        <input type="date" value={f.fecha} onChange={(e) => setF({ ...f, fecha: e.target.value })} className={INPUT} />
+        <input type="date" value={f.fecha} onChange={(e) => { setF({ ...f, fecha: e.target.value }); setGuardado(false); }} className={INPUT} />
         <select value={f.categoria} onChange={(e) => setF({ ...f, categoria: e.target.value })} className={INPUT + " uppercase"}>
           {CATEGORIAS.map((c) => <option key={c} value={c}>{c.toUpperCase()}</option>)}
         </select>
-        <select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value as LedgerEntry["tipo"] })} className={INPUT + " uppercase"}>
-          <option value="ingreso">INGRESO</option>
-          <option value="egreso">EGRESO</option>
-        </select>
-        <input placeholder="CONCEPTO (a mano)" value={f.concepto} onChange={(e) => setF({ ...f, concepto: e.target.value.toUpperCase() })} className={INPUT + " flex-1 min-w-[160px] uppercase"} />
-        <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => setF({ ...f, monto: e.target.value })} className={INPUT + " w-32"} />
+        {!esEditor && (
+          <select value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value as LedgerEntry["tipo"] })} className={INPUT + " uppercase"}>
+            <option value="ingreso">INGRESO</option>
+            <option value="egreso">EGRESO</option>
+          </select>
+        )}
+        <input placeholder="CONCEPTO (a mano)" value={f.concepto} onChange={(e) => { setF({ ...f, concepto: e.target.value.toUpperCase() }); setGuardado(false); }} className={INPUT + " flex-1 min-w-[160px] uppercase"} />
+        <input type="number" placeholder="Monto" value={f.monto} onChange={(e) => { setF({ ...f, monto: e.target.value }); setGuardado(false); }} className={INPUT + " w-32"} />
         <label className="flex items-center gap-1.5 border border-[#EDE9E0] px-3 py-2 text-xs text-[#7A7A7A] cursor-pointer hover:border-[#C9A84C] whitespace-nowrap" title="Adjuntar factura o nota (opcional)">
           <Paperclip size={13} /> {file ? file.name : "Comprobante"}
           <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
         </label>
         <button onClick={crear} disabled={busy} className={BTN_PRIMARY}><Plus size={14} /> Agregar</button>
       </div>
-      {/* Barra de filtro por categoría */}
-      {items.length > 0 && (() => {
+      {/* Barra de filtro por categoría (el residente no ve el listado) */}
+      {!esEditor && items.length > 0 && (() => {
         const catsMov = [...new Set(items.map((e) => e.categoria).filter(Boolean))].sort();
         return (
           <div className={`${CARD} px-3 py-2.5 mb-3 flex flex-wrap items-center gap-2`}>
@@ -889,7 +941,7 @@ function Administracion({ proyecto, budget, inicial }: { proyecto: Project; budg
         );
       })()}
 
-      {(() => {
+      {!esEditor && (() => {
         const visibles = verCat ? items.filter((e) => e.categoria === verCat) : items;
         const subIng = visibles.filter((e) => e.tipo === "ingreso").reduce((a, e) => a + e.monto, 0);
         const subEgr = visibles.filter((e) => e.tipo === "egreso").reduce((a, e) => a + e.monto, 0);
@@ -950,7 +1002,10 @@ function tarifaDiaria(rol: string, salarios: CatalogProps["salarios"]): number |
   return s ? s.jornada : null;
 }
 
-function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; empleados: EmpleadoLite[]; catalog: CatalogProps }) {
+function Participantes({ proyecto, empleados, catalog, alcance = "completo" }: { proyecto: Project; empleados: EmpleadoLite[]; catalog: CatalogProps; alcance?: "completo" | "editor" }) {
+  // El residente solo VE la lista del equipo (nombre y rol): sin agregar/quitar,
+  // sin el control de acceso y sin la tarifa diaria (dinero).
+  const esEditor = alcance === "editor";
   const [emps, setEmps] = useState<EmpleadoLite[]>(empleados);
   const [busy, setBusy] = useState(false);
 
@@ -988,6 +1043,7 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
 
   return (
     <div>
+      {!esEditor && (
       <div className={`${CARD} p-4 mb-4`}>
         <p className="text-xs text-[#7A7A7A] mb-2">Agregar participantes — toca a cada empleado para sumarlo al proyecto:</p>
         {disponibles.length === 0 ? (
@@ -1009,6 +1065,7 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
           </div>
         )}
       </div>
+      )}
 
       <div className={`${CARD} overflow-x-auto`}>
         <table className="w-full text-sm">
@@ -1016,9 +1073,9 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
             <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
               <th className="px-3 py-3 font-semibold">Participante</th>
               <th className="px-3 py-3 font-semibold">Rol</th>
-              <th className="px-3 py-3 font-semibold text-center">Acceso</th>
-              <th className="px-3 py-3 font-semibold text-right">Tarifa diaria</th>
-              <th className="px-3 py-3" />
+              {!esEditor && <th className="px-3 py-3 font-semibold text-center">Acceso</th>}
+              {!esEditor && <th className="px-3 py-3 font-semibold text-right">Tarifa diaria</th>}
+              {!esEditor && <th className="px-3 py-3" />}
             </tr>
           </thead>
           <tbody>
@@ -1029,19 +1086,21 @@ function Participantes({ proyecto, empleados, catalog }: { proyecto: Project; em
                 <tr key={e.id} className="border-b border-[#F5F2EC]">
                   <td className="px-3 py-2 text-[#2C2C2C]">{e.nombre}</td>
                   <td className="px-3 py-2 text-[#7A7A7A]">{e.rol || "—"}</td>
-                  <td className="px-3 py-2 text-center">
-                    <button onClick={() => toggleEdita(e)} disabled={busy}
-                      title={edita ? "Puede editar — clic para dejar solo lectura" : "Solo lectura — clic para permitir editar"}
-                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs border ${edita ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "bg-white text-[#7A7A7A] border-[#EDE9E0] hover:border-[#C9A84C]"}`}>
-                      {edita ? <><Pencil size={12} /> Edita</> : <><Eye size={12} /> Ve</>}
-                    </button>
-                  </td>
-                  <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{diaria != null ? money(diaria) : "—"}</td>
-                  <td className="px-3 py-2 text-right"><button onClick={() => quitar(e)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>
+                  {!esEditor && (
+                    <td className="px-3 py-2 text-center">
+                      <button onClick={() => toggleEdita(e)} disabled={busy}
+                        title={edita ? "Puede editar — clic para dejar solo lectura" : "Solo lectura — clic para permitir editar"}
+                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs border ${edita ? "bg-[#1B2A5E] text-[#F5F2EC] border-[#1B2A5E]" : "bg-white text-[#7A7A7A] border-[#EDE9E0] hover:border-[#C9A84C]"}`}>
+                        {edita ? <><Pencil size={12} /> Edita</> : <><Eye size={12} /> Ve</>}
+                      </button>
+                    </td>
+                  )}
+                  {!esEditor && <td className="px-3 py-2 text-right data-label text-[#7A7A7A]">{diaria != null ? money(diaria) : "—"}</td>}
+                  {!esEditor && <td className="px-3 py-2 text-right"><button onClick={() => quitar(e)} className="text-[#7A7A7A] hover:text-red-500"><Trash2 size={14} /></button></td>}
                 </tr>
               );
             })}
-            {participantes.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-[#7A7A7A]">Sin participantes. Agrega empleados para que vean este proyecto y entren a la nómina quincenal.</td></tr>}
+            {participantes.length === 0 && <tr><td colSpan={esEditor ? 2 : 5} className="px-3 py-8 text-center text-[#7A7A7A]">Sin participantes todavía.</td></tr>}
           </tbody>
         </table>
       </div>
