@@ -9,15 +9,58 @@ import {
   type PayrollEntry,
   type LedgerEntry,
   type CVEntry,
+  type DBShape,
 } from "@/lib/db";
 
 export const runtime = "nodejs";
+
+/** Normaliza un nombre para emparejar (sin acentos, minúsculas, sin espacios dobles). */
+function normName(s?: string): string {
+  return (s || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Resuelve un proyecto existente por nombre: primero exacto, luego por
+ * coincidencia parcial si es única (evita emparejar mal cuando hay varias obras
+ * parecidas). Devuelve el proyecto o null.
+ */
+function resolveProjectByName(db: DBShape, nombre: string): Project | null {
+  const n = normName(nombre);
+  if (!n) return null;
+  const exact = db.projects.find((p) => normName(p.nombre) === n);
+  if (exact) return exact;
+  const cands = db.projects.filter((p) => {
+    const pn = normName(p.nombre);
+    return pn.includes(n) || n.includes(pn);
+  });
+  return cands.length === 1 ? cands[0] : null;
+}
+
+// Asiento que puede venir referenciando el proyecto por nombre (no por id).
+type LedgerIn = LedgerEntry & { projectNombre?: string };
+type PayrollIn = PayrollEntry & { projectNombre?: string };
+
+/** ¿El arreglo trae algún asiento de EMPRESA (sin proyecto)? */
+function hasCompanyLevel(xs?: { projectId?: string | null; projectNombre?: string }[]): boolean {
+  return Array.isArray(xs) && xs.some((e) => (e.projectId ?? null) === null && !e.projectNombre);
+}
 
 /**
  * Importación masiva de catálogos del módulo de costos (solo admin). Recibe el
  * JSON exportado del importador de Excel y REEMPLAZA las colecciones incluidas
  * (materiales, recetas, salarios). No toca el resto de la base de datos. Pensado
  * para sembrar los catálogos en el NAS, donde no hay acceso directo al disco.
+ *
+ * Los asientos de gastos (ledger) y nómina pueden venir ligados a un proyecto
+ * por `projectNombre` (en vez de `projectId`): el servidor lo resuelve contra
+ * los proyectos existentes. Así se puede cargar el balance de una obra sin
+ * conocer el id interno. Un balance de obra (asientos todos con proyecto) NO
+ * borra los movimientos de empresa, aunque se use el modo "admin".
  */
 export async function POST(req: Request) {
   const session = await getSession();
@@ -29,14 +72,14 @@ export async function POST(req: Request) {
     recipes?: Recipe[];
     laborRates?: LaborRate[];
     projects?: Project[];
-    payrollEntries?: PayrollEntry[];
-    ledgerEntries?: LedgerEntry[];
+    payrollEntries?: PayrollIn[];
+    ledgerEntries?: LedgerIn[];
     cvEntries?: CVEntry[];
     /**
      * "admin": antes de insertar, reemplaza los gastos y la nómina DE EMPRESA
-     * (projectId == null) por lo que trae el archivo. Deja intactos los
-     * movimientos ligados a un proyecto. Hace idempotente la carga de la hoja
-     * de Administración (sin duplicar lo ya subido).
+     * (projectId == null) por lo que trae el archivo, SOLO si el archivo trae
+     * movimientos de empresa. Un balance de obra (todo ligado a proyecto) no
+     * dispara ese reemplazo. Deja intactos los movimientos de otros proyectos.
      */
     mode?: string;
   };
@@ -46,13 +89,36 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Archivo inválido." }, { status: 400 });
   }
 
+  // Reporte de emparejamiento por nombre (para que el admin verifique a qué
+  // proyecto quedó ligado el balance).
+  const matched = new Set<string>();
+  const unmatched = new Set<string>();
+
   const importado = await mutate((db) => {
+    // Resuelve projectNombre → projectId en gastos y nómina.
+    const linkProject = (e: { projectId?: string | null; projectNombre?: string }) => {
+      if (e.projectNombre) {
+        const p = resolveProjectByName(db, e.projectNombre);
+        if (p) {
+          e.projectId = p.id;
+          matched.add(p.nombre);
+        } else {
+          unmatched.add(e.projectNombre);
+        }
+        delete e.projectNombre;
+      }
+    };
+    if (Array.isArray(b.ledgerEntries)) b.ledgerEntries.forEach(linkProject);
+    if (Array.isArray(b.payrollEntries)) b.payrollEntries.forEach(linkProject);
+
+    // Modo admin: reemplaza SOLO lo de empresa, y SOLO si el archivo lo trae.
     if (b.mode === "admin") {
-      if (Array.isArray(b.ledgerEntries))
+      if (Array.isArray(b.ledgerEntries) && hasCompanyLevel(b.ledgerEntries))
         db.ledgerEntries = db.ledgerEntries.filter((e) => e.projectId !== null);
-      if (Array.isArray(b.payrollEntries))
+      if (Array.isArray(b.payrollEntries) && hasCompanyLevel(b.payrollEntries))
         db.payrollEntries = db.payrollEntries.filter((e) => e.projectId !== null);
     }
+
     const out: {
       costMaterials?: number;
       recipes?: number;
@@ -118,5 +184,10 @@ export async function POST(req: Request) {
     return out;
   });
 
-  return NextResponse.json({ ok: true, importado });
+  return NextResponse.json({
+    ok: true,
+    importado,
+    proyectosLigados: [...matched],
+    proyectosNoEncontrados: [...unmatched],
+  });
 }
