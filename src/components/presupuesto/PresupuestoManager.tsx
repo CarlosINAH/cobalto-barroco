@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import {
   Plus, Trash2, Save, FileText, Download, Send, Check, Ban,
   ClipboardList, Layers, ArrowLeft, Search, ShoppingCart, Package, FlaskConical, Coins,
-  Lock, ClipboardCheck, Scale,
+  Lock, ClipboardCheck, Scale, Wrench,
 } from "lucide-react";
 import type {
   Budget, BudgetLine, BudgetEstado, Project,
@@ -39,6 +39,8 @@ export type ConceptoPick = {
   materialIntervencion?: string;
   cuadrillaPersonas?: number;
   cuadrilla?: CuadrillaRol[];
+  /** true = servicio de una sola vez (precio manual); se lista aparte. */
+  esServicio?: boolean;
 };
 
 export type CatalogProps = React.ComponentProps<typeof CatalogosManager>;
@@ -196,9 +198,10 @@ function Presupuestos({ budgets, conceptos, projects, catalog }: { budgets: Budg
   );
 }
 
-type CatTab = "conceptos" | "materiales" | "recetas" | "personal";
+type CatTab = "conceptos" | "servicios" | "materiales" | "recetas" | "personal";
 const CAT_TABS: { id: CatTab; label: string; icon: React.ElementType }[] = [
   { id: "conceptos", label: "Conceptos", icon: Layers },
+  { id: "servicios", label: "Servicios", icon: Wrench },
   { id: "materiales", label: "Materiales", icon: Package },
   { id: "recetas", label: "Recetas", icon: FlaskConical },
   { id: "personal", label: "Personal", icon: Coins },
@@ -274,10 +277,18 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
   );
   const fConceptos = useMemo(
     () => conceptos.filter((c) =>
+      !c.esServicio &&
       (!cmat || c.materialIntervencion === cmat) &&
       (!nq || `${c.clave} ${c.concepto} ${c.descripcion} ${c.materialIntervencion || ""}`.toLowerCase().includes(nq)),
     ),
     [conceptos, nq, cmat],
+  );
+  const fServicios = useMemo(
+    () => conceptos.filter((c) =>
+      c.esServicio &&
+      (!nq || `${c.clave} ${c.concepto} ${c.descripcion}`.toLowerCase().includes(nq)),
+    ),
+    [conceptos, nq],
   );
   const fMateriales = useMemo(
     () => catalog.materiales.filter((m) => !nq || `${m.nombre} ${m.categoria}`.toLowerCase().includes(nq)),
@@ -378,6 +389,9 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
             {catTab === "conceptos" && fConceptos.map((c) => (
               <ItemRow key={c.id} titulo={`${c.clave ? c.clave + " · " : ""}${c.concepto}`} sub={c.unidad} pu={c.pu} onAdd={() => addConcepto(c)} />
             ))}
+            {catTab === "servicios" && fServicios.map((c) => (
+              <ItemRow key={c.id} titulo={`${c.clave ? c.clave + " · " : ""}${c.concepto}`} sub={c.unidad} pu={c.pu} onAdd={() => addConcepto(c)} />
+            ))}
             {catTab === "materiales" && fMateriales.map((m) => (
               <ItemRow key={m.id} titulo={m.nombre} sub={`${m.categoria || ""}${m.unidad ? " · " + m.unidad : ""}`} pu={m.precio} onAdd={() => addMaterial(m)} />
             ))}
@@ -388,6 +402,7 @@ export function Builder({ budget, conceptos, catalog, onBack, onChange }: {
               <ItemRow key={s.id} titulo={s.rol} sub="jornada" pu={s.jornada} onAdd={() => addSalario(s)} />
             ))}
             {((catTab === "conceptos" && fConceptos.length === 0) ||
+              (catTab === "servicios" && fServicios.length === 0) ||
               (catTab === "materiales" && fMateriales.length === 0) ||
               (catTab === "recetas" && fRecetas.length === 0) ||
               (catTab === "personal" && fSalarios.length === 0)) && (

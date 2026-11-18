@@ -146,6 +146,11 @@ export function conceptBreakdown(
     mano_obra: 0,
     receta: 0,
   };
+  // Servicio: precio manual (P.U. final), sin armado de insumos ni factores.
+  if (concept.esServicio) {
+    const pu = Number(concept.precioServicio) || 0;
+    return { porTipo, costoDirecto: pu, indirectos: 0, utilidad: 0, subtotal: pu, pu };
+  }
   for (const i of concept.insumos) {
     porTipo[i.kind] += inputAmount(i, catalogs);
   }
