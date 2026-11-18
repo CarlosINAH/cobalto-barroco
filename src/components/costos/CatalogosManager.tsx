@@ -11,6 +11,7 @@ import {
   Package,
   Coins,
   Layers,
+  Wrench,
   X,
   Sparkles,
   Loader2,
@@ -37,10 +38,11 @@ const mxn = new Intl.NumberFormat("es-MX", {
 });
 const money = (n: number) => mxn.format(Number.isFinite(n) ? n : 0);
 
-type Tab = "materiales" | "recetas" | "salarios" | "conceptos";
+type Tab = "materiales" | "recetas" | "salarios" | "conceptos" | "servicios";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "conceptos", label: "Conceptos", icon: Layers },
+  { id: "servicios", label: "Servicios", icon: Wrench },
   { id: "materiales", label: "Materiales", icon: Package },
   { id: "recetas", label: "Recetas", icon: FlaskConical },
   { id: "salarios", label: "Salarios", icon: Coins },
@@ -68,6 +70,8 @@ export default function CatalogosManager({
   conceptos: ConceptoView[];
 }) {
   const [tab, setTab] = useState<Tab>("conceptos");
+  const soloConceptos = conceptos.filter((c) => !c.esServicio);
+  const soloServicios = conceptos.filter((c) => c.esServicio);
 
   return (
     <div>
@@ -83,7 +87,9 @@ export default function CatalogosManager({
                 ? recetas.length
                 : t.id === "salarios"
                   ? salarios.length
-                  : conceptos.length;
+                  : t.id === "servicios"
+                    ? soloServicios.length
+                    : soloConceptos.length;
           return (
             <button
               key={t.id}
@@ -112,6 +118,143 @@ export default function CatalogosManager({
           recetas={recetas}
           salarios={salarios}
         />
+      )}
+      {tab === "servicios" && <Servicios initial={soloServicios} />}
+    </div>
+  );
+}
+
+// ─── Servicios: catálogo de servicios de una sola vez (fotogrametría,
+// herrería…). Es un concepto con precio manual (P.U. final al cliente), sin
+// armado de insumos. Se jalan al presupuesto como cualquier concepto.
+type ServicioDraft = { clave: string; concepto: string; unidad: string; descripcion: string; precio: string };
+const SERV_VACIO: ServicioDraft = { clave: "", concepto: "", unidad: "SERVICIO", descripcion: "", precio: "" };
+
+function Servicios({ initial }: { initial: ConceptoView[] }) {
+  const [items, setItems] = useState<ConceptoView[]>(initial);
+  const [q, setQ] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState<ServicioDraft>(SERV_VACIO);
+  const [busy, setBusy] = useState(false);
+
+  const visibles = useMemo(() => {
+    const nq = q.trim().toLowerCase();
+    return items.filter((c) => !nq || `${c.clave} ${c.concepto} ${c.descripcion}`.toLowerCase().includes(nq));
+  }, [items, q]);
+
+  function startAdd() { setDraft(SERV_VACIO); setAdding(true); setEditId(null); }
+  function startEdit(c: ConceptoView) {
+    setDraft({ clave: c.clave, concepto: c.concepto, unidad: c.unidad || "SERVICIO", descripcion: c.descripcion || "", precio: String(c.precioServicio ?? c.pu ?? "") });
+    setEditId(c.id); setAdding(false);
+  }
+  function cancelar() { setAdding(false); setEditId(null); setDraft(SERV_VACIO); }
+
+  async function guardar() {
+    if (!draft.concepto.trim()) return;
+    setBusy(true);
+    const body = {
+      clave: draft.clave.trim(),
+      concepto: draft.concepto.trim(),
+      unidad: draft.unidad.trim() || "SERVICIO",
+      descripcion: draft.descripcion.trim(),
+      esServicio: true,
+      precioServicio: Number(draft.precio) || 0,
+    };
+    const res = await fetch(editId ? `/api/costos/conceptos/${editId}` : "/api/costos/conceptos", {
+      method: editId ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(false);
+    if (!res.ok) return;
+    const { concepto } = await res.json();
+    const v = { ...concepto, porTipo: { material: 0, herramienta: 0, equipo: 0, mano_obra: 0, receta: 0 } } as ConceptoView;
+    setItems((xs) => (xs.some((x) => x.id === v.id) ? xs.map((x) => (x.id === v.id ? v : x)) : [...xs, v]));
+    cancelar();
+  }
+
+  async function borrar(id: string) {
+    if (!confirm("¿Eliminar este servicio?")) return;
+    const res = await fetch(`/api/costos/conceptos/${id}`, { method: "DELETE" });
+    if (res.ok) setItems((xs) => xs.filter((x) => x.id !== id));
+  }
+
+  const abierto = adding || editId !== null;
+
+  return (
+    <div>
+      {!abierto && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A7A7A]" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar servicio…" className={INPUT + " pl-9"} />
+          </div>
+          <button onClick={startAdd} className={BTN_PRIMARY}><Plus size={14} /> Nuevo servicio</button>
+        </div>
+      )}
+
+      {abierto ? (
+        <div className="bg-white border border-[#EDE9E0] p-5 max-w-xl">
+          <h3 className="text-[#1B2A5E] font-semibold mb-4">{editId ? "Editar servicio" : "Nuevo servicio"}</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-[#7A7A7A] text-xs uppercase tracking-wider mb-1.5">Clave (opcional)</label>
+              <input value={draft.clave} onChange={(e) => setDraft({ ...draft, clave: e.target.value.toUpperCase() })} placeholder="SERV-001" className={INPUT} />
+            </div>
+            <div>
+              <label className="block text-[#7A7A7A] text-xs uppercase tracking-wider mb-1.5">Unidad</label>
+              <input value={draft.unidad} onChange={(e) => setDraft({ ...draft, unidad: e.target.value })} placeholder="SERVICIO" className={INPUT} />
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="block text-[#7A7A7A] text-xs uppercase tracking-wider mb-1.5">Nombre del servicio *</label>
+            <input value={draft.concepto} onChange={(e) => setDraft({ ...draft, concepto: e.target.value })} placeholder="Fotogrametría, servicio de herrería…" className={INPUT} />
+          </div>
+          <div className="mt-4">
+            <label className="block text-[#7A7A7A] text-xs uppercase tracking-wider mb-1.5">Descripción</label>
+            <textarea value={draft.descripcion} onChange={(e) => setDraft({ ...draft, descripcion: e.target.value })} rows={2} className={INPUT + " resize-y"} />
+          </div>
+          <div className="mt-4 max-w-[12rem]">
+            <label className="block text-[#7A7A7A] text-xs uppercase tracking-wider mb-1.5">Precio al cliente (P.U.)</label>
+            <input type="number" value={draft.precio} onChange={(e) => setDraft({ ...draft, precio: e.target.value })} placeholder="0.00" className={INPUT} />
+          </div>
+          <div className="flex justify-end gap-2 mt-5">
+            <button onClick={cancelar} className="px-4 py-2.5 text-xs uppercase font-semibold text-[#7A7A7A] hover:text-[#1B2A5E]">Cancelar</button>
+            <button onClick={guardar} disabled={busy || !draft.concepto.trim()} className={BTN_PRIMARY}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-[#EDE9E0] overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[#7A7A7A] text-xs uppercase tracking-wider border-b border-[#EDE9E0]">
+                <th className="px-3 py-3 font-semibold">Clave</th>
+                <th className="px-3 py-3 font-semibold">Servicio</th>
+                <th className="px-3 py-3 font-semibold">Unidad</th>
+                <th className="px-3 py-3 font-semibold text-right">Precio (P.U.)</th>
+                <th className="px-3 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map((c) => (
+                <tr key={c.id} className="border-b border-[#F5F2EC]">
+                  <td className="px-3 py-2 data-label text-[#7A7A7A]">{c.clave || "—"}</td>
+                  <td className="px-3 py-2 text-[#2C2C2C]">{c.concepto}{c.descripcion && <span className="block text-xs text-[#7A7A7A]">{c.descripcion}</span>}</td>
+                  <td className="px-3 py-2 text-[#7A7A7A]">{c.unidad}</td>
+                  <td className="px-3 py-2 text-right data-label text-[#2C2C2C]">{money(c.precioServicio ?? c.pu)}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <button onClick={() => startEdit(c)} className="text-[#7A7A7A] hover:text-[#1B2A5E] p-1"><Pencil size={14} /></button>
+                    <button onClick={() => borrar(c.id)} className="text-[#7A7A7A] hover:text-red-500 p-1"><Trash2 size={14} /></button>
+                  </td>
+                </tr>
+              ))}
+              {visibles.length === 0 && (
+                <tr><td colSpan={5} className="px-3 py-12 text-center text-[#7A7A7A]"><Wrench size={20} className="mx-auto mb-2 opacity-40" />Sin servicios. Agrega el primero (fotogrametría, herrería…).</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -807,6 +950,7 @@ function Conceptos({
     const nq = cq.trim().toLowerCase();
     return items.filter(
       (c) =>
+        !c.esServicio &&
         (!cmat || c.materialIntervencion === cmat) &&
         (!nq || `${c.clave} ${c.concepto} ${c.descripcion} ${c.materialIntervencion || ""}`.toLowerCase().includes(nq)),
     );

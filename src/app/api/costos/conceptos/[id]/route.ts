@@ -42,6 +42,8 @@ export async function PATCH(
     if (b.tiempoPU !== undefined)
       c.tiempoPU = b.tiempoPU != null ? Number(b.tiempoPU) : null;
     if (b.global !== undefined) c.global = b.global;
+    if (b.esServicio !== undefined) c.esServicio = b.esServicio === true || undefined;
+    if (b.precioServicio !== undefined) c.precioServicio = Number(b.precioServicio) || 0;
     recomputeConcept(c, buildCatalogs(db)); // recálculo en vivo del P.U.
     return c;
   });

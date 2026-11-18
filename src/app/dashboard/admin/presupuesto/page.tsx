@@ -28,6 +28,7 @@ export default async function PresupuestoAdmin() {
     materialIntervencion: c.materialIntervencion,
     cuadrillaPersonas: c.cuadrillaPersonas,
     cuadrilla: c.cuadrilla,
+    esServicio: c.esServicio,
   }));
 
   return (

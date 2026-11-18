@@ -58,6 +58,8 @@ export async function POST(req: Request) {
     costoDirecto: 0,
     pu: 0,
     global: b.global !== false,
+    esServicio: b.esServicio === true || undefined,
+    precioServicio: b.esServicio === true ? Number(b.precioServicio) || 0 : undefined,
     createdAt: Date.now(),
   };
   const saved = await mutate((db) => {

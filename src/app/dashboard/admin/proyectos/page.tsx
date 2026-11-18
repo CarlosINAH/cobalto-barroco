@@ -60,6 +60,7 @@ export default async function ProyectosAdmin() {
     materialIntervencion: c.materialIntervencion,
     cuadrillaPersonas: c.cuadrillaPersonas,
     cuadrilla: c.cuadrilla,
+    esServicio: c.esServicio,
   }));
   const recetas = db.recipes.map((r) => ({ ...r, costo: recipeCost(r, catalogs) }));
 

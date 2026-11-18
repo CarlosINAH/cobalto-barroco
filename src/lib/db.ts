@@ -462,6 +462,14 @@ export interface Concept {
   pu: number;
   /** true = concepto de catálogo reutilizable entre proyectos. */
   global: boolean;
+  /**
+   * SERVICIO: concepto de una sola vez (fotogrametría, herrería…), con precio
+   * manual en vez de armado de insumos. Si es true, el P.U. = `precioServicio`
+   * (precio final al cliente), sin indirectos/utilidad ni cuadrilla/cronograma.
+   */
+  esServicio?: boolean;
+  /** Precio final (P.U.) del servicio al cliente. Solo aplica si esServicio. */
+  precioServicio?: number;
   createdAt: number;
 }
 
