@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "@/components/brand/Logo";
+import VincularGooglePrompt from "@/components/perfil/VincularGooglePrompt";
 import {
   LayoutDashboard,
   HardDrive,
@@ -231,6 +232,9 @@ export default function DashboardShell({
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-6 bg-[#F5F2EC]">
+          {/* Aviso al inicio para que el empleado vincule su Google (los admins
+              se quedan con la cuenta del NAS). */}
+          {role !== "admin" && <VincularGooglePrompt />}
           {children}
         </main>
       </div>
