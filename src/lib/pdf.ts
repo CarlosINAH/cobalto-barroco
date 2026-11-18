@@ -263,6 +263,9 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   if (bienTipo || desc) { topY -= 6; p.line(56, topY, 556, topY); topY -= 14; }
 
   const CX = 118; // inicio de la columna CONCEPTO (deja aire para la clave)
+  // Fin de la columna CONCEPTO. Se corta antes de la UNIDAD (alineada a la
+  // derecha en x=350) para que un título largo no se empalme con "SERVICIO".
+  const CW = 300;
   const header = (yy: number) => {
     p.text(56, yy, 8, "CLAVE", true);
     p.text(CX, yy, 8, "CONCEPTO", true);
@@ -276,8 +279,8 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
   let y = topY - 16;
   for (const l of lineas) {
     const dsc = (l.descripcion || "").trim();
-    const dlines = dsc && dsc !== (l.concepto || "").trim() ? wrapL(dsc, 7.5, 345 - CX) : [];
-    const cLines = wrapL(l.concepto || l.descripcion || "", 8.5, 345 - CX);
+    const dlines = dsc && dsc !== (l.concepto || "").trim() ? wrapL(dsc, 7.5, CW - CX) : [];
+    const cLines = wrapL(l.concepto || l.descripcion || "", 8.5, CW - CX);
     const blockH = cLines.length * 11 + dlines.length * 9 + 8;
     if (y - blockH < 70) {
       p.newPage();
@@ -293,7 +296,7 @@ export function buildCotizacionPdf(proyecto: Project, budget: Budget): Buffer {
     for (const cl of cLines) { p.text(CX, y, 8.5, cl, true); y -= 11; }
     // Descripción justificada (la última línea queda al natural).
     dlines.forEach((dl, k) => {
-      if (k < dlines.length - 1) p.textJust(CX, y, 7.5, dl, 345 - CX, "#6E7480");
+      if (k < dlines.length - 1) p.textJust(CX, y, 7.5, dl, CW - CX, "#6E7480");
       else p.text(CX, y, 7.5, dl, false, "#6E7480");
       y -= 9;
     });
